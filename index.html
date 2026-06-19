@@ -529,14 +529,20 @@
   </div>
 
   <div class="key-banner" id="keyBanner">
-    Pakai API key gratis kamu sendiri supaya fitur AI aktif. Tersimpan otomatis di browser ini, gak perlu isi ulang.
-    <br><br>
-    <strong>1. Groq (utama, gratis, cepat)</strong> — dapatkan di <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
-    <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key di sini...">
-    <br>
-    <strong>2. OpenRouter (cadangan otomatis kalau Groq kena limit)</strong> — dapatkan di <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
-    <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key di sini (sangat disarankan)...">
-    <div id="keyStatus" style="margin-top:8px; font-weight:600;"></div>
+    <div id="keyStatusSummary" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleKeyBannerDetails()">
+      <div id="keyStatus" style="font-weight:600;font-size:13px;"></div>
+      <span id="keyBannerToggleLabel" style="font-size:11.5px;color:var(--coral);font-weight:700;white-space:nowrap;margin-left:10px;">⚙️ Ganti Key</span>
+    </div>
+    <div id="keyBannerDetails" style="display:none;margin-top:10px;">
+      <div style="margin-bottom:8px;font-size:12px;color:#8A5A1F;line-height:1.5;">
+        Pakai key kamu sendiri supaya tidak bagi kuota dengan pengguna lain. Tersimpan otomatis di browser ini.
+        <br><strong>1. Groq (utama, gratis)</strong> — <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
+      </div>
+      <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key (opsional, ada key default)">
+      <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:#8A5A1F;"><strong>2. OpenRouter (cadangan)</strong> — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></div>
+      <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key (opsional)">
+      <div style="margin-top:8px;font-size:11.5px;color:#8A5A1F;">Kosongkan untuk pakai key bawaan (kuota bisa habis di jam sibuk).</div>
+    </div>
   </div>
 
   <div class="tabs">
@@ -1028,6 +1034,11 @@ function getUserId(){
 const MY_UID = getUserId();
 
 // ============ STATE ============
+// KEY DEFAULT — fallback kalau user belum isi key sendiri.
+// Key ini adalah key publik dengan rate limit rendah. User bisa override dengan key mereka sendiri.
+const DEFAULT_GROQ_KEY = "";        // Isi dengan Groq key default kamu kalau ada
+const DEFAULT_OPENROUTER_KEY = "";  // Isi dengan OpenRouter key default kamu kalau ada
+
 let groqKey = "";
 let openrouterKey = "";
 let financeLang = "id";
@@ -1041,7 +1052,21 @@ let categoryChartInstance = null;
 let trendChartInstance = null;
 
 const $ = (id) => document.getElementById(id);
-function hasAnyKey(){ return !!(groqKey || openrouterKey); }
+function hasAnyKey(){ return !!(groqKey || openrouterKey || DEFAULT_GROQ_KEY || DEFAULT_OPENROUTER_KEY); }
+function activeGroqKey(){ return groqKey || DEFAULT_GROQ_KEY; }
+function activeOpenRouterKey(){ return openrouterKey || DEFAULT_OPENROUTER_KEY; }
+
+function toggleKeyBannerDetails(){
+  const d = $('keyBannerDetails');
+  const label = $('keyBannerToggleLabel');
+  if(d.style.display === 'none'){
+    d.style.display = 'block';
+    label.textContent = '✕ Tutup';
+  } else {
+    d.style.display = 'none';
+    label.textContent = '⚙️ Ganti Key';
+  }
+}
 
 // ============ API KEY ============
 function loadSavedKeys(){
@@ -1057,17 +1082,28 @@ function loadSavedKeys(){
 function updateKeyStatus(){
   $('generateBtn').disabled = !(hasAnyKey() && uploadedImageBase64);
   const status = $('keyStatus');
-  if(groqKey && openrouterKey){
-    status.textContent = '✅ Groq + OpenRouter siap (anti-limit, otomatis pindah kalau salah satu kena limit)';
+  const usingOwnKey = !!(groqKey || openrouterKey);
+  const hasDefault = !!(DEFAULT_GROQ_KEY || DEFAULT_OPENROUTER_KEY);
+
+  if(usingOwnKey){
+    const both = groqKey && openrouterKey;
+    status.textContent = both
+      ? '✅ Key kamu sendiri aktif (Groq + OpenRouter)'
+      : '✅ Key kamu sendiri aktif — tambah satu lagi supaya makin stabil';
     status.style.color = '#2D7A4F';
-  } else if(groqKey || openrouterKey){
-    status.textContent = '✅ Salah satu key siap. Isi keduanya supaya makin tahan kena limit.';
-    status.style.color = '#2D7A4F';
+    $('keyBanner').style.opacity = '0.85';
+  } else if(hasDefault){
+    status.textContent = '🟡 Pakai key bawaan — bisa lambat di jam sibuk. Klik untuk isi key sendiri.';
+    status.style.color = '#8A5A1F';
+    $('keyBanner').style.opacity = '1';
   } else {
-    status.textContent = '⚠️ Masukkan minimal satu API key untuk mulai';
+    status.textContent = '⚠️ Belum ada API key — klik untuk isi key kamu sendiri (gratis)';
     status.style.color = '#C84F2F';
+    $('keyBanner').style.opacity = '1';
+    // Auto-buka form key kalau belum ada key sama sekali
+    $('keyBannerDetails').style.display = 'block';
+    $('keyBannerToggleLabel').textContent = '✕ Tutup';
   }
-  if(hasAnyKey()){ $('keyBanner').style.opacity = '0.75'; }
 }
 
 $('groqKeyInput').addEventListener('input', (e) => {
@@ -1158,13 +1194,15 @@ $('textInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') $('sub
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 async function callGroq(prompt, imageBase64 = null){
+  const key = activeGroqKey();
+  if(!key) throw new Error('NO_GROQ_KEY');
   const model = imageBase64 ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
   const content = imageBase64
     ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${groqKey}` },
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
     body: JSON.stringify({ model, messages:[{ role:'user', content }], temperature:0.7 })
   });
   if(!res.ok){
@@ -1179,13 +1217,15 @@ async function callGroq(prompt, imageBase64 = null){
 }
 
 async function callOpenRouter(prompt, imageBase64 = null){
+  const key = activeOpenRouterKey();
+  if(!key) throw new Error('NO_OPENROUTER_KEY');
   const model = imageBase64 ? "meta-llama/llama-3.2-11b-vision-instruct:free" : "meta-llama/llama-3.3-70b-instruct:free";
   const content = imageBase64
     ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${openrouterKey}` },
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${key}` },
     body: JSON.stringify({ model, messages:[{ role:'user', content }], temperature:0.7 })
   });
   if(!res.ok){
@@ -1202,8 +1242,8 @@ async function callOpenRouter(prompt, imageBase64 = null){
 async function callAI(prompt, imageBase64 = null){
   if(!hasAnyKey()) throw new Error('NO_KEY');
   const attempts = [];
-  if(groqKey) attempts.push(() => callGroq(prompt, imageBase64));
-  if(openrouterKey) attempts.push(() => callOpenRouter(prompt, imageBase64));
+  if(activeGroqKey()) attempts.push(() => callGroq(prompt, imageBase64));
+  if(activeOpenRouterKey()) attempts.push(() => callOpenRouter(prompt, imageBase64));
   let lastErr = null;
   for(let i=0; i<attempts.length; i++){
     try{ return await attempts[i](); }
@@ -1229,7 +1269,10 @@ let reportFinalized = false;
 async function processTransaction(transcript){
   if(!transcript || transcript.length < 3) return;
   if(!hasAnyKey()){
-    alert('Masukkan minimal satu API key dulu di kotak kuning atas ya.');
+    $('keyBannerDetails').style.display = 'block';
+    $('keyBannerToggleLabel').textContent = '✕ Tutup';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    alert('Belum ada API key. Isi key kamu di kotak kuning atas ya (gratis, cuma 1 menit).');
     return;
   }
   $('financeLoading').classList.add('show');
@@ -1250,7 +1293,21 @@ Jika tidak ada transaksi jelas, balas [].`;
       $('micStatus').classList.remove('live');
     }
   } catch(err){
-    alert('Gagal memproses: ' + (err.message === 'NO_KEY' ? 'API key belum diisi' : err.message));
+    let msg = err.message;
+    if(msg === 'NO_KEY'){
+      msg = 'API key belum ada. Klik banner kuning di atas untuk isi key gratis kamu.';
+      $('keyBannerDetails').style.display = 'block';
+      $('keyBannerToggleLabel').textContent = '✕ Tutup';
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    } else if(msg.includes('401') || msg.toLowerCase().includes('invalid api key') || msg.toLowerCase().includes('api key')){
+      msg = 'API key tidak valid atau sudah tidak aktif. Cek kembali key kamu di banner kuning atas.';
+      $('keyBannerDetails').style.display = 'block';
+      $('keyBannerToggleLabel').textContent = '✕ Tutup';
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    } else if(msg.includes('429') || msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('quota')){
+      msg = 'Kuota AI habis sementara. Coba lagi sebentar, atau isi key sendiri di banner kuning atas.';
+    }
+    alert('Gagal memproses: ' + msg);
   } finally {
     $('financeLoading').classList.remove('show');
   }

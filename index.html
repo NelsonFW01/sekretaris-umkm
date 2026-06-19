@@ -835,7 +835,8 @@
               <div>📡</div>
               <div id="viewerConnStatus" style="margin-top:6px; font-size:11px;">Menghubungkan ke siaran...</div>
             </div>
-            <video id="viewerVideo" style="display:none;" autoplay playsinline controls></video>
+            <video id="viewerVideo" style="display:none;" autoplay muted playsinline controls></video>
+            <button id="viewerUnmuteBtn" style="display:none;position:absolute;left:10px;bottom:50px;z-index:5;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;">🔇 Tap buat dengar suara</button>
             <div class="live-overlay">
               <div class="live-info-bar">
                 <div class="live-label"><span class="live-dot"></span> LIVE</div>
@@ -2335,7 +2336,11 @@ $('stopLiveBtn').addEventListener('click', async () => {
   if(window.firebaseReady && liveSessionId){
     try{
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/viewers'));
+      // Dulu cuma 'viewers' yang dihapus, sisanya (comments, signal WebRTC, dll) numpuk
+      // terus di database meskipun sesinya udah gak bisa ditonton lagi. Sekarang seluruh
+      // node sesi ini dihapus total — aman, karena data pesanan/ringkasan sudah tersimpan
+      // di sisi host (liveOrders), gak bergantung ke data Firebase ini.
+      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId));
     } catch(e){}
   }
   liveActive=false;
@@ -2550,6 +2555,8 @@ async function joinAsViewer(sessionId){
   $('viewerScreenWrap').style.display='block';
   $('viewerScreenPh').style.display='flex';
   $('viewerVideo').style.display='none';
+  $('viewerVideo').muted=true;
+  $('viewerUnmuteBtn').style.display='none';
   $('viewerCommentsOverlay').innerHTML='';
   if($('viewerConnStatus')) $('viewerConnStatus').textContent='Menghubungkan ke siaran...';
 
@@ -2564,7 +2571,8 @@ async function joinAsViewer(sessionId){
   // Sebelumnya gak ada listener buat ini, jadi kalau host udah Stop Live,
   // penonton tetap "nyangkut" di layar nonton tanpa tahu siaran sudah berakhir.
   viewerActiveUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/active`), (snap) => {
-    if(snap.val()===false && watchingSessionId===sessionId){
+    const val=snap.val();
+    if((val===false || val===null) && watchingSessionId===sessionId){
       stopWatchingSession();
       $('viewerScreenWrap').style.display='none';
       $('sessionListWrap').style.display='block';
@@ -2574,9 +2582,22 @@ async function joinAsViewer(sessionId){
 
   viewerPC=new RTCPeerConnection(ICE_SERVERS);
   viewerPC.ontrack=(e)=>{
-    $('viewerVideo').srcObject=e.streams[0];
-    $('viewerVideo').style.display='block';
+    const vid=$('viewerVideo');
+    vid.srcObject=e.streams[0];
+    vid.style.display='block';
     $('viewerScreenPh').style.display='none';
+    // Video sengaja di-mute dulu biar browser HP gak nge-block autoplay (kebijakan
+    // browser: autoplay video dengan suara itu diblokir kecuali di-mute). Begitu
+    // videonya kebukti jalan, kita tampilkan tombol buat nyalain suaranya.
+    vid.play().then(()=>{
+      $('viewerUnmuteBtn').style.display='block';
+    }).catch((err)=>{ showDebugToast('Video gagal autoplay: '+err.message); });
+  };
+  $('viewerUnmuteBtn').onclick=()=>{
+    const vid=$('viewerVideo');
+    vid.muted=false;
+    vid.play().catch(()=>{});
+    $('viewerUnmuteBtn').style.display='none';
   };
   viewerPC.onicecandidate=(e)=>{
     if(e.candidate) window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/viewerCandidates`), e.candidate.toJSON());
@@ -2634,6 +2655,7 @@ function stopWatchingSession(){
   }
   watchingSessionId=null;
   $('viewerVideo').srcObject=null;
+  $('viewerUnmuteBtn').style.display='none';
 }
 
 $('backToSessionListBtn').addEventListener('click', () => {

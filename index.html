@@ -2582,12 +2582,14 @@ async function joinAsViewer(sessionId){
         if(!audioEl){
           audioEl = document.createElement('audio');
           audioEl.id = 'viewerAudioEl';
-          audioEl.autoplay = true;
+          audioEl.muted = true;
           audioEl.style.display = 'none';
           document.body.appendChild(audioEl);
         }
+        audioEl.muted = true;
         track.attach(audioEl);
         audioEl.play().catch(()=>{});
+        $('viewerUnmuteBtn').style.display='block';
         if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
       }
     });
@@ -2625,17 +2627,19 @@ async function joinAsViewer(sessionId){
           vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
           if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
         } else if(publication.track && publication.track.kind === Track.Kind.Audio){
-          // Attach audio yang sudah ada saat penonton baru join
+          // Attach audio yang sudah ada saat penonton baru join, mulai muted
           let audioEl = document.getElementById('viewerAudioEl');
           if(!audioEl){
             audioEl = document.createElement('audio');
             audioEl.id = 'viewerAudioEl';
-            audioEl.autoplay = true;
+            audioEl.muted = true;
             audioEl.style.display = 'none';
             document.body.appendChild(audioEl);
           }
+          audioEl.muted = true;
           publication.track.attach(audioEl);
           audioEl.play().catch(()=>{});
+          $('viewerUnmuteBtn').style.display='block';
         }
       });
     });
@@ -2650,6 +2654,8 @@ async function joinAsViewer(sessionId){
     const vid=$('viewerVideo');
     vid.muted=false;
     vid.play().catch(()=>{});
+    const audioEl=document.getElementById('viewerAudioEl');
+    if(audioEl){ audioEl.muted=false; audioEl.play().catch(()=>{}); }
     $('viewerUnmuteBtn').style.display='none';
   };
 

@@ -2111,7 +2111,6 @@ const ICE_SERVERS = {iceServers:[
   {urls:'stun:stun.l.google.com:19302'},
   {urls:'stun:stun1.l.google.com:19302'},
   {urls:'stun:stun2.l.google.com:19302'},
-  {urls:'stun:stun3.l.google.com:19302'},
   {urls:'turn:sekretaris-umkm.metered.live:80', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
   {urls:'turn:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
   {urls:'turn:sekretaris-umkm.metered.live:443?transport=tcp', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
@@ -2181,8 +2180,10 @@ $('startLiveBtn').addEventListener('click', async () => {
         const uids=val?Object.keys(val):[];
         $('viewerCount').textContent=uids.length;
         uids.forEach(uid=>{
-          if(peerConnections[uid]) return;
-          if(camStream) createHostPeer(uid); else pendingViewerUids.add(uid);
+          // Selalu buat peer segera — walaupun kamera belum aktif.
+          // Offer tanpa track tetap dikirim agar koneksi ICE terbentuk duluan,
+          // lalu renegosiasi otomatis saat kamera dinyalakan.
+          if(!peerConnections[uid]) createHostPeer(uid);
         });
         Object.keys(peerConnections).forEach(uid=>{
           if(!uids.includes(uid)){ peerConnections[uid].close(); delete peerConnections[uid]; }
@@ -2227,40 +2228,52 @@ function updateCoach(msg){
 async function createHostPeer(uid){
   const pc=new RTCPeerConnection(ICE_SERVERS);
   peerConnections[uid]=pc;
+
+  // Tambahkan track kalau kamera sudah aktif. Kalau belum, offer tetap dikirim
+  // (tanpa track) supaya koneksi terbentuk — nanti renegosiasi saat kamera nyala.
   if(camStream) camStream.getTracks().forEach(t=>pc.addTrack(t,camStream));
+
   pc.onicecandidate=(e)=>{
-    if(e.candidate) window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/hostCandidates`), e.candidate.toJSON());
+    if(e.candidate && liveSessionId && window.firebaseReady)
+      window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/hostCandidates`), e.candidate.toJSON());
   };
   pc.oniceconnectionstatechange=()=>{
     const st=pc.iceConnectionState;
-    if(st==='failed' || st==='disconnected'){
-      showDebugToast(`Koneksi ke penonton ${uid} ${st==='failed'?'gagal':'putus'} (sinyal lemah / TURN overload).`);
+    showDebugToast(`ICE host→${uid}: ${st}`);
+    if(st==='failed'){
+      // Coba restart ICE otomatis
+      try{ pc.restartIce(); } catch(e){}
+      showDebugToast(`ICE failed ke penonton ${uid}, mencoba restart ICE...`);
     }
   };
-  // Kalau ada track baru ditambahkan/diganti setelah offer pertama (misal kamera
-  // dimatikan-nyalakan lagi), browser akan minta renegosiasi lewat event ini —
-  // kita kirim ulang offer biar penonton tetap dapat update video/audionya.
   pc.onnegotiationneeded=async()=>{
     if(pc.signalingState!=='stable') return;
     try{
       const offer=await pc.createOffer();
       await pc.setLocalDescription(offer);
-      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
-    }catch(e){ showDebugToast('Gagal renegosiasi ke '+uid+': '+e.message); }
+      if(liveSessionId && window.firebaseReady)
+        await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type,ts:Date.now()});
+    }catch(e){ showDebugToast('onnegotiationneeded gagal ke '+uid+': '+e.message); }
   };
+
+  // Selalu kirim offer awal (walaupun tanpa track) agar viewer bisa jawab dan ICE mulai
   try{
     const offer=await pc.createOffer();
     await pc.setLocalDescription(offer);
-    await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
-  } catch(e){ showDebugToast('Gagal membuat offer untuk penonton '+uid+': '+e.message); }
+    if(liveSessionId && window.firebaseReady)
+      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type,ts:Date.now()});
+  } catch(e){ showDebugToast('Gagal offer awal ke '+uid+': '+e.message); }
+
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/answer`), async (snap) => {
     const ans=snap.val();
-    if(ans && pc.signalingState==='have-local-offer'){
-      try{ await pc.setRemoteDescription(new RTCSessionDescription(ans)); } catch(e){ showDebugToast('Gagal setRemoteDescription (host): '+e.message); }
+    if(!ans || !pc) return;
+    if(pc.signalingState==='have-local-offer'){
+      try{ await pc.setRemoteDescription(new RTCSessionDescription(ans)); }
+      catch(e){ showDebugToast('setRemoteDescription host gagal: '+e.message); }
     }
   });
   window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/viewerCandidates`), (snap) => {
-    const c=snap.val(); if(c) pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
+    const c=snap.val(); if(c && pc) pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
   });
 }
 
@@ -2314,13 +2327,7 @@ $('toggleCamBtn').addEventListener('click', async () => {
     $('liveScreenPh').style.display='none';
     $('toggleCamBtn').textContent='📷 Matikan Kamera';
 
-    // Buat peer baru untuk penonton yang bergabung sebelum kamera aktif
-    pendingViewerUids.forEach(uid=>createHostPeer(uid));
-    pendingViewerUids.clear();
-
-    // Untuk peer yang sudah ada: ganti track (replaceTrack lebih baik dari addTrack ulang
-    // karena tidak perlu renegosiasi di beberapa browser — tapi kita tetap force renegotiate
-    // di bawah untuk browser mobile yang tidak auto-trigger onnegotiationneeded).
+    // Semua peer sudah dibuat sejak penonton join — tinggal tambahkan/ganti track
     Object.values(peerConnections).forEach(pc=>{
       try{
         const senders=pc.getSenders();
@@ -2333,11 +2340,8 @@ $('toggleCamBtn').addEventListener('click', async () => {
       }catch(e){ showDebugToast('replaceTrack error: '+e.message); }
     });
 
-    // PERBAIKAN: Force renegosiasi manual setelah replaceTrack
-    // Ini krusial untuk browser mobile yang tidak auto-trigger onnegotiationneeded
     if(liveSessionId && window.firebaseReady){
-      // Delay sedikit agar replaceTrack selesai diproses browser dulu
-      setTimeout(()=>renegotiateAllPeers(), 300);
+      setTimeout(()=>renegotiateAllPeers(), 500);
     }
 
     const mime=pickSupportedMime();
@@ -2630,14 +2634,15 @@ async function joinAsViewer(sessionId){
       const statusEl=$('viewerConnStatus');
       if(statusEl) statusEl.textContent='Masih mencoba... Kalau tetap loading, coba keluar lalu tonton ulang.';
     }
-  }, 20000);
+  }, 25000);
 
   viewerPC.ontrack=(e)=>{
+    // Langsung pakai stream dari host
     if(e.streams && e.streams[0]){
       vid.srcObject = e.streams[0];
     } else {
       if(!vid.srcObject) vid.srcObject = new MediaStream();
-      vid.srcObject.addTrack(e.track);
+      try{ vid.srcObject.addTrack(e.track); } catch(err){}
     }
     if(!videoLoaded){
       videoLoaded = true;
@@ -2647,8 +2652,8 @@ async function joinAsViewer(sessionId){
     }
     vid.play().then(()=>{
       $('viewerUnmuteBtn').style.display='block';
-    }).catch((err)=>{
-      showDebugToast('Autoplay diblokir: '+err.message);
+    }).catch(()=>{
+      // Autoplay diblokir browser — tampilkan tombol unmute
       $('viewerUnmuteBtn').style.display='block';
     });
   };
@@ -2676,17 +2681,19 @@ async function joinAsViewer(sessionId){
   viewerOfferUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/offer`), async (snap) => {
     const offer=snap.val();
     if(!offer || !viewerPC) return;
-    // PERBAIKAN: Tangani re-offer dari host saat kamera dinyalakan/dimatikan.
     try{
+      // Handle renegosiasi dari host (misalnya kamera baru dinyalakan)
       if(viewerPC.signalingState==='have-remote-offer'){
         await viewerPC.setLocalDescription({type:'rollback'});
       }
       if(viewerPC.signalingState!=='stable') return;
-      await viewerPC.setRemoteDescription(new RTCSessionDescription(offer));
+      await viewerPC.setRemoteDescription(new RTCSessionDescription({type:offer.type, sdp:offer.sdp}));
       const answer=await viewerPC.createAnswer();
       await viewerPC.setLocalDescription(answer);
       await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/answer`),{sdp:answer.sdp,type:answer.type});
-    }catch(e){ console.error('Gagal handle offer dari host:', e); showDebugToast('Gagal sambung: '+e.message); }
+    }catch(e){
+      showDebugToast('Gagal handle offer: '+e.message);
+    }
   });
   window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/hostCandidates`), (snap) => {
     const c=snap.val(); if(c) viewerPC.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});

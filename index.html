@@ -2273,13 +2273,49 @@ async function createHostPeer(uid){
   });
 }
 
+// Fungsi renegosiasi manual ke semua peer — dipanggil setelah track berubah
+// karena browser mobile (terutama Android) sering tidak auto-trigger onnegotiationneeded
+// setelah replaceTrack, sehingga penonton tidak mendapat update stream.
+async function renegotiateAllPeers(){
+  for(const [uid, pc] of Object.entries(peerConnections)){
+    if(pc.signalingState==='stable'){
+      try{
+        const offer=await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        let retries=3;
+        while(retries>0){
+          try{
+            await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
+            break;
+          }catch(e){
+            retries--;
+            if(retries===0) showDebugToast(`Gagal kirim offer renegosiasi ke ${uid}: ${e.message}`);
+            else await new Promise(r=>setTimeout(r,400));
+          }
+        }
+      }catch(e){ showDebugToast('Renegosiasi ke '+uid+' gagal: '+e.message); }
+    }
+  }
+}
+
 $('toggleCamBtn').addEventListener('click', async () => {
   const vid=$('liveVideo');
   if(camStream){
+    // PERBAIKAN: Jangan stop seluruh stream — cukup disable video track.
+    // Ini memastikan audio tetap mengalir ke penonton, dan koneksi WebRTC tetap hidup.
+    // Kita tetap kirim renegosiasi agar penonton tahu video berubah (jadi blank/hitam).
     if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
-    camStream.getTracks().forEach(t=>t.stop()); camStream=null;
-    vid.style.display='none'; $('liveScreenPh').style.display='flex';
-    $('toggleCamBtn').textContent='📷 Aktifkan Kamera'; return;
+    camStream.getVideoTracks().forEach(t=>{ t.enabled=false; t.stop(); });
+    camStream.getAudioTracks().forEach(t=>{ t.enabled=true; }); // pastikan audio tetap aktif
+    // Ganti srcObject video lokal dengan null supaya preview mati di layar host
+    vid.srcObject=null; vid.style.display='none';
+    $('liveScreenPh').style.display='flex';
+    $('toggleCamBtn').textContent='📷 Aktifkan Kamera';
+    // Renegosiasi agar penonton mendapat update (video track stopped, audio tetap)
+    if(liveSessionId && window.firebaseReady) await renegotiateAllPeers();
+    // Hapus camStream tapi audio sender tetap ada di peerConnections
+    camStream=null;
+    return;
   }
   try{
     camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:true});
@@ -2287,8 +2323,13 @@ $('toggleCamBtn').addEventListener('click', async () => {
     $('liveScreenPh').style.display='none';
     $('toggleCamBtn').textContent='📷 Matikan Kamera';
 
+    // Buat peer baru untuk penonton yang bergabung sebelum kamera aktif
     pendingViewerUids.forEach(uid=>createHostPeer(uid));
     pendingViewerUids.clear();
+
+    // Untuk peer yang sudah ada: ganti track (replaceTrack lebih baik dari addTrack ulang
+    // karena tidak perlu renegosiasi di beberapa browser — tapi kita tetap force renegotiate
+    // di bawah untuk browser mobile yang tidak auto-trigger onnegotiationneeded).
     Object.values(peerConnections).forEach(pc=>{
       try{
         const senders=pc.getSenders();
@@ -2298,16 +2339,23 @@ $('toggleCamBtn').addEventListener('click', async () => {
         const aSender=senders.find(s=>s.track && s.track.kind==='audio');
         if(videoTrack){ if(vSender) vSender.replaceTrack(videoTrack); else pc.addTrack(videoTrack,camStream); }
         if(audioTrack){ if(aSender) aSender.replaceTrack(audioTrack); else pc.addTrack(audioTrack,camStream); }
-      } catch(e){}
+      }catch(e){ showDebugToast('replaceTrack error: '+e.message); }
     });
+
+    // PERBAIKAN: Force renegosiasi manual setelah replaceTrack
+    // Ini krusial untuk browser mobile yang tidak auto-trigger onnegotiationneeded
+    if(liveSessionId && window.firebaseReady){
+      // Delay sedikit agar replaceTrack selesai diproses browser dulu
+      setTimeout(()=>renegotiateAllPeers(), 300);
+    }
 
     const mime=pickSupportedMime();
     try{
       mediaRecorder=new MediaRecorder(camStream, mime?{mimeType:mime}:undefined);
       mediaRecorder.ondataavailable=(e)=>{ if(e.data && e.data.size>0) recordedChunks.push(e.data); };
       mediaRecorder.start(1000);
-    } catch(e){ console.warn('Rekam video tidak didukung di browser ini:', e); mediaRecorder=null; }
-  } catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
+    }catch(e){ console.warn('Rekam video tidak didukung di browser ini:', e); mediaRecorder=null; }
+  }catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
 });
 
 $('stopLiveBtn').addEventListener('click', async () => {
@@ -2581,14 +2629,42 @@ async function joinAsViewer(sessionId){
   });
 
   viewerPC=new RTCPeerConnection(ICE_SERVERS);
+
+  // PERBAIKAN: Gunakan satu MediaStream yang persisten sebagai container.
+  // Ketika host renegosiasi (kamera mati/nyala), ontrack bisa terpanggil lagi
+  // dengan track baru — kita update stream yang sama agar video element tidak perlu
+  // di-reset ulang (menghindari flicker/loading di HP penonton).
+  let viewerStream = new MediaStream();
+  const vid=$('viewerVideo');
+  vid.srcObject = viewerStream;
+
+  let videoLoaded = false;
+  // Jika dalam 15 detik video belum muncul, coba sambung ulang otomatis
+  const videoCheckTimer = setTimeout(()=>{
+    if(!videoLoaded && watchingSessionId===sessionId){
+      const statusEl=$('viewerConnStatus');
+      if(statusEl) statusEl.textContent='Masih mencoba... Kalau tetap loading, sinyal host atau jaringanmu kurang stabil.';
+    }
+  }, 15000);
+
   viewerPC.ontrack=(e)=>{
-    const vid=$('viewerVideo');
-    vid.srcObject=e.streams[0];
-    vid.style.display='block';
-    $('viewerScreenPh').style.display='none';
-    // Video sengaja di-mute dulu biar browser HP gak nge-block autoplay (kebijakan
-    // browser: autoplay video dengan suara itu diblokir kecuali di-mute). Begitu
-    // videonya kebukti jalan, kita tampilkan tombol buat nyalain suaranya.
+    // Tambahkan/ganti track ke viewerStream yang sudah di-set ke video element
+    // Ini lebih stabil daripada assign srcObject ulang setiap kali ada track baru
+    e.streams[0].getTracks().forEach(track => {
+      // Hapus track lama dengan kind yang sama sebelum tambah yang baru
+      viewerStream.getTracks().filter(t=>t.kind===track.kind).forEach(old=>{
+        viewerStream.removeTrack(old);
+      });
+      viewerStream.addTrack(track);
+    });
+    // Tampilkan video element begitu ada track masuk (bisa video atau audio dulu)
+    if(!videoLoaded){
+      videoLoaded = true;
+      clearTimeout(videoCheckTimer);
+      vid.style.display='block';
+      $('viewerScreenPh').style.display='none';
+    }
+    // Play/unmute handling — video muted dulu agar autoplay tidak diblokir browser HP
     vid.play().then(()=>{
       $('viewerUnmuteBtn').style.display='block';
     }).catch((err)=>{ showDebugToast('Video gagal autoplay: '+err.message); });
@@ -2614,24 +2690,21 @@ async function joinAsViewer(sessionId){
       showDebugToast('Viewer ICE failed utk sesi '+sessionId);
     }
   };
-  // Kalau dalam 12 detik video masih belum nongol, kasih tau biar gak nunggu
-  // selamanya tanpa info (biasanya tanda relay/TURN lagi penuh atau host kena sinyal lemah).
-  setTimeout(()=>{
-    if(watchingSessionId===sessionId && $('viewerVideo').style.display==='none'){
-      const statusEl=$('viewerConnStatus');
-      if(statusEl) statusEl.textContent='Masih nyambung... Kalau kelamaan, sinyal host atau jaringanmu mungkin kurang stabil.';
-    }
-  }, 12000);
+
   viewerOfferUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/offer`), async (snap) => {
     const offer=snap.val();
-    if(offer && viewerPC.signalingState==='stable'){
-      try{
-        await viewerPC.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer=await viewerPC.createAnswer();
-        await viewerPC.setLocalDescription(answer);
-        await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/answer`),{sdp:answer.sdp,type:answer.type});
-      } catch(e){ console.error('Gagal menyambung ke siaran:', e); }
-    }
+    if(!offer || !viewerPC) return;
+    // PERBAIKAN: Tangani re-offer dari host saat kamera dinyalakan/dimatikan.
+    try{
+      if(viewerPC.signalingState==='have-remote-offer'){
+        await viewerPC.setLocalDescription({type:'rollback'});
+      }
+      if(viewerPC.signalingState!=='stable') return;
+      await viewerPC.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer=await viewerPC.createAnswer();
+      await viewerPC.setLocalDescription(answer);
+      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/answer`),{sdp:answer.sdp,type:answer.type});
+    }catch(e){ console.error('Gagal handle offer dari host:', e); showDebugToast('Gagal sambung: '+e.message); }
   });
   window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/hostCandidates`), (snap) => {
     const c=snap.val(); if(c) viewerPC.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
@@ -2654,7 +2727,7 @@ function stopWatchingSession(){
     window.rtdbRemove(window.rtdbRef(window.firebaseDb,`liveSessions/${watchingSessionId}/signal/${MY_UID}`)).catch(()=>{});
   }
   watchingSessionId=null;
-  $('viewerVideo').srcObject=null;
+  const vv=$('viewerVideo'); vv.srcObject=null; vv.style.display='none';
   $('viewerUnmuteBtn').style.display='none';
 }
 

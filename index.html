@@ -1219,7 +1219,7 @@ async function callGroq(prompt, imageBase64 = null){
 async function callOpenRouter(prompt, imageBase64 = null){
   const key = activeOpenRouterKey();
   if(!key) throw new Error('NO_OPENROUTER_KEY');
-  const model = imageBase64 ? "meta-llama/llama-3.2-11b-vision-instruct:free" : "meta-llama/llama-3.3-70b-instruct:free";
+  const model = imageBase64 ? "meta-llama/llama-4-scout:free" : "meta-llama/llama-4-maverick:free";
   const content = imageBase64
     ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;

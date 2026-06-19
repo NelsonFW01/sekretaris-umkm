@@ -2110,23 +2110,11 @@ let mediaRecorder=null, recordedChunks=[], pendingVideoBlob=null;
 const ICE_SERVERS = {iceServers:[
   {urls:'stun:stun.l.google.com:19302'},
   {urls:'stun:stun1.l.google.com:19302'},
-  {
-    urls:'turn:openrelay.metered.ca:80',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  },
-  {
-    urls:'turn:openrelay.metered.ca:443',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  },
-  {
-    urls:'turn:openrelay.metered.ca:443?transport=tcp',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  }
+  {urls:'turn:sekretaris-umkm.metered.live:80', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turn:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turn:sekretaris-umkm.metered.live:443?transport=tcp', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turns:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'}
 ]};
-
 const COACH_SCRIPTS=[
   'Sapa penonton dan perkenalkan dirimu dengan senyum! 😄',
   'Sudah 1 menit — tunjukkan produk utama dan sebutkan harganya dengan jelas.',

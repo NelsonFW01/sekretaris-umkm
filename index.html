@@ -816,6 +816,7 @@
             <div class="ai-note" id="liveSummaryTip">Ringkasan sesi akan muncul di sini setelah live selesai.</div>
           </div>
           <button class="generate-btn" id="saveToFinanceBtn">💰 Simpan ke Catatan Keuangan</button>
+          <button class="generate-btn outline" id="newLiveBtn" style="margin-top:10px;">🔁 Live Baru</button>
         </div>
       </div>
       </div>
@@ -2449,16 +2450,28 @@ async function generateLiveSummary(){
   } catch(e){ $('liveSummaryTip').textContent='Sesi live selesai dengan '+liveOrders.length+' pesanan tercatat. Kerja bagus!'; }
 }
 
+// Sebelumnya, satu-satunya cara balik ke layar "Mulai Sesi Live Baru" adalah lewat
+// tombol Simpan ke Keuangan — dan tombol itu malah berhenti (return) duluan kalau
+// pesanannya 0. Akibatnya kalau host pilih "Hapus Saja" pas gak ada pesanan, dia
+// kejebak di layar ringkasan, gak bisa live lagi. Sekarang dipisah jadi fungsi sendiri.
+function resetToLiveSetup(){
+  $('liveSetup').style.display='block';
+  $('liveView').classList.remove('active');
+  $('liveSummarySection').style.display='none';
+  $('videoSavePrompt').style.display='none';
+  liveSessionId=null;
+  $('liveSessionName').value=''; $('liveProductInfo').value='';
+}
+
+$('newLiveBtn').addEventListener('click', resetToLiveSetup);
+
 $('saveToFinanceBtn').addEventListener('click',()=>{
-  if(liveOrders.length===0){ alert('Belum ada pesanan untuk disimpan.'); return; }
+  if(liveOrders.length===0){ alert('Belum ada pesanan untuk disimpan. Klik "Live Baru" kalau mau mulai sesi lain.'); return; }
   const total=liveOrders.reduce((s,o)=>s+(Number(o.estimated_amount)||0),0);
   const sessionName=$('liveSessionName').value.trim()||'Sesi Live Stream';
   transactions.push({type:'in',amount:total,desc:sessionName+' ('+liveOrders.length+' pesanan)',category:'Live Stream',time:new Date().toISOString()});
   renderTransactions(); onTransactionsChanged();
-  $('liveSetup').style.display='block';
-  $('liveView').classList.remove('active');
-  liveSessionId=null;
-  $('liveSessionName').value=''; $('liveProductInfo').value='';
+  resetToLiveSetup();
   document.querySelector('.tab[data-panel="finance"]').click();
 });
 
@@ -2502,7 +2515,7 @@ $('discardVideoBtn').addEventListener('click', () => {
 
 // ===== WATCH MODE: BROWSE & JOIN LIVE SESSIONS =====
 let sessionListenerBound=false;
-let watchingSessionId=null, viewerPC=null, viewerViewersUnsub=null, viewerCommentsUnsub=null, viewerOfferUnsub=null;
+let watchingSessionId=null, viewerPC=null, viewerViewersUnsub=null, viewerCommentsUnsub=null, viewerOfferUnsub=null, viewerActiveUnsub=null;
 
 function startSessionListListener(){
   if(!window.firebaseReady){ $('sessionList').innerHTML='<div class="empty-state">Fitur tonton live butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
@@ -2546,6 +2559,17 @@ async function joinAsViewer(sessionId){
 
   viewerViewersUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/viewers`), (snap) => {
     const v=snap.val(); $('viewerScreenCount').textContent = v?Object.keys(v).length:0;
+  });
+
+  // Sebelumnya gak ada listener buat ini, jadi kalau host udah Stop Live,
+  // penonton tetap "nyangkut" di layar nonton tanpa tahu siaran sudah berakhir.
+  viewerActiveUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/active`), (snap) => {
+    if(snap.val()===false && watchingSessionId===sessionId){
+      stopWatchingSession();
+      $('viewerScreenWrap').style.display='none';
+      $('sessionListWrap').style.display='block';
+      alert('Live sudah diakhiri oleh penjual. Terima kasih sudah nonton! 🙌');
+    }
   });
 
   viewerPC=new RTCPeerConnection(ICE_SERVERS);
@@ -2600,6 +2624,7 @@ async function joinAsViewer(sessionId){
 function stopWatchingSession(){
   if(!watchingSessionId) return;
   if(viewerViewersUnsub){ viewerViewersUnsub(); viewerViewersUnsub=null; }
+  if(viewerActiveUnsub){ viewerActiveUnsub(); viewerActiveUnsub=null; }
   if(viewerCommentsUnsub){ viewerCommentsUnsub(); viewerCommentsUnsub=null; }
   if(viewerOfferUnsub){ viewerOfferUnsub(); viewerOfferUnsub=null; }
   if(viewerPC){ viewerPC.close(); viewerPC=null; }

@@ -2576,19 +2576,6 @@ async function joinAsViewer(sessionId){
         vid.muted = true;
         vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
         if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
-      } else if(track.kind === Track.Kind.Audio){
-        // Attach audio track ke elemen audio tersendiri agar suara host terdengar
-        let audioEl = document.getElementById('viewerAudioEl');
-        if(!audioEl){
-          audioEl = document.createElement('audio');
-          audioEl.id = 'viewerAudioEl';
-          audioEl.autoplay = true;
-          audioEl.style.display = 'none';
-          document.body.appendChild(audioEl);
-        }
-        track.attach(audioEl);
-        audioEl.play().catch(()=>{});
-        if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
       }
     });
 
@@ -2598,10 +2585,6 @@ async function joinAsViewer(sessionId){
         $('viewerVideo').style.display='none';
         $('viewerScreenPh').style.display='flex';
         $('viewerUnmuteBtn').style.display='none';
-      } else if(track.kind === Track.Kind.Audio){
-        track.detach();
-        const audioEl = document.getElementById('viewerAudioEl');
-        if(audioEl) audioEl.remove();
       }
     });
 
@@ -2624,18 +2607,6 @@ async function joinAsViewer(sessionId){
           vid.muted=true;
           vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
           if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
-        } else if(publication.track && publication.track.kind === Track.Kind.Audio){
-          // Attach audio yang sudah ada saat penonton baru join
-          let audioEl = document.getElementById('viewerAudioEl');
-          if(!audioEl){
-            audioEl = document.createElement('audio');
-            audioEl.id = 'viewerAudioEl';
-            audioEl.autoplay = true;
-            audioEl.style.display = 'none';
-            document.body.appendChild(audioEl);
-          }
-          publication.track.attach(audioEl);
-          audioEl.play().catch(()=>{});
         }
       });
     });
@@ -2674,9 +2645,7 @@ function stopWatchingSession(){
   const vid=$('viewerVideo');
   if(vid){ vid.srcObject=null; vid.style.display='none'; }
   $('viewerUnmuteBtn').style.display='none';
-  // Bersihkan elemen audio penonton
-  const audioEl = document.getElementById('viewerAudioEl');
-  if(audioEl) audioEl.remove();
+}
 
 $('backToSessionListBtn').addEventListener('click', () => {
   stopWatchingSession();

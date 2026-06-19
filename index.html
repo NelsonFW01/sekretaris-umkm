@@ -2088,34 +2088,19 @@ document.addEventListener('click', (e) => {
 });
 $('profileDetailClose').addEventListener('click', () => $('profileDetailModal').classList.remove('show'));
 
-// ============ LIVE STREAM (HOST + REAL VIEWERS VIA WEBRTC) ============
+// ============ LIVE STREAM (HOST + REAL VIEWERS VIA LIVEKIT) ============
+// LiveKit = SFU server di tengah, bukan peer-to-peer langsung.
+// Ini jauh lebih reliable di semua jaringan (4G, beda WiFi, dsb).
+const LIVEKIT_TOKEN_URL = 'https://snowy-paper-f1d3.nagoyaflora.workers.dev/token';
+
 let liveActive=false, liveOrders=[], liveComments=[], liveCoachInterval=null;
 let liveDurationTimer=null, liveSeconds=0, camStream=null;
 let liveSessionId=null, hostViewersUnsub=null, hostCommentsUnsub=null;
 let peerConnections={}, pendingViewerUids=new Set();
 let mediaRecorder=null, recordedChunks=[], pendingVideoBlob=null;
-// PENTING soal Live Streaming (WebRTC):
-// STUN server doang (yang ada sebelumnya) cuma cukup kalau host & penonton
-// ada di jaringan yang "ramah" (misal WiFi yang sama). Begitu beda jaringan
-// (HP di 4G, beda WiFi, dsb), koneksi video gagal connect tanpa TURN server,
-// karena TURN berfungsi sebagai relay kalau koneksi langsung gak bisa terbentuk.
-//
-// Di bawah ini saya tambahkan beberapa STUN server + TURN gratis dari OpenRelay
-// (openrelay.metered.ca) — ini publik, cocok buat testing/MVP, TAPI tidak dijamin
-// stabil untuk skala produksi/banyak penonton bersamaan. Untuk produksi serius,
-// disarankan ganti TURN ini dengan akun TURN sendiri (gratis ada free-tier-nya) dari:
-// - https://www.metered.ca/tools/openrelay/ (daftar sendiri, dapat kredensial unik)
-// - https://www.twilio.com/docs/stun-turn
-// - https://xirsys.com/
-const ICE_SERVERS = {iceServers:[
-  {urls:'stun:stun.l.google.com:19302'},
-  {urls:'stun:stun1.l.google.com:19302'},
-  {urls:'stun:stun2.l.google.com:19302'},
-  {urls:'turn:sekretaris-umkm.metered.live:80', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
-  {urls:'turn:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
-  {urls:'turn:sekretaris-umkm.metered.live:443?transport=tcp', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
-  {urls:'turns:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'}
-]};
+
+// LiveKit room instances
+let livekitRoom=null;
 
 const COACH_SCRIPTS=[
   'Sapa penonton dan perkenalkan dirimu dengan senyum! 😄',
@@ -2175,19 +2160,13 @@ $('startLiveBtn').addEventListener('click', async () => {
       });
       window.rtdbOnDisconnect(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/active')).set(false);
 
+      // Connect host to LiveKit room (will publish when camera is activated)
+      connectHostToLiveKit();
+
       hostViewersUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/viewers'), (snap) => {
         const val=snap.val();
         const uids=val?Object.keys(val):[];
         $('viewerCount').textContent=uids.length;
-        uids.forEach(uid=>{
-          // Selalu buat peer segera — walaupun kamera belum aktif.
-          // Offer tanpa track tetap dikirim agar koneksi ICE terbentuk duluan,
-          // lalu renegosiasi otomatis saat kamera dinyalakan.
-          if(!peerConnections[uid]) createHostPeer(uid);
-        });
-        Object.keys(peerConnections).forEach(uid=>{
-          if(!uids.includes(uid)){ peerConnections[uid].close(); delete peerConnections[uid]; }
-        });
       });
       hostCommentsUnsub = window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/comments'), (snap) => {
         const c=snap.val(); if(c) processIncomingComment(c.user, c.text, 'liveCommentsOverlay');
@@ -2224,102 +2203,58 @@ function updateCoach(msg){
   $('coachTimer').textContent='Diperbarui '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
 }
 
-// ===== HOST: WEBRTC PEER PER VIEWER =====
-async function createHostPeer(uid){
-  const pc=new RTCPeerConnection(ICE_SERVERS);
-  peerConnections[uid]=pc;
-
-  // Tambahkan track kalau kamera sudah aktif. Kalau belum, offer tetap dikirim
-  // (tanpa track) supaya koneksi terbentuk — nanti renegosiasi saat kamera nyala.
-  if(camStream) camStream.getTracks().forEach(t=>pc.addTrack(t,camStream));
-
-  pc.onicecandidate=(e)=>{
-    if(e.candidate && liveSessionId && window.firebaseReady)
-      window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/hostCandidates`), e.candidate.toJSON());
-  };
-  pc.oniceconnectionstatechange=()=>{
-    const st=pc.iceConnectionState;
-    showDebugToast(`ICE host→${uid}: ${st}`);
-    if(st==='failed'){
-      // Coba restart ICE otomatis
-      try{ pc.restartIce(); } catch(e){}
-      showDebugToast(`ICE failed ke penonton ${uid}, mencoba restart ICE...`);
-    }
-  };
-  pc.onnegotiationneeded=async()=>{
-    if(pc.signalingState!=='stable') return;
-    try{
-      const offer=await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      if(liveSessionId && window.firebaseReady)
-        await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type,ts:Date.now()});
-    }catch(e){ showDebugToast('onnegotiationneeded gagal ke '+uid+': '+e.message); }
-  };
-
-  // Selalu kirim offer awal (walaupun tanpa track) agar viewer bisa jawab dan ICE mulai
-  try{
-    const offer=await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    if(liveSessionId && window.firebaseReady)
-      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type,ts:Date.now()});
-  } catch(e){ showDebugToast('Gagal offer awal ke '+uid+': '+e.message); }
-
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/answer`), async (snap) => {
-    const ans=snap.val();
-    if(!ans || !pc) return;
-    if(pc.signalingState==='have-local-offer'){
-      try{ await pc.setRemoteDescription(new RTCSessionDescription(ans)); }
-      catch(e){ showDebugToast('setRemoteDescription host gagal: '+e.message); }
-    }
-  });
-  window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/viewerCandidates`), (snap) => {
-    const c=snap.val(); if(c && pc) pc.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
-  });
+// ===== HOST: LIVEKIT PUBLISH =====
+async function getLivekitToken(room, identity, isHost){
+  const res = await fetch(`${LIVEKIT_TOKEN_URL}?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}&host=${isHost?'1':'0'}`);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  return data;
 }
 
-// Fungsi renegosiasi manual ke semua peer — dipanggil setelah track berubah
-// karena browser mobile (terutama Android) sering tidak auto-trigger onnegotiationneeded
-// setelah replaceTrack, sehingga penonton tidak mendapat update stream.
-async function renegotiateAllPeers(){
-  for(const [uid, pc] of Object.entries(peerConnections)){
-    if(pc.signalingState==='stable'){
-      try{
-        const offer=await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        let retries=3;
-        while(retries>0){
-          try{
-            await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
-            break;
-          }catch(e){
-            retries--;
-            if(retries===0) showDebugToast(`Gagal kirim offer renegosiasi ke ${uid}: ${e.message}`);
-            else await new Promise(r=>setTimeout(r,400));
-          }
-        }
-      }catch(e){ showDebugToast('Renegosiasi ke '+uid+' gagal: '+e.message); }
+async function connectHostToLiveKit(){
+  if(!liveSessionId) return;
+  try{
+    const identity = 'host-' + MY_UID;
+    const {token, url} = await getLivekitToken(liveSessionId, identity, true);
+    const {Room, RoomEvent, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+    livekitRoom = new Room();
+    await livekitRoom.connect(url, token);
+    // Publish existing camStream tracks
+    if(camStream){
+      const videoTrack = camStream.getVideoTracks()[0];
+      const audioTrack = camStream.getAudioTracks()[0];
+      if(videoTrack){
+        const {LocalVideoTrack} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+        const lvt = new LocalVideoTrack(videoTrack);
+        await livekitRoom.localParticipant.publishTrack(lvt, {source: Track.Source.Camera});
+      }
+      if(audioTrack){
+        const {LocalAudioTrack} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+        const lat = new LocalAudioTrack(audioTrack);
+        await livekitRoom.localParticipant.publishTrack(lat, {source: Track.Source.Microphone});
+      }
     }
+    showDebugToast('LiveKit host terhubung ✅');
+  } catch(err){
+    showDebugToast('LiveKit host error: '+err.message);
+    console.error('LiveKit host error:', err);
   }
 }
 
 $('toggleCamBtn').addEventListener('click', async () => {
   const vid=$('liveVideo');
   if(camStream){
-    // PERBAIKAN: Jangan stop seluruh stream — cukup disable video track.
-    // Ini memastikan audio tetap mengalir ke penonton, dan koneksi WebRTC tetap hidup.
-    // Kita tetap kirim renegosiasi agar penonton tahu video berubah (jadi blank/hitam).
     if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();
-    camStream.getVideoTracks().forEach(t=>{ t.enabled=false; t.stop(); });
-    camStream.getAudioTracks().forEach(t=>{ t.enabled=true; }); // pastikan audio tetap aktif
-    // Ganti srcObject video lokal dengan null supaya preview mati di layar host
-    vid.srcObject=null; vid.style.display='none';
-    $('liveScreenPh').style.display='flex';
-    $('toggleCamBtn').textContent='📷 Aktifkan Kamera';
-    // Renegosiasi agar penonton mendapat update (video track stopped, audio tetap)
-    if(liveSessionId && window.firebaseReady) await renegotiateAllPeers();
-    // Hapus camStream tapi audio sender tetap ada di peerConnections
-    camStream=null;
-    return;
+    camStream.getTracks().forEach(t=>t.stop()); camStream=null;
+    // Unpublish from LiveKit
+    if(livekitRoom){
+      try{
+        const pubs = livekitRoom.localParticipant.trackPublications;
+        for(const pub of pubs.values()) await livekitRoom.localParticipant.unpublishTrack(pub.track);
+      } catch(e){}
+    }
+    vid.style.display='none'; $('liveScreenPh').style.display='flex';
+    $('toggleCamBtn').textContent='📷 Aktifkan Kamera'; return;
   }
   try{
     camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:true});
@@ -2327,21 +2262,18 @@ $('toggleCamBtn').addEventListener('click', async () => {
     $('liveScreenPh').style.display='none';
     $('toggleCamBtn').textContent='📷 Matikan Kamera';
 
-    // Semua peer sudah dibuat sejak penonton join — tinggal tambahkan/ganti track
-    Object.values(peerConnections).forEach(pc=>{
+    // Publish to LiveKit if already connected
+    if(livekitRoom && livekitRoom.state==='connected'){
       try{
-        const senders=pc.getSenders();
-        const videoTrack=camStream.getVideoTracks()[0];
-        const audioTrack=camStream.getAudioTracks()[0];
-        const vSender=senders.find(s=>s.track && s.track.kind==='video');
-        const aSender=senders.find(s=>s.track && s.track.kind==='audio');
-        if(videoTrack){ if(vSender) vSender.replaceTrack(videoTrack); else pc.addTrack(videoTrack,camStream); }
-        if(audioTrack){ if(aSender) aSender.replaceTrack(audioTrack); else pc.addTrack(audioTrack,camStream); }
-      }catch(e){ showDebugToast('replaceTrack error: '+e.message); }
-    });
-
-    if(liveSessionId && window.firebaseReady){
-      setTimeout(()=>renegotiateAllPeers(), 500);
+        const {LocalVideoTrack, LocalAudioTrack, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+        const videoTrack = camStream.getVideoTracks()[0];
+        const audioTrack = camStream.getAudioTracks()[0];
+        if(videoTrack){ const lvt=new LocalVideoTrack(videoTrack); await livekitRoom.localParticipant.publishTrack(lvt,{source:Track.Source.Camera}); }
+        if(audioTrack){ const lat=new LocalAudioTrack(audioTrack); await livekitRoom.localParticipant.publishTrack(lat,{source:Track.Source.Microphone}); }
+      } catch(e){ showDebugToast('Gagal publish ke LiveKit: '+e.message); }
+    } else {
+      // Connect to LiveKit if session already started
+      if(liveSessionId) connectHostToLiveKit();
     }
 
     const mime=pickSupportedMime();
@@ -2349,8 +2281,8 @@ $('toggleCamBtn').addEventListener('click', async () => {
       mediaRecorder=new MediaRecorder(camStream, mime?{mimeType:mime}:undefined);
       mediaRecorder.ondataavailable=(e)=>{ if(e.data && e.data.size>0) recordedChunks.push(e.data); };
       mediaRecorder.start(1000);
-    }catch(e){ console.warn('Rekam video tidak didukung di browser ini:', e); mediaRecorder=null; }
-  }catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
+    } catch(e){ console.warn('Rekam video tidak didukung di browser ini:', e); mediaRecorder=null; }
+  } catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
 });
 
 $('stopLiveBtn').addEventListener('click', async () => {
@@ -2372,6 +2304,8 @@ $('stopLiveBtn').addEventListener('click', async () => {
     }
   }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  // Disconnect from LiveKit
+  if(livekitRoom){ try{ await livekitRoom.disconnect(); } catch(e){} livekitRoom=null; }
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
   if(hostViewersUnsub){ hostViewersUnsub(); hostViewersUnsub=null; }
@@ -2623,81 +2557,72 @@ async function joinAsViewer(sessionId){
     }
   });
 
-  viewerPC=new RTCPeerConnection(ICE_SERVERS);
+  viewerPC=null; // not used with LiveKit
 
-  const vid=$('viewerVideo');
-  vid.srcObject = null;
-  let videoLoaded = false;
+  // Connect viewer to LiveKit room
+  const identity = 'viewer-' + MY_UID + '-' + Date.now();
+  try{
+    const {token, url} = await getLivekitToken(sessionId, identity, false);
+    const {Room, RoomEvent, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+    const room = new Room();
+    window._viewerLivekitRoom = room;
 
-  const videoCheckTimer = setTimeout(()=>{
-    if(!videoLoaded && watchingSessionId===sessionId){
-      const statusEl=$('viewerConnStatus');
-      if(statusEl) statusEl.textContent='Masih mencoba... Kalau tetap loading, coba keluar lalu tonton ulang.';
-    }
-  }, 25000);
-
-  viewerPC.ontrack=(e)=>{
-    // Langsung pakai stream dari host
-    if(e.streams && e.streams[0]){
-      vid.srcObject = e.streams[0];
-    } else {
-      if(!vid.srcObject) vid.srcObject = new MediaStream();
-      try{ vid.srcObject.addTrack(e.track); } catch(err){}
-    }
-    if(!videoLoaded){
-      videoLoaded = true;
-      clearTimeout(videoCheckTimer);
-      vid.style.display='block';
-      $('viewerScreenPh').style.display='none';
-    }
-    vid.play().then(()=>{
-      $('viewerUnmuteBtn').style.display='block';
-    }).catch(()=>{
-      // Autoplay diblokir browser — tampilkan tombol unmute
-      $('viewerUnmuteBtn').style.display='block';
+    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      if(track.kind === Track.Kind.Video){
+        const vid = $('viewerVideo');
+        track.attach(vid);
+        vid.style.display='block';
+        $('viewerScreenPh').style.display='none';
+        vid.muted = true;
+        vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
+        if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
+      }
     });
-  };
+
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      if(track.kind === Track.Kind.Video){
+        track.detach();
+        $('viewerVideo').style.display='none';
+        $('viewerScreenPh').style.display='flex';
+        $('viewerUnmuteBtn').style.display='none';
+      }
+    });
+
+    room.on(RoomEvent.Disconnected, () => {
+      if($('viewerConnStatus')) $('viewerConnStatus').textContent='Koneksi terputus.';
+    });
+
+    if($('viewerConnStatus')) $('viewerConnStatus').textContent='Menyambungkan ke siaran LiveKit...';
+    await room.connect(url, token);
+    if($('viewerConnStatus')) $('viewerConnStatus').textContent='Tersambung, menunggu video host...';
+
+    // Attach any already-published tracks
+    room.remoteParticipants.forEach(participant => {
+      participant.trackPublications.forEach(publication => {
+        if(publication.track && publication.track.kind === Track.Kind.Video){
+          const vid = $('viewerVideo');
+          publication.track.attach(vid);
+          vid.style.display='block';
+          $('viewerScreenPh').style.display='none';
+          vid.muted=true;
+          vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
+          if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
+        }
+      });
+    });
+
+  } catch(err){
+    if($('viewerConnStatus')) $('viewerConnStatus').textContent='⚠️ Gagal sambung ke LiveKit: '+err.message;
+    showDebugToast('LiveKit viewer error: '+err.message);
+    console.error('LiveKit viewer error:', err);
+  }
+
   $('viewerUnmuteBtn').onclick=()=>{
+    const vid=$('viewerVideo');
     vid.muted=false;
     vid.play().catch(()=>{});
     $('viewerUnmuteBtn').style.display='none';
   };
-  viewerPC.onicecandidate=(e)=>{
-    if(e.candidate) window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/viewerCandidates`), e.candidate.toJSON());
-  };
-  viewerPC.oniceconnectionstatechange=()=>{
-    const st=viewerPC.iceConnectionState;
-    const statusEl=$('viewerConnStatus');
-    if(!statusEl) return;
-    if(st==='checking'){ statusEl.textContent='Menyambungkan video & audio...'; }
-    else if(st==='connected' || st==='completed'){ statusEl.textContent='Tersambung, menunggu video...'; }
-    else if(st==='disconnected'){ statusEl.textContent='Koneksi sempat putus, mencoba menyambung ulang...'; }
-    else if(st==='failed'){
-      statusEl.textContent='⚠️ Gagal menyambung ke siaran. Sinyal host/jaringan kurang stabil — coba keluar & tonton ulang.';
-      showDebugToast('Viewer ICE failed utk sesi '+sessionId);
-    }
-  };
-
-  viewerOfferUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/offer`), async (snap) => {
-    const offer=snap.val();
-    if(!offer || !viewerPC) return;
-    try{
-      // Handle renegosiasi dari host (misalnya kamera baru dinyalakan)
-      if(viewerPC.signalingState==='have-remote-offer'){
-        await viewerPC.setLocalDescription({type:'rollback'});
-      }
-      if(viewerPC.signalingState!=='stable') return;
-      await viewerPC.setRemoteDescription(new RTCSessionDescription({type:offer.type, sdp:offer.sdp}));
-      const answer=await viewerPC.createAnswer();
-      await viewerPC.setLocalDescription(answer);
-      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/answer`),{sdp:answer.sdp,type:answer.type});
-    }catch(e){
-      showDebugToast('Gagal handle offer: '+e.message);
-    }
-  });
-  window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/hostCandidates`), (snap) => {
-    const c=snap.val(); if(c) viewerPC.addIceCandidate(new RTCIceCandidate(c)).catch(()=>{});
-  });
 
   viewerCommentsUnsub=window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/comments`), (snap) => {
     const c=snap.val(); if(c) addCommentTo('viewerCommentsOverlay', c.user, c.text);
@@ -2711,12 +2636,14 @@ function stopWatchingSession(){
   if(viewerCommentsUnsub){ viewerCommentsUnsub(); viewerCommentsUnsub=null; }
   if(viewerOfferUnsub){ viewerOfferUnsub(); viewerOfferUnsub=null; }
   if(viewerPC){ viewerPC.close(); viewerPC=null; }
+  // Disconnect LiveKit viewer
+  if(window._viewerLivekitRoom){ try{ window._viewerLivekitRoom.disconnect(); } catch(e){} window._viewerLivekitRoom=null; }
   if(window.firebaseReady){
     window.rtdbRemove(window.rtdbRef(window.firebaseDb,`liveSessions/${watchingSessionId}/viewers/${MY_UID}`)).catch(()=>{});
-    window.rtdbRemove(window.rtdbRef(window.firebaseDb,`liveSessions/${watchingSessionId}/signal/${MY_UID}`)).catch(()=>{});
   }
   watchingSessionId=null;
-  const vv=$('viewerVideo'); vv.srcObject=null; vv.style.display='none';
+  const vid=$('viewerVideo');
+  if(vid){ vid.srcObject=null; vid.style.display='none'; }
   $('viewerUnmuteBtn').style.display='none';
 }
 

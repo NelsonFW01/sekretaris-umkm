@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="dicoding:email" content="nagoyaflora@gmail.com">
+<title>Sekretaris UMKM — Asisten AI untuk Usaha Kecil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/SheetJS/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "GANTI_DENGAN_API_KEY_FIREBASE_KAMU",
+    authDomain: "GANTI.firebaseapp.com",
+    projectId: "GANTI_PROJECT_ID",
+    storageBucket: "GANTI.appspot.com",
+    messagingSenderId: "GANTI",
+    appId: "GANTI"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window.firebaseDb = db;
+  window.firebaseAddDoc = addDoc;
+  window.firebaseCollection = collection;
+  window.firebaseQuery = query;
+  window.firebaseOrderBy = orderBy;
+  window.firebaseLimit = limit;
+  window.firebaseOnSnapshot = onSnapshot;
+  window.firebaseServerTimestamp = serverTimestamp;
+  window.firebaseDoc = doc;
+  window.firebaseUpdateDoc = updateDoc;
+  window.firebaseDeleteDoc = deleteDoc;
+  window.firebaseReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+</script>
+<style>
+  :root{
+    --bg: #FAF6F0;
+    --bg-card: #FFFFFF;
+    --sand: #EFE6D8;
+    --teal: #1B4D4A;
+    --teal-dark: #103230;
+    --coral: #E8633F;
+    --coral-dark: #C84F2F;
+    --ink: #2A2622;
+    --ink-soft: #6B645A;
+    --line: #E3D9C8;
+    --good: #2D7A4F;
+    --bad: #C84F2F;
+    --radius: 18px;
+    --shadow: 0 4px 24px rgba(42,38,34,0.06);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.display{font-family:'Plus Jakarta Sans', sans-serif;}
+  .mono{font-family:'JetBrains Mono', monospace;}
+
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(232,99,63,0.06), transparent 40%),
+      radial-gradient(circle at 90% 85%, rgba(27,77,74,0.07), transparent 45%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  .app{
+    max-width: 560px;
+    margin: 0 auto;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+    display:flex;
+    flex-direction:column;
+  }
+
+  header{ padding: 28px 20px 16px; }
+  .brand{ display:flex; align-items:center; gap:10px; margin-bottom: 4px; }
+  .brand-mark{
+    width:34px; height:34px; background: var(--teal); border-radius: 10px;
+    display:flex; align-items:center; justify-content:center;
+    color: white; font-weight:800; font-size:16px; flex-shrink:0;
+  }
+  .brand-name{ font-weight:700; font-size:17px; letter-spacing:-0.01em; }
+  .tagline{ color: var(--ink-soft); font-size: 13.5px; margin-left: 44px; }
+
+  .tabs{
+    display:flex; gap:6px; padding: 4px; margin: 18px 20px 0;
+    background: var(--sand); border-radius: 14px; overflow-x:auto;
+  }
+  .tab{
+    flex:1; padding: 11px 8px; text-align:center; border:none; background:transparent;
+    border-radius:11px; font-family:'Plus Jakarta Sans', sans-serif; font-weight:600;
+    font-size: 13px; color: var(--ink-soft); cursor:pointer; transition: all .25s ease;
+    white-space:nowrap;
+  }
+  .tab.active{ background: var(--teal); color: white; box-shadow: 0 3px 10px rgba(27,77,74,0.25); }
+
+  main{ flex:1; padding: 22px 20px 100px; }
+  .panel{ display:none; animation: fadeUp .35s ease; }
+  .panel.active{ display:block; }
+  @keyframes fadeUp{ from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);} }
+
+  .record-zone{
+    background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 28px 22px; text-align:center; border: 1px solid var(--line); margin-bottom: 18px;
+  }
+  .record-zone h2{ font-size:18px; margin-bottom:4px; }
+  .record-zone p.hint{ color:var(--ink-soft); font-size:13.5px; margin-bottom:22px; }
+
+  .mic-btn{
+    width: 96px; height: 96px; border-radius: 50%; border: none;
+    background: linear-gradient(160deg, var(--coral), var(--coral-dark)); color: white;
+    display:flex; align-items:center; justify-content:center; margin: 0 auto 18px;
+    cursor: pointer; box-shadow: 0 8px 22px rgba(232,99,63,0.35); transition: transform .15s ease; position:relative;
+  }
+  .mic-btn:active{ transform: scale(0.94); }
+  .mic-btn svg{ width:36px; height:36px; }
+  .mic-btn.listening{ animation: pulse 1.4s infinite; }
+  @keyframes pulse{
+    0%{ box-shadow: 0 8px 22px rgba(232,99,63,0.35), 0 0 0 0 rgba(232,99,63,0.4); }
+    70%{ box-shadow: 0 8px 22px rgba(232,99,63,0.35), 0 0 0 18px rgba(232,99,63,0); }
+    100%{ box-shadow: 0 8px 22px rgba(232,99,63,0.35), 0 0 0 0 rgba(232,99,63,0); }
+  }
+  .mic-status{ font-size: 13px; color: var(--ink-soft); font-weight:500; min-height:18px; }
+  .mic-status.live{ color: var(--coral); font-weight:600; }
+
+  .text-fallback{ display:flex; gap:8px; margin-top:18px; }
+  .text-fallback input{
+    flex:1; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+    font-size: 14px; font-family: inherit; background: var(--bg);
+  }
+  .text-fallback input:focus{ outline:none; border-color: var(--teal); }
+  .text-fallback button{
+    padding: 12px 18px; border-radius: 12px; border:none; background: var(--teal);
+    color:white; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .text-fallback button:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  .transcript-preview{
+    margin-top: 14px; padding: 12px 14px; background: var(--sand); border-radius: 12px;
+    font-size: 13.5px; color: var(--ink); text-align:left; display:none;
+  }
+  .transcript-preview.show{ display:block; }
+
+  .summary-card{
+    background: var(--teal); color: white; border-radius: var(--radius); padding: 22px;
+    margin-bottom: 18px; box-shadow: var(--shadow);
+  }
+  .summary-row{
+    display:flex; justify-content:space-between; align-items:baseline; padding: 9px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+  .summary-row:last-child{ border-bottom:none; }
+  .summary-row .label{ font-size: 13px; opacity:0.75; }
+  .summary-row .value{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size: 16px; }
+  .summary-row .value.pos{ color: #8FE3B0; }
+  .summary-row .value.neg{ color: #F2A88C; }
+
+  .ai-note{
+    background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px;
+    margin-top: 14px; font-size: 13.5px; line-height:1.5; border-left: 3px solid var(--coral);
+  }
+
+  .lang-toggle{
+    display:flex; align-items:center; justify-content:space-between; background: var(--bg-card);
+    border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin-bottom: 16px;
+  }
+  .lang-toggle .label{ font-size:13.5px; font-weight:600; color: var(--ink-soft); }
+  .switch{
+    position:relative; width: 110px; height: 36px; background: var(--sand); border-radius: 18px;
+    cursor:pointer; border: 1px solid var(--line);
+  }
+  .switch .knob{
+    position:absolute; top:2px; left:2px; width: 52px; height: 30px; background: var(--teal);
+    border-radius:15px; display:flex; align-items:center; justify-content:center; color:white;
+    font-size:12px; font-weight:700; transition: left .25s cubic-bezier(.4,1.4,.6,1); font-family:'Plus Jakarta Sans';
+  }
+  .switch.global .knob{ left: 56px; background: var(--coral); }
+  .switch .opt{
+    position:absolute; top:0; height:100%; display:flex; align-items:center; font-size:11px;
+    font-weight:600; color: var(--ink-soft); width: 50%; justify-content:center;
+  }
+  .switch .opt.l{ left:0; }
+  .switch .opt.r{ right:0; }
+
+  .tx-list{ display:flex; flex-direction:column; gap:8px; }
+  .tx-item{
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .tx-item .tx-desc{ font-size:13.5px; font-weight:500; }
+  .tx-item .tx-cat{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; }
+  .tx-item .tx-amount{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size:14px; }
+  .tx-amount.in{ color: var(--good); }
+  .tx-amount.out{ color: var(--bad); }
+  .empty-state{ text-align:center; padding: 30px 16px; color: var(--ink-soft); font-size:13.5px; }
+
+  .upload-zone{
+    background: var(--bg-card); border: 2px dashed var(--line); border-radius: var(--radius);
+    padding: 30px 20px; text-align:center; cursor:pointer; transition: border-color .2s; margin-bottom:16px;
+  }
+  .upload-zone:hover{ border-color: var(--teal); }
+  .upload-zone img{ max-width: 100%; max-height:220px; border-radius:12px; margin-bottom:14px; }
+  .upload-zone .icon{
+    width:48px; height:48px; margin:0 auto 12px; background: var(--sand); border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .upload-zone .icon svg{ width:22px; height:22px; color: var(--teal); }
+  .upload-zone p{ font-size:13.5px; color: var(--ink-soft); }
+  .upload-zone .cta-text{ font-weight:600; color: var(--ink); margin-bottom:3px; }
+  #fileInput{ display:none; }
+
+  .field-group{ margin-bottom:14px; }
+  .field-group label{ font-size:12.5px; font-weight:600; color: var(--ink-soft); display:block; margin-bottom:6px; }
+  .field-group input{
+    width:100%; padding: 11px 14px; border-radius:12px; border:1.5px solid var(--line);
+    font-size:14px; font-family:inherit; background: var(--bg-card);
+  }
+  .field-group input:focus{ outline:none; border-color:var(--teal); }
+
+  .generate-btn{
+    width:100%; padding: 15px; border-radius: 14px; border:none; background: var(--coral);
+    color:white; font-family:'Plus Jakarta Sans'; font-weight:700; font-size:15px; cursor:pointer;
+    box-shadow: 0 6px 16px rgba(232,99,63,0.3); margin-bottom: 18px; transition: transform .15s;
+  }
+  .generate-btn:active{ transform: scale(0.98); }
+  .generate-btn:disabled{ opacity:0.5; cursor:not-allowed; box-shadow:none; }
+  .generate-btn.secondary{
+    background: var(--teal); box-shadow:0 6px 16px rgba(27,77,74,0.3);
+  }
+  .generate-btn.outline{
+    background: var(--bg-card); color: var(--teal); border: 1.5px solid var(--teal); box-shadow:none;
+  }
+
+  .content-result{ display:none; flex-direction:column; gap:12px; }
+  .content-result.show{ display:flex; }
+  .result-card{ background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .result-card .rc-label{
+    font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;
+    color: var(--coral); margin-bottom:8px;
+  }
+  .result-card .rc-text{ font-size:14px; line-height:1.6; white-space:pre-wrap; }
+  .result-card .copy-btn{
+    margin-top:10px; font-size:12px; font-weight:600; color: var(--teal); background:none; border:none; cursor:pointer; padding:0;
+  }
+
+  .loading-dots{
+    display:none; align-items:center; gap:6px; justify-content:center; padding: 16px; color: var(--ink-soft); font-size:13px;
+  }
+  .loading-dots.show{ display:flex; }
+  .dot{ width:7px; height:7px; border-radius:50%; background: var(--coral); animation: bounce 1.2s infinite; }
+  .dot:nth-child(2){ animation-delay:0.15s; }
+  .dot:nth-child(3){ animation-delay:0.3s; }
+  @keyframes bounce{ 0%,80%,100%{transform:translateY(0); opacity:0.5;} 40%{transform:translateY(-6px); opacity:1;} }
+
+  .key-banner{
+    background: #FFF4E8; border: 1px solid #F0D6B0; border-radius: 12px; padding: 12px 14px;
+    margin: 0 20px 14px; font-size: 12.5px; color: #8A5A1F; line-height:1.5;
+  }
+  .key-banner a{ color: var(--coral); font-weight:600; }
+  .key-banner input{
+    width:100%; margin-top:8px; padding:9px 12px; border-radius:8px; border:1px solid #F0D6B0; font-size:13px; font-family:inherit;
+  }
+
+  footer{ text-align:center; padding: 18px; color: var(--ink-soft); font-size:11.5px; }
+
+  .gallery-card{ background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; overflow:hidden; box-shadow: var(--shadow); }
+  .gallery-card img{ width:100%; height:160px; object-fit:cover; display:block; }
+  .gallery-card .gc-body{ padding:14px; }
+  .gallery-card .gc-title{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size:14.5px; margin-bottom:6px; }
+  .gallery-card .gc-caption{ font-size:13px; color:var(--ink-soft); line-height:1.5; margin-bottom:8px; }
+  .gallery-card .gc-meta{
+    display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--ink-soft);
+    padding-top:8px; border-top:1px solid var(--line);
+  }
+  .gallery-card .gc-lang{ font-weight:700; padding:2px 8px; border-radius:20px; font-size:10px; background: var(--sand); color: var(--teal); }
+
+  .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+  .stat-card{ background: var(--bg-card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .stat-card .st-label{ font-size:11.5px; color:var(--ink-soft); font-weight:600; margin-bottom:6px; }
+  .stat-card .st-value{ font-family:'Plus Jakarta Sans'; font-weight:800; font-size:18px; }
+  .chart-card{ background: var(--bg-card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; margin-bottom:18px; box-shadow:var(--shadow); }
+  .chart-card h3{ font-size:14.5px; margin-bottom:14px; }
+  .chart-card canvas{ max-height:240px; }
+
+  @media (max-width:380px){ .switch{ width:96px; } .switch .knob{ width:46px; } }
+
+  /* ===== BOOST FEATURE ===== */
+  .boost-btn{
+    width:100%; margin-top:10px; padding:10px; border-radius:10px; border:1.5px solid var(--coral);
+    background:#FFF1EC; color:var(--coral-dark); font-weight:700; font-size:12.5px; cursor:pointer;
+  }
+  .boost-badge{
+    display:inline-flex; align-items:center; gap:4px; font-size:10px; font-weight:700;
+    background:linear-gradient(135deg,var(--coral),var(--coral-dark)); color:white;
+    padding:3px 9px; border-radius:20px; margin-bottom:6px;
+  }
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(42,38,34,0.55); z-index:50;
+    align-items:flex-end; justify-content:center;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-box{
+    background:var(--bg-card); width:100%; max-width:560px; border-radius:20px 20px 0 0;
+    padding:24px 20px 28px; max-height:88vh; overflow-y:auto; animation: fadeUp .25s ease;
+  }
+  .modal-box h3{ font-size:17px; margin-bottom:6px; }
+  .modal-box .modal-sub{ color:var(--ink-soft); font-size:13px; margin-bottom:16px; }
+  .pay-option{
+    background:var(--sand); border-radius:12px; padding:14px; margin-bottom:10px; font-size:13.5px;
+  }
+  .pay-option .po-title{ font-weight:700; margin-bottom:4px; font-size:13px; }
+  .pay-option .po-num{ font-family:'JetBrains Mono'; font-size:15px; font-weight:600; color:var(--teal); }
+  .modal-close{
+    position:absolute; top:14px; right:18px; background:none; border:none; font-size:20px; cursor:pointer; color:var(--ink-soft);
+  }
+  .modal-box{ position:relative; }
+  .proof-upload{
+    border:2px dashed var(--line); border-radius:12px; padding:18px; text-align:center; cursor:pointer; margin:14px 0; font-size:13px; color:var(--ink-soft);
+  }
+  .proof-upload.has-file{ border-color:var(--good); color:var(--good); font-weight:600; }
+  .slot-info{ font-size:12px; color:var(--ink-soft); margin-bottom:14px; padding:10px 12px; background:var(--bg); border-radius:10px; }
+  .admin-row{
+    background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px;
+  }
+  .admin-row img{ width:100%; max-height:160px; object-fit:contain; border-radius:8px; margin:8px 0; background:var(--sand); }
+  .admin-actions{ display:flex; gap:8px; margin-top:8px; }
+  .admin-actions button{ flex:1; padding:9px; border-radius:8px; border:none; font-weight:700; font-size:12.5px; cursor:pointer; }
+  .btn-approve{ background:var(--good); color:white; }
+  .btn-reject{ background:var(--bad); color:white; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-name">Sekretaris UMKM</div>
+    </div>
+    <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
+  </header>
+
+  <div class="key-banner" id="keyBanner">
+    Pakai API key gratis kamu sendiri supaya fitur AI aktif. Tersimpan otomatis di browser ini, gak perlu isi ulang.
+    <br><br>
+    <strong>1. Groq (utama, gratis, cepat)</strong> — dapatkan di <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
+    <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key di sini...">
+    <br>
+    <strong>2. OpenRouter (cadangan otomatis kalau Groq kena limit)</strong> — dapatkan di <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>
+    <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key di sini (sangat disarankan)...">
+    <div id="keyStatus" style="margin-top:8px; font-weight:600;"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-panel="finance">💰 Catat Uang</button>
+    <button class="tab" data-panel="dashboard">📊 Dashboard</button>
+    <button class="tab" data-panel="content">📸 Bikin Konten</button>
+    <button class="tab" data-panel="gallery">🌍 Galeri</button>
+  </div>
+
+  <main>
+    <!-- ===== FINANCE PANEL ===== -->
+    <section class="panel active" id="panel-finance">
+
+      <div class="record-zone">
+        <h2>Ceritakan transaksi hari ini</h2>
+        <p class="hint">"Hari ini laku 50 kue, untung 200 ribu"</p>
+        <button class="mic-btn" id="micBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+        </button>
+        <div class="mic-status" id="micStatus">Tekan tombol lalu mulai bicara</div>
+        <div class="transcript-preview" id="transcriptPreview"></div>
+
+        <div class="text-fallback">
+          <input type="text" id="textInput" placeholder="atau ketik di sini...">
+          <button id="submitText">Catat</button>
+        </div>
+      </div>
+
+      <div class="loading-dots" id="financeLoading">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span style="margin-left:6px;">AI lagi proses...</span>
+      </div>
+
+      <div class="lang-toggle">
+        <span class="label">Ringkasan laporan dalam:</span>
+        <div class="switch" id="financeLangSwitch">
+          <span class="opt l">ID</span>
+          <span class="opt r">EN</span>
+          <div class="knob">Lokal</div>
+        </div>
+      </div>
+
+      <div class="summary-card" id="summaryCard" style="display:none;">
+        <div class="summary-row"><span class="label">Pemasukan</span><span class="value pos" id="sumIn">Rp 0</span></div>
+        <div class="summary-row"><span class="label">Pengeluaran</span><span class="value neg" id="sumOut">Rp 0</span></div>
+        <div class="summary-row"><span class="label">Untung Bersih</span><span class="value" id="sumNet">Rp 0</span></div>
+        <div class="ai-note" id="aiNote">Belum ada saran — catat transaksi dulu ya.</div>
+      </div>
+
+      <button class="generate-btn outline" id="exportExcelBtn" style="display:none;">⬇️ Unduh Laporan Excel (.xlsx)</button>
+
+      <div class="tx-list" id="txList">
+        <div class="empty-state" id="txEmpty">Belum ada transaksi tercatat hari ini.</div>
+      </div>
+    </section>
+
+    <!-- ===== DASHBOARD PANEL ===== -->
+    <section class="panel" id="panel-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="st-label">Total Pemasukan</div>
+          <div class="st-value" id="dbIn" style="color:var(--good);">Rp 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="st-label">Total Pengeluaran</div>
+          <div class="st-value" id="dbOut" style="color:var(--bad);">Rp 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="st-label">Untung Bersih</div>
+          <div class="st-value" id="dbNet">Rp 0</div>
+        </div>
+        <div class="stat-card">
+          <div class="st-label">Jumlah Transaksi</div>
+          <div class="st-value" id="dbCount">0</div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Pemasukan vs Pengeluaran per Kategori</h3>
+        <canvas id="categoryChart"></canvas>
+      </div>
+
+      <div class="chart-card">
+        <h3>Tren Transaksi (urutan catat)</h3>
+        <canvas id="trendChart"></canvas>
+      </div>
+
+      <button class="generate-btn outline" id="exportExcelBtn2">⬇️ Unduh Laporan Excel (.xlsx)</button>
+    </section>
+
+    <!-- ===== CONTENT PANEL ===== -->
+    <section class="panel" id="panel-content">
+
+      <div class="upload-zone" id="uploadZone">
+        <img id="previewImg" style="display:none;">
+        <div class="icon" id="uploadIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg>
+        </div>
+        <p class="cta-text" id="uploadCta">Ketuk untuk unggah foto produk</p>
+        <p>JPG atau PNG, maks 5MB</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/*">
+
+      <div class="field-group">
+        <label>Nama produk (opsional, bantu AI lebih akurat)</label>
+        <input type="text" id="productName" placeholder="contoh: Keripik singkong balado">
+      </div>
+
+      <div class="field-group">
+        <label>Nama toko/UMKM kamu (muncul di galeri publik)</label>
+        <input type="text" id="storeName" placeholder="contoh: Kripik Bu Sari">
+      </div>
+
+      <div class="lang-toggle">
+        <span class="label">Buatkan konten untuk pasar:</span>
+        <div class="switch" id="contentLangSwitch">
+          <span class="opt l">ID</span>
+          <span class="opt r">EN</span>
+          <div class="knob">Lokal</div>
+        </div>
+      </div>
+
+      <button class="generate-btn" id="generateBtn" disabled>Buatkan Konten dengan AI</button>
+
+      <div class="loading-dots" id="contentLoading">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span style="margin-left:6px;">AI lagi mikir caption terbaik...</span>
+      </div>
+
+      <div class="content-result" id="contentResult">
+        <div class="result-card">
+          <div class="rc-label">Judul Produk</div>
+          <div class="rc-text" id="resTitle"></div>
+          <button class="copy-btn" data-target="resTitle">Salin teks</button>
+        </div>
+        <div class="result-card">
+          <div class="rc-label">Caption & Deskripsi</div>
+          <div class="rc-text" id="resCaption"></div>
+          <button class="copy-btn" data-target="resCaption">Salin teks</button>
+        </div>
+        <div class="result-card">
+          <div class="rc-label">Estimasi Harga Jual</div>
+          <div class="rc-text" id="resPrice"></div>
+        </div>
+        <div class="result-card">
+          <div class="rc-label">Tagar / Hashtag</div>
+          <div class="rc-text" id="resTags"></div>
+          <button class="copy-btn" data-target="resTags">Salin teks</button>
+        </div>
+        <button class="generate-btn secondary" id="publishBtn">Bagikan ke Galeri Publik 🌍</button>
+      </div>
+    </section>
+
+    <!-- ===== GALLERY PANEL ===== -->
+    <section class="panel" id="panel-gallery">
+      <div style="margin-bottom:16px;">
+        <h2 style="font-size:18px; margin-bottom:4px;">Karya UMKM se-Indonesia</h2>
+        <p style="color:var(--ink-soft); font-size:13.5px;">Konten yang dibuat pengguna lain pakai AI — saling inspirasi!</p>
+      </div>
+      <div class="loading-dots show" id="galleryLoading" style="padding:30px 0;">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span style="margin-left:6px;">Memuat galeri...</span>
+      </div>
+      <div class="tx-list" id="galleryList" style="gap:14px;"></div>
+    </section>
+  </main>
+
+  <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
+</div>
+
+<!-- ===== BOOST PAYMENT MODAL ===== -->
+<div class="modal-overlay" id="boostModal">
+  <div class="modal-box">
+    <button class="modal-close" id="boostModalClose">✕</button>
+    <h3>🚀 Boost Produk ke Posisi Teratas</h3>
+    <p class="modal-sub">Produk kamu akan tampil di urutan paling atas Galeri selama 24 jam setelah diverifikasi.</p>
+
+    <div class="slot-info" id="slotInfo">Memuat info slot...</div>
+
+    <div class="pay-option">
+      <div class="po-label">Transfer Bank BCA</div>
+      <div class="po-value" id="bcaNumberDisplay">GANTI_NOMOR_REKENING_BCA</div>
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-top:3px;">a.n. GANTI_NAMA_PEMILIK_REKENING</div>
+    </div>
+    <div class="pay-option">
+      <div class="po-label">OVO</div>
+      <div class="po-value" id="ovoNumberDisplay">GANTI_NOMOR_OVO</div>
+      <div style="font-size:12.5px; color:var(--ink-soft); margin-top:3px;">a.n. GANTI_NAMA_PEMILIK_OVO</div>
+    </div>
+    <div class="pay-option" style="background:#FFF1EC;">
+      <div class="po-label">Nominal Boost</div>
+      <div class="po-value">Rp 10.000 / 24 jam</div>
+    </div>
+    <a href="#" id="boostWaBtn" class="wa-btn" target="_blank">💬 Konfirmasi via WhatsApp Admin</a>
+
+    <div class="field-group">
+      <label>Nama Pengirim Transfer</label>
+      <input type="text" id="boostSenderName" placeholder="Nama sesuai rekening/OVO kamu">
+    </div>
+
+    <div class="proof-upload" id="proofUpload">📎 Ketuk untuk unggah screenshot bukti transfer</div>
+    <input type="file" id="proofFileInput" accept="image/*" style="display:none;">
+
+    <button class="generate-btn" id="submitBoostBtn">Kirim & Tunggu Verifikasi</button>
+    <p style="font-size:11.5px; color:var(--ink-soft); text-align:center;">Verifikasi manual oleh admin, biasanya beberapa jam. Slot dibagi rata gantian.</p>
+  </div>
+</div>
+
+<!-- ===== ADMIN PANEL (akses via #admin di URL) ===== -->
+<div class="modal-overlay" id="adminPanel">
+  <div class="modal-box" style="max-width:680px;">
+    <button class="modal-close" id="adminClose">✕</button>
+    <h3>🔐 Panel Verifikasi Boost</h3>
+    <div id="adminLoginBox">
+      <div class="field-group">
+        <label>Password Admin</label>
+        <input type="password" id="adminPassword" placeholder="Masukkan password admin">
+      </div>
+      <button class="generate-btn" id="adminLoginBtn">Masuk</button>
+    </div>
+    <div id="adminContent" style="display:none;">
+      <div class="slot-info" id="adminSlotInfo"></div>
+      <div id="adminPendingList"></div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ============ STATE ============
+let groqKey = "";
+let openrouterKey = "";
+let financeLang = "id";
+let contentLang = "id";
+let transactions = [];
+let uploadedImageBase64 = null;
+let lastGenerated = null;
+let isListening = false;
+let recognition = null;
+let categoryChartInstance = null;
+let trendChartInstance = null;
+
+const $ = (id) => document.getElementById(id);
+
+function hasAnyKey(){ return !!(groqKey || openrouterKey); }
+
+// ============ API KEY (auto-save to localStorage) ============
+function loadSavedKeys(){
+  try{
+    groqKey = localStorage.getItem('sekretaris_umkm_groq_key') || "";
+    openrouterKey = localStorage.getItem('sekretaris_umkm_openrouter_key') || "";
+    $('groqKeyInput').value = groqKey;
+    $('openrouterKeyInput').value = openrouterKey;
+    updateKeyStatus();
+  } catch(e){ /* localStorage unavailable, ignore */ }
+}
+
+function updateKeyStatus(){
+  const ready = hasAnyKey();
+  $('generateBtn').disabled = !(ready && uploadedImageBase64);
+  const status = $('keyStatus');
+  if(groqKey && openrouterKey){
+    status.textContent = '✅ Groq + OpenRouter siap (anti-limit, otomatis pindah kalau salah satu kena limit)';
+    status.style.color = '#2D7A4F';
+  } else if(groqKey || openrouterKey){
+    status.textContent = '✅ Salah satu key siap. Isi keduanya supaya makin tahan kena limit.';
+    status.style.color = '#2D7A4F';
+  } else {
+    status.textContent = '⚠️ Masukkan minimal satu API key untuk mulai';
+    status.style.color = '#C84F2F';
+  }
+  if(ready){ $('keyBanner').style.opacity = '0.75'; }
+}
+
+$('groqKeyInput').addEventListener('input', (e) => {
+  groqKey = e.target.value.trim();
+  try{ localStorage.setItem('sekretaris_umkm_groq_key', groqKey); } catch(e){}
+  updateKeyStatus();
+});
+$('openrouterKeyInput').addEventListener('input', (e) => {
+  openrouterKey = e.target.value.trim();
+  try{ localStorage.setItem('sekretaris_umkm_openrouter_key', openrouterKey); } catch(e){}
+  updateKeyStatus();
+});
+
+loadSavedKeys();
+
+// ============ TABS ============
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    $('panel-' + tab.dataset.panel).classList.add('active');
+    if(tab.dataset.panel === 'dashboard') renderDashboard();
+  });
+});
+
+// ============ LANG SWITCHES ============
+$('financeLangSwitch').addEventListener('click', () => {
+  financeLang = financeLang === 'id' ? 'en' : 'id';
+  const sw = $('financeLangSwitch');
+  sw.classList.toggle('global', financeLang === 'en');
+  sw.querySelector('.knob').textContent = financeLang === 'id' ? 'Lokal' : 'Global';
+});
+$('contentLangSwitch').addEventListener('click', () => {
+  contentLang = contentLang === 'id' ? 'en' : 'id';
+  const sw = $('contentLangSwitch');
+  sw.classList.toggle('global', contentLang === 'en');
+  sw.querySelector('.knob').textContent = contentLang === 'id' ? 'Lokal' : 'Global';
+});
+
+// ============ SPEECH RECOGNITION ============
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if(SpeechRecognition){
+  recognition = new SpeechRecognition();
+  recognition.lang = 'id-ID';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  recognition.onresult = (event) => {
+    let transcript = '';
+    for(let i=0; i<event.results.length; i++){
+      transcript += event.results[i][0].transcript;
+    }
+    $('transcriptPreview').textContent = transcript;
+    $('transcriptPreview').classList.add('show');
+    if(event.results[event.results.length-1].isFinal){
+      processTransaction(transcript);
+    }
+  };
+  recognition.onend = () => {
+    isListening = false;
+    $('micBtn').classList.remove('listening');
+    $('micStatus').textContent = 'Tekan tombol lalu mulai bicara';
+    $('micStatus').classList.remove('live');
+  };
+  recognition.onerror = (e) => {
+    isListening = false;
+    $('micBtn').classList.remove('listening');
+    $('micStatus').textContent = 'Gagal mendengar, coba lagi atau ketik manual';
+  };
+} else {
+  $('micStatus').textContent = 'Browser ini tidak mendukung input suara — pakai ketik manual ya';
+}
+
+$('micBtn').addEventListener('click', () => {
+  if(!recognition) return;
+  if(isListening){
+    recognition.stop();
+    return;
+  }
+  isListening = true;
+  $('micBtn').classList.add('listening');
+  $('micStatus').textContent = 'Mendengarkan...';
+  $('micStatus').classList.add('live');
+  $('transcriptPreview').classList.remove('show');
+  recognition.start();
+});
+
+$('submitText').addEventListener('click', () => {
+  const text = $('textInput').value.trim();
+  if(text){
+    processTransaction(text);
+    $('textInput').value = '';
+  }
+});
+$('textInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') $('submitText').click();
+});
+
+// ============ AI API CALL (Groq primary, OpenRouter fallback, with retry to dodge limits) ============
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function callGroq(prompt, imageBase64 = null){
+  const model = imageBase64 ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
+  const content = imageBase64
+    ? [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+      ]
+    : prompt;
+
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], temperature: 0.7 })
+  });
+  if(!res.ok){
+    const err = await res.json().catch(() => ({}));
+    const msg = err?.error?.message || `HTTP_${res.status}`;
+    const isLimited = res.status === 429 || /rate.?limit|quota/i.test(msg);
+    const e = new Error(msg);
+    e.limited = isLimited;
+    throw e;
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if(!text) throw new Error('NO_RESPONSE');
+  return text;
+}
+
+async function callOpenRouter(prompt, imageBase64 = null){
+  const model = imageBase64 ? "meta-llama/llama-3.2-11b-vision-instruct:free" : "meta-llama/llama-3.3-70b-instruct:free";
+  const content = imageBase64
+    ? [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
+      ]
+    : prompt;
+
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openrouterKey}`, 'HTTP-Referer': 'https://sekretaris-umkm.netlify.app', 'X-Title': 'Sekretaris UMKM' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content }], temperature: 0.7 })
+  });
+  if(!res.ok){
+    const err = await res.json().catch(() => ({}));
+    const msg = err?.error?.message || `HTTP_${res.status}`;
+    const isLimited = res.status === 429 || /rate.?limit|quota/i.test(msg);
+    const e = new Error(msg);
+    e.limited = isLimited;
+    throw e;
+  }
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if(!text) throw new Error('NO_RESPONSE');
+  return text;
+}
+
+// callAI: coba Groq -> kalau limit, tunggu sebentar & retry sekali -> kalau masih limit, pindah ke OpenRouter -> kalau itu juga limit, retry sekali lagi.
+async function callAI(prompt, imageBase64 = null){
+  if(!hasAnyKey()) throw new Error('NO_KEY');
+
+  const attempts = [];
+  if(groqKey) attempts.push(() => callGroq(prompt, imageBase64));
+  if(openrouterKey) attempts.push(() => callOpenRouter(prompt, imageBase64));
+
+  let lastErr = null;
+  for(let i = 0; i < attempts.length; i++){
+    try{
+      return await attempts[i]();
+    } catch(err){
+      lastErr = err;
+      console.warn('Provider gagal:', err.message);
+      if(err.limited){
+        // beri jeda singkat lalu coba sekali lagi provider yang sama sebelum pindah
+        await sleep(1200);
+        try{ return await attempts[i](); } catch(err2){ lastErr = err2; }
+      }
+      // lanjut ke provider berikutnya
+    }
+  }
+  throw lastErr || new Error('ALL_PROVIDERS_FAILED');
+}
+
+// alias supaya kompatibel jika ada pemanggilan lama
+const callGemini = callAI;
+
+function extractJson(text){
+  let cleaned = text.replace(/```json|```/g, '').trim();
+  const firstBrace = cleaned.search(/[\{\[]/);
+  if(firstBrace > 0) cleaned = cleaned.slice(firstBrace);
+  return JSON.parse(cleaned);
+}
+
+// ============ FINANCE LOGIC ============
+async function processTransaction(transcript){
+  if(!transcript || transcript.length < 3) return;
+
+  if(!hasAnyKey()){
+    alert('Masukkan minimal satu API key dulu di kotak kuning atas ya, supaya AI bisa proses transaksi kamu.');
+    return;
+  }
+
+  $('financeLoading').classList.add('show');
+
+  const prompt = `Kamu adalah asisten pencatat keuangan untuk pelaku UMKM Indonesia.
+Dari kalimat berikut, ekstrak SATU ATAU LEBIH transaksi keuangan.
+Kalimat: "${transcript}"
+
+Balas HANYA dengan JSON array (tanpa markdown, tanpa penjelasan) dengan format:
+[{"type": "in" atau "out", "desc": "deskripsi singkat", "category": "kategori (misal: Penjualan, Bahan Baku, Operasional)", "amount": angka_dalam_rupiah_tanpa_titik_koma}]
+
+Jika kalimat tidak mengandung info transaksi yang jelas, balas dengan array kosong [].`;
+
+  try{
+    const result = await callAI(prompt);
+    const txs = extractJson(result);
+    if(Array.isArray(txs) && txs.length > 0){
+      txs.forEach(tx => transactions.push({ ...tx, time: new Date().toISOString() }));
+      renderTransactions();
+      await generateFinanceSummary();
+      $('exportExcelBtn').style.display = 'block';
+    } else {
+      $('micStatus').textContent = 'Tidak terdeteksi transaksi — coba lebih spesifik';
+      $('micStatus').classList.remove('live');
+    }
+  } catch(err){
+    console.error(err);
+    alert('Gagal memproses: ' + (err.message === 'NO_KEY' ? 'API key belum diisi' : err.message));
+  } finally {
+    $('financeLoading').classList.remove('show');
+  }
+}
+
+function renderTransactions(){
+  const list = $('txList');
+  if(transactions.length === 0){
+    list.innerHTML = '<div class="empty-state" id="txEmpty">Belum ada transaksi tercatat hari ini.</div>';
+    return;
+  }
+  list.innerHTML = transactions.slice().reverse().map(tx => `
+    <div class="tx-item">
+      <div>
+        <div class="tx-desc">${escapeHtml(tx.desc)}</div>
+        <div class="tx-cat">${escapeHtml(tx.category || '')}</div>
+      </div>
+      <div class="tx-amount ${tx.type === 'in' ? 'in' : 'out'}">
+        ${tx.type === 'in' ? '+' : '−'} Rp ${Number(tx.amount).toLocaleString('id-ID')}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function generateFinanceSummary(){
+  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
+  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
+  const net = totalIn - totalOut;
+
+  $('summaryCard').style.display = 'block';
+  $('sumIn').textContent = 'Rp ' + totalIn.toLocaleString('id-ID');
+  $('sumOut').textContent = 'Rp ' + totalOut.toLocaleString('id-ID');
+  $('sumNet').textContent = 'Rp ' + net.toLocaleString('id-ID');
+  $('sumNet').className = 'value ' + (net >= 0 ? 'pos' : 'neg');
+
+  const langInstruction = financeLang === 'en'
+    ? 'Respond in English, formatted professionally as if for an investor or bank loan officer.'
+    : 'Jawab dalam Bahasa Indonesia, gaya santai dan akrab seperti ngobrol dengan teman.';
+
+  const prompt = `Kamu adalah asisten keuangan untuk UMKM Indonesia. Berikut daftar transaksi:
+${JSON.stringify(transactions)}
+Total pemasukan: Rp ${totalIn}, Total pengeluaran: Rp ${totalOut}, Untung bersih: Rp ${net}.
+
+Berikan SATU saran singkat (maksimal 3 kalimat) yang actionable berdasarkan pola transaksi ini — misalnya soal stok, margin, atau pengeluaran yang perlu diperhatikan. ${langInstruction}
+Balas hanya dengan teks saran, tanpa markdown atau pembuka seperti "Berikut saran:".`;
+
+  try{
+    const note = await callAI(prompt);
+    $('aiNote').textContent = note.trim();
+  } catch(err){
+    $('aiNote').textContent = 'Saran AI tidak tersedia saat ini (' + err.message + ').';
+  }
+  renderDashboard();
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ============ EXCEL EXPORT ============
+function exportToExcel(){
+  if(transactions.length === 0){
+    alert('Belum ada transaksi untuk diexport. Catat dulu ya.');
+    return;
+  }
+  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
+  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
+  const net = totalIn - totalOut;
+
+  const rows = transactions.map((tx, i) => ({
+    'No': i + 1,
+    'Waktu': tx.time ? new Date(tx.time).toLocaleString('id-ID') : '',
+    'Jenis': tx.type === 'in' ? 'Pemasukan' : 'Pengeluaran',
+    'Deskripsi': tx.desc || '',
+    'Kategori': tx.category || '',
+    'Jumlah (Rp)': Number(tx.amount) || 0
+  }));
+
+  const summaryRows = [
+    {}, {},
+    { 'No': 'Ringkasan' },
+    { 'No': '', 'Deskripsi': 'Total Pemasukan', 'Jumlah (Rp)': totalIn },
+    { 'No': '', 'Deskripsi': 'Total Pengeluaran', 'Jumlah (Rp)': totalOut },
+    { 'No': '', 'Deskripsi': 'Untung / Rugi Bersih', 'Jumlah (Rp)': net },
+    { 'No': '', 'Deskripsi': 'Saran AI', 'Jumlah (Rp)': $('aiNote').textContent }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([...rows, ...summaryRows]);
+  ws['!cols'] = [{wch:6},{wch:20},{wch:14},{wch:28},{wch:18},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Laporan Keuangan');
+
+  const today = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Laporan_Keuangan_UMKM_${today}.xlsx`);
+}
+
+$('exportExcelBtn').addEventListener('click', exportToExcel);
+$('exportExcelBtn2').addEventListener('click', exportToExcel);
+
+// ============ DASHBOARD ============
+function renderDashboard(){
+  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
+  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
+  const net = totalIn - totalOut;
+
+  $('dbIn').textContent = 'Rp ' + totalIn.toLocaleString('id-ID');
+  $('dbOut').textContent = 'Rp ' + totalOut.toLocaleString('id-ID');
+  $('dbNet').textContent = 'Rp ' + net.toLocaleString('id-ID');
+  $('dbNet').style.color = net >= 0 ? 'var(--good)' : 'var(--bad)';
+  $('dbCount').textContent = transactions.length;
+
+  // Category breakdown
+  const catMap = {};
+  transactions.forEach(t => {
+    const cat = t.category || 'Lainnya';
+    if(!catMap[cat]) catMap[cat] = { in: 0, out: 0 };
+    catMap[cat][t.type === 'in' ? 'in' : 'out'] += Number(t.amount) || 0;
+  });
+  const cats = Object.keys(catMap);
+
+  const catCtx = $('categoryChart').getContext('2d');
+  if(categoryChartInstance) categoryChartInstance.destroy();
+  categoryChartInstance = new Chart(catCtx, {
+    type: 'bar',
+    data: {
+      labels: cats.length ? cats : ['Belum ada data'],
+      datasets: [
+        { label: 'Pemasukan', data: cats.length ? cats.map(c => catMap[c].in) : [0], backgroundColor: '#2D7A4F' },
+        { label: 'Pengeluaran', data: cats.length ? cats.map(c => catMap[c].out) : [0], backgroundColor: '#C84F2F' }
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+  });
+
+  // Trend (cumulative net over recorded order)
+  let running = 0;
+  const trendLabels = transactions.map((_, i) => 'Tx ' + (i+1));
+  const trendData = transactions.map(t => {
+    running += (t.type === 'in' ? Number(t.amount) : -Number(t.amount)) || 0;
+    return running;
+  });
+  const trendCtx = $('trendChart').getContext('2d');
+  if(trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance = new Chart(trendCtx, {
+    type: 'line',
+    data: {
+      labels: trendLabels.length ? trendLabels : ['Belum ada data'],
+      datasets: [{ label: 'Saldo Kumulatif (Rp)', data: trendData.length ? trendData : [0], borderColor:'#1B4D4A', backgroundColor:'rgba(27,77,74,0.1)', fill:true, tension:0.3 }]
+    },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+}
+
+// ============ CONTENT GENERATION ============
+$('uploadZone').addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    uploadedImageBase64 = dataUrl.split(',')[1];
+    $('previewImg').src = dataUrl;
+    $('previewImg').style.display = 'block';
+    $('uploadIcon').style.display = 'none';
+    $('uploadCta').textContent = 'Ganti foto';
+    $('generateBtn').disabled = !hasAnyKey();
+  };
+  reader.readAsDataURL(file);
+});
+
+$('generateBtn').addEventListener('click', async () => {
+  if(!hasAnyKey() || !uploadedImageBase64) return;
+
+  $('contentLoading').classList.add('show');
+  $('contentResult').classList.remove('show');
+  $('generateBtn').disabled = true;
+
+  const productName = $('productName').value.trim();
+  const langInstruction = contentLang === 'en'
+    ? 'Write everything in English, suitable for international/export buyers. Adjust tone and cultural references for a global audience.'
+    : 'Tulis semua dalam Bahasa Indonesia, gaya santai dan menarik untuk pasar lokal Instagram/WhatsApp.';
+
+  const prompt = `Kamu adalah copywriter ahli untuk produk UMKM Indonesia. Lihat foto produk ini${productName ? ` (nama produk: ${productName})` : ''}.
+
+${langInstruction}
+
+Balas HANYA dengan JSON (tanpa markdown) format:
+{
+  "title": "judul produk yang menarik dan SEO-friendly",
+  "caption": "caption promosi 3-4 kalimat untuk Instagram/WhatsApp",
+  "price_estimate": "estimasi rentang harga jual yang wajar di Indonesia beserta alasan singkat",
+  "hashtags": "5-8 hashtag relevan dipisah spasi"
+}`;
+
+  try{
+    const result = await callAI(prompt, uploadedImageBase64);
+    const data = extractJson(result);
+    $('resTitle').textContent = data.title || '-';
+    $('resCaption').textContent = data.caption || '-';
+    $('resPrice').textContent = data.price_estimate || '-';
+    $('resTags').textContent = data.hashtags || '-';
+    $('contentResult').classList.add('show');
+
+    lastGenerated = {
+      title: data.title || '',
+      caption: data.caption || '',
+      hashtags: data.hashtags || '',
+      lang: contentLang,
+      storeName: $('storeName').value.trim() || 'UMKM Indonesia',
+      imageBase64: uploadedImageBase64
+    };
+    $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
+    $('publishBtn').disabled = false;
+  } catch(err){
+    console.error(err);
+    alert('Gagal generate konten: ' + err.message);
+  } finally {
+    $('contentLoading').classList.remove('show');
+    $('generateBtn').disabled = false;
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if(e.target.classList.contains('copy-btn')){
+    const targetId = e.target.dataset.target;
+    const text = $(targetId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const original = e.target.textContent;
+      e.target.textContent = 'Tersalin!';
+      setTimeout(() => { e.target.textContent = original; }, 1500);
+    });
+  }
+});
+
+// ============ PUBLISH TO PUBLIC GALLERY (Firebase) ============
+$('publishBtn').addEventListener('click', async () => {
+  if(!lastGenerated) return;
+  if(!window.firebaseReady){
+    alert('Galeri belum siap. Pastikan Firebase sudah dikonfigurasi di kode (lihat komentar di bagian <head>).');
+    return;
+  }
+  $('publishBtn').disabled = true;
+  $('publishBtn').textContent = 'Mengunggah...';
+  try{
+    await window.firebaseAddDoc(window.firebaseCollection(window.firebaseDb, 'gallery'), {
+      title: lastGenerated.title,
+      caption: lastGenerated.caption,
+      hashtags: lastGenerated.hashtags,
+      lang: lastGenerated.lang,
+      storeName: lastGenerated.storeName,
+      imageBase64: lastGenerated.imageBase64,
+      createdAt: window.firebaseServerTimestamp()
+    });
+    $('publishBtn').textContent = 'Berhasil dibagikan! ✅';
+    setTimeout(() => {
+      $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
+      $('publishBtn').disabled = false;
+    }, 2000);
+  } catch(err){
+    console.error(err);
+    alert('Gagal membagikan ke galeri: ' + err.message);
+    $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
+    $('publishBtn').disabled = false;
+  }
+});
+
+// ============ LOAD PUBLIC GALLERY (realtime) ============
+function startGalleryListener(){
+  if(!window.firebaseReady) return;
+  const q = window.firebaseQuery(
+    window.firebaseCollection(window.firebaseDb, 'gallery'),
+    window.firebaseOrderBy('createdAt', 'desc'),
+    window.firebaseLimit(30)
+  );
+  window.firebaseOnSnapshot(q, (snapshot) => {
+    $('galleryLoading').classList.remove('show');
+    if(snapshot.empty){
+      $('galleryList').innerHTML = '<div class="empty-state">Belum ada yang membagikan konten. Jadilah yang pertama!</div>';
+      return;
+    }
+    const cards = [];
+    const now = Date.now();
+    const docsArr = [];
+    snapshot.forEach(d => docsArr.push({ id: d.id, ...d.data() }));
+    docsArr.sort((a, b) => {
+      const aBoost = a.boostExpiresAt && a.boostExpiresAt > now;
+      const bBoost = b.boostExpiresAt && b.boostExpiresAt > now;
+      if(aBoost && bBoost) return a.boostExpiresAt - b.boostExpiresAt;
+      if(aBoost) return -1;
+      if(bBoost) return 1;
+      return 0; // keep original createdAt desc order for the rest
+    });
+    docsArr.forEach(d => {
+      const isBoosted = d.boostExpiresAt && d.boostExpiresAt > now;
+      const hoursLeft = isBoosted ? Math.max(1, Math.round((d.boostExpiresAt - now) / 3600000)) : 0;
+      cards.push(`
+        <div class="gallery-card">
+          ${d.imageBase64 ? `<img src="data:image/jpeg;base64,${d.imageBase64}">` : ''}
+          <div class="gc-body">
+            ${isBoosted ? `<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>` : ''}
+            <div class="gc-title">${escapeHtml(d.title || '')}</div>
+            <div class="gc-caption">${escapeHtml((d.caption || '').slice(0, 120))}${(d.caption||'').length > 120 ? '...' : ''}</div>
+            <div class="gc-meta">
+              <span>🏪 ${escapeHtml(d.storeName || 'UMKM')}</span>
+              <span class="gc-lang">${d.lang === 'en' ? 'GLOBAL' : 'LOKAL'}</span>
+            </div>
+            ${!isBoosted ? `<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>` : ''}
+          </div>
+        </div>
+      `);
+    });
+    $('galleryList').innerHTML = cards.join('');
+  }, (err) => {
+    $('galleryLoading').classList.remove('show');
+    $('galleryList').innerHTML = '<div class="empty-state">Gagal memuat galeri. Cek konfigurasi Firebase.</div>';
+    console.error(err);
+  });
+}
+
+if(window.firebaseReady){
+  startGalleryListener();
+} else {
+  document.addEventListener('firebase-ready', startGalleryListener);
+}
+
+renderDashboard();
+
+// ============ BOOST FEATURE CONFIG ============
+// Ganti nilai-nilai ini sesuai data kamu:
+const BOOST_CONFIG = {
+  bcaNumber: "GANTI_NOMOR_REKENING_BCA",
+  bcaOwner: "GANTI_NAMA_PEMILIK_REKENING",
+  ovoNumber: "39358082117573435",
+  ovoOwner: "Nelson",
+  waNumber: "6282117573435", // sudah diisi sesuai permintaan
+  priceText: "Rp 10.000 / 24 jam",
+  maxActiveSlots: 10,
+  boostDurationMs: 24 * 60 * 60 * 1000,
+  adminPassword: "GANTI_PASSWORD_ADMIN" // WAJIB diganti sebelum publish!
+};
+
+$('bcaNumberDisplay').textContent = BOOST_CONFIG.bcaNumber + ' (a.n. ' + BOOST_CONFIG.bcaOwner + ')';
+$('ovoNumberDisplay').textContent = BOOST_CONFIG.ovoNumber + ' (a.n. ' + BOOST_CONFIG.ovoOwner + ')';
+document.querySelector('.modal-sub') && (document.querySelector('.modal-sub').textContent =
+  'Produk kamu tampil paling atas Galeri selama 24 jam setelah diverifikasi. Slot terbatas ' + BOOST_CONFIG.maxActiveSlots + ', gantian biar adil.');
+
+let currentBoostGalleryId = null;
+let boostProofBase64 = null;
+
+function openBoostModal(galleryId, storeName){
+  currentBoostGalleryId = galleryId;
+  boostProofBase64 = null;
+  $('proofUpload').innerHTML = '📎 Ketuk untuk unggah screenshot bukti transfer';
+  $('boostSenderName').value = '';
+  $('boostWaBtn').href = `https://wa.me/${BOOST_CONFIG.waNumber}?text=${encodeURIComponent(
+    `Halo admin, saya mau konfirmasi Boost produk "${storeName || ''}" di Sekretaris UMKM. Nominal: ${BOOST_CONFIG.priceText}. Bukti transfer sudah saya kirim lewat aplikasi.`
+  )}`;
+  refreshSlotInfo();
+  $('boostModal').classList.add('show');
+}
+
+async function refreshSlotInfo(){
+  if(!window.firebaseReady){ $('slotInfo').textContent = 'Info slot tidak tersedia (Firebase belum dikonfigurasi)'; return; }
+  try{
+    const snap = await new Promise((resolve) => {
+      const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
+    });
+    const now = Date.now();
+    let active = 0;
+    snap.forEach(d => { const data = d.data(); if(data.boostExpiresAt && data.boostExpiresAt > now) active++; });
+    $('slotInfo').textContent = `Slot boost aktif sekarang: ${active} / ${BOOST_CONFIG.maxActiveSlots}`;
+  } catch(e){ $('slotInfo').textContent = ''; }
+}
+
+$('boostModalClose').addEventListener('click', () => $('boostModal').classList.remove('show'));
+$('adminClose').addEventListener('click', () => $('adminPanel').classList.remove('show'));
+
+$('proofUpload').addEventListener('click', () => $('proofFileInput').click());
+$('proofFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    boostProofBase64 = ev.target.result.split(',')[1];
+    $('proofUpload').innerHTML = '✅ Bukti terlampir<br><img src="' + ev.target.result + '">';
+  };
+  reader.readAsDataURL(file);
+});
+
+$('submitBoostBtn').addEventListener('click', async () => {
+  if(!currentBoostGalleryId) return;
+  const senderName = $('boostSenderName').value.trim();
+  if(!senderName){ alert('Isi nama pengirim transfer dulu ya.'); return; }
+  if(!boostProofBase64){ alert('Unggah screenshot bukti transfer dulu ya.'); return; }
+  if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi.'); return; }
+
+  $('submitBoostBtn').disabled = true;
+  $('submitBoostBtn').textContent = 'Mengirim...';
+  try{
+    await window.firebaseAddDoc(window.firebaseCollection(window.firebaseDb, 'boostRequests'), {
+      galleryId: currentBoostGalleryId,
+      senderName,
+      proofBase64: boostProofBase64,
+      status: 'pending',
+      createdAt: window.firebaseServerTimestamp()
+    });
+    alert('Berhasil dikirim! Tunggu verifikasi admin (boleh juga klik tombol WhatsApp untuk lebih cepat).');
+    $('boostModal').classList.remove('show');
+  } catch(err){
+    alert('Gagal mengirim: ' + err.message);
+  } finally {
+    $('submitBoostBtn').disabled = false;
+    $('submitBoostBtn').textContent = 'Kirim & Tunggu Verifikasi';
+  }
+});
+
+document.addEventListener('click', (e) => {
+  if(e.target.classList.contains('boost-btn')){
+    const id = e.target.dataset.galleryId;
+    const card = e.target.closest('.gallery-card');
+    const storeName = card ? card.querySelector('.gc-meta span')?.textContent.replace('🏪 ', '') : '';
+    openBoostModal(id, storeName);
+  }
+});
+
+// ============ ADMIN PANEL ============
+let adminUnsubscribe = null;
+
+function openAdminPanel(){
+  $('adminPanel').classList.add('show');
+}
+
+$('adminLoginBtn').addEventListener('click', () => {
+  if($('adminPassword').value === BOOST_CONFIG.adminPassword){
+    $('adminLoginBox').style.display = 'none';
+    $('adminContent').style.display = 'block';
+    startAdminListener();
+  } else {
+    alert('Password salah.');
+  }
+});
+
+function startAdminListener(){
+  if(!window.firebaseReady) return;
+  const q = window.firebaseQuery(
+    window.firebaseCollection(window.firebaseDb, 'boostRequests'),
+    window.firebaseOrderBy('createdAt', 'desc'),
+    window.firebaseLimit(50)
+  );
+  adminUnsubscribe = window.firebaseOnSnapshot(q, async (snapshot) => {
+    const now = Date.now();
+    // hitung slot aktif
+    const gallerySnap = await new Promise((resolve) => {
+      const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
+    });
+    let activeSlots = 0;
+    const galleryMap = {};
+    gallerySnap.forEach(d => {
+      const data = d.data();
+      galleryMap[d.id] = data;
+      if(data.boostExpiresAt && data.boostExpiresAt > now) activeSlots++;
+    });
+    $('adminSlotInfo').textContent = `Slot boost aktif: ${activeSlots} / ${BOOST_CONFIG.maxActiveSlots}`;
+
+    const pendingDocs = [];
+    snapshot.forEach(d => { const data = d.data(); if(data.status === 'pending') pendingDocs.push({ id: d.id, ...data }); });
+
+    if(pendingDocs.length === 0){
+      $('adminPendingList').innerHTML = '<div class="empty-state">Tidak ada permintaan boost yang menunggu.</div>';
+      return;
+    }
+
+    $('adminPendingList').innerHTML = pendingDocs.map(p => {
+      const galleryItem = galleryMap[p.galleryId];
+      return `
+        <div class="admin-item" data-req-id="${p.id}" data-gallery-id="${p.galleryId}">
+          <div><strong>${escapeHtml(galleryItem?.title || p.galleryId)}</strong> · oleh ${escapeHtml(galleryItem?.storeName || '-')}</div>
+          <div style="font-size:12.5px; color:var(--ink-soft);">Pengirim transfer: ${escapeHtml(p.senderName || '-')}</div>
+          ${p.proofBase64 ? `<img src="data:image/jpeg;base64,${p.proofBase64}">` : ''}
+          <div class="admin-actions">
+            <button class="btn-approve">✅ Approve (boost 24 jam)</button>
+            <button class="btn-reject">❌ Reject</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  });
+}
+
+document.addEventListener('click', async (e) => {
+  if(e.target.classList.contains('btn-approve') || e.target.classList.contains('btn-reject')){
+    const item = e.target.closest('.admin-item');
+    const reqId = item.dataset.reqId;
+    const galleryId = item.dataset.galleryId;
+    const approve = e.target.classList.contains('btn-approve');
+
+    if(approve){
+      // cek slot dulu
+      const gallerySnap = await new Promise((resolve) => {
+        const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
+      });
+      const now = Date.now();
+      let activeSlots = 0;
+      gallerySnap.forEach(d => { const data = d.data(); if(data.boostExpiresAt && data.boostExpiresAt > now) activeSlots++; });
+      if(activeSlots >= BOOST_CONFIG.maxActiveSlots){
+        alert('Slot boost penuh (' + BOOST_CONFIG.maxActiveSlots + '). Tolak atau minta user tunggu slot kosong dulu.');
+        return;
+      }
+      try{
+        // update dokumen gallery dengan field boostExpiresAt (pakai setDoc merge via addDoc tidak bisa update, perlu updateDoc - import dinamis)
+        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        await updateDoc(doc(window.firebaseDb, 'gallery', galleryId), {
+          boostExpiresAt: now + BOOST_CONFIG.boostDurationMs
+        });
+        await updateDoc(doc(window.firebaseDb, 'boostRequests', reqId), { status: 'approved' });
+        alert('Boost disetujui! Produk akan tampil teratas selama 24 jam.');
+      } catch(err){
+        alert('Gagal approve: ' + err.message);
+      }
+    } else {
+      try{
+        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+        await updateDoc(doc(window.firebaseDb, 'boostRequests', reqId), { status: 'rejected' });
+      } catch(err){
+        alert('Gagal reject: ' + err.message);
+      }
+    }
+  }
+});
+
+// Buka panel admin lewat URL: namafile.html#admin
+if(location.hash === '#admin'){
+  document.addEventListener('DOMContentLoaded', openAdminPanel);
+  if(document.readyState !== 'loading') openAdminPanel();
+}
+
+// Re-render gallery tiap 60 detik supaya badge "X jam lagi" & status boost akurat
+setInterval(() => { if(window.firebaseReady) startGalleryListener(); }, 60000);
+
+</script>
+</body>
+</html>

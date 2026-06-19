@@ -2110,21 +2110,12 @@ let mediaRecorder=null, recordedChunks=[], pendingVideoBlob=null;
 const ICE_SERVERS = {iceServers:[
   {urls:'stun:stun.l.google.com:19302'},
   {urls:'stun:stun1.l.google.com:19302'},
-  {
-    urls:'turn:openrelay.metered.ca:80',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  },
-  {
-    urls:'turn:openrelay.metered.ca:443',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  },
-  {
-    urls:'turn:openrelay.metered.ca:443?transport=tcp',
-    username:'openrelayproject',
-    credential:'openrelayproject'
-  }
+  {urls:'stun:stun2.l.google.com:19302'},
+  {urls:'stun:stun3.l.google.com:19302'},
+  {urls:'turn:sekretaris-umkm.metered.live:80', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turn:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turn:sekretaris-umkm.metered.live:443?transport=tcp', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'},
+  {urls:'turns:sekretaris-umkm.metered.live:443', username:'9e31c9794088dfb22095bd3b', credential:'BIj2sgJ4AkGtlyH/'}
 ]};
 
 const COACH_SCRIPTS=[
@@ -2630,47 +2621,38 @@ async function joinAsViewer(sessionId){
 
   viewerPC=new RTCPeerConnection(ICE_SERVERS);
 
-  // PERBAIKAN: Gunakan satu MediaStream yang persisten sebagai container.
-  // Ketika host renegosiasi (kamera mati/nyala), ontrack bisa terpanggil lagi
-  // dengan track baru — kita update stream yang sama agar video element tidak perlu
-  // di-reset ulang (menghindari flicker/loading di HP penonton).
-  let viewerStream = new MediaStream();
   const vid=$('viewerVideo');
-  vid.srcObject = viewerStream;
-
+  vid.srcObject = null;
   let videoLoaded = false;
-  // Jika dalam 15 detik video belum muncul, coba sambung ulang otomatis
+
   const videoCheckTimer = setTimeout(()=>{
     if(!videoLoaded && watchingSessionId===sessionId){
       const statusEl=$('viewerConnStatus');
-      if(statusEl) statusEl.textContent='Masih mencoba... Kalau tetap loading, sinyal host atau jaringanmu kurang stabil.';
+      if(statusEl) statusEl.textContent='Masih mencoba... Kalau tetap loading, coba keluar lalu tonton ulang.';
     }
-  }, 15000);
+  }, 20000);
 
   viewerPC.ontrack=(e)=>{
-    // Tambahkan/ganti track ke viewerStream yang sudah di-set ke video element
-    // Ini lebih stabil daripada assign srcObject ulang setiap kali ada track baru
-    e.streams[0].getTracks().forEach(track => {
-      // Hapus track lama dengan kind yang sama sebelum tambah yang baru
-      viewerStream.getTracks().filter(t=>t.kind===track.kind).forEach(old=>{
-        viewerStream.removeTrack(old);
-      });
-      viewerStream.addTrack(track);
-    });
-    // Tampilkan video element begitu ada track masuk (bisa video atau audio dulu)
+    if(e.streams && e.streams[0]){
+      vid.srcObject = e.streams[0];
+    } else {
+      if(!vid.srcObject) vid.srcObject = new MediaStream();
+      vid.srcObject.addTrack(e.track);
+    }
     if(!videoLoaded){
       videoLoaded = true;
       clearTimeout(videoCheckTimer);
       vid.style.display='block';
       $('viewerScreenPh').style.display='none';
     }
-    // Play/unmute handling — video muted dulu agar autoplay tidak diblokir browser HP
     vid.play().then(()=>{
       $('viewerUnmuteBtn').style.display='block';
-    }).catch((err)=>{ showDebugToast('Video gagal autoplay: '+err.message); });
+    }).catch((err)=>{
+      showDebugToast('Autoplay diblokir: '+err.message);
+      $('viewerUnmuteBtn').style.display='block';
+    });
   };
   $('viewerUnmuteBtn').onclick=()=>{
-    const vid=$('viewerVideo');
     vid.muted=false;
     vid.play().catch(()=>{});
     $('viewerUnmuteBtn').style.display='none';

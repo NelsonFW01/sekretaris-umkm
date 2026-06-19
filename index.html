@@ -8,39 +8,63 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/SheetJS/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import {
+    getDatabase, ref, push, set, update, remove, get,
+    query, orderByChild, limitToLast, onValue, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+  // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
+  // proyekmu sendiri (https://console.firebase.google.com -> Project settings -> General -> Your apps -> SDK setup and configuration).
+  // Selama nilainya masih "GANTI_...", fitur Global / Live real-time TIDAK akan berfungsi
+  // untuk siapa pun, karena tidak ada server database yang dituju.
   const firebaseConfig = {
-    apiKey: "GANTI_DENGAN_API_KEY_FIREBASE_KAMU",
-    authDomain: "GANTI.firebaseapp.com",
-    projectId: "GANTI_PROJECT_ID",
-    storageBucket: "GANTI.appspot.com",
-    messagingSenderId: "GANTI",
-    appId: "GANTI"
+    apiKey: "AIzaSyAGVWXc3W6gkAc4mSxAFqoVI1gcqCNom_g",
+    authDomain: "sekretaris-umkm.firebaseapp.com",
+    databaseURL: "https://sekretaris-umkm-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "sekretaris-umkm",
+    storageBucket: "sekretaris-umkm.firebasestorage.app",
+    messagingSenderId: "885552629940",
+    appId: "1:885552629940:web:c29ac342006b6ea099efe1"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const isConfigured = Object.values(firebaseConfig).every(v => typeof v === 'string' && !v.includes('GANTI'));
 
-  window.firebaseDb = db;
-  window.firebaseAddDoc = addDoc;
-  window.firebaseCollection = collection;
-  window.firebaseQuery = query;
-  window.firebaseOrderBy = orderBy;
-  window.firebaseLimit = limit;
-  window.firebaseOnSnapshot = onSnapshot;
-  window.firebaseServerTimestamp = serverTimestamp;
-  window.firebaseDoc = doc;
-  window.firebaseUpdateDoc = updateDoc;
-  window.firebaseDeleteDoc = deleteDoc;
-  window.firebaseReady = true;
-  document.dispatchEvent(new Event('firebase-ready'));
+  if (!isConfigured) {
+    window.firebaseReady = false;
+    window.firebaseConfigMissing = true;
+    document.dispatchEvent(new Event('firebase-config-missing'));
+  } else {
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+
+      window.firebaseDb = db;
+      window.rtdbRef = ref;
+      window.rtdbPush = push;
+      window.rtdbSet = set;
+      window.rtdbUpdate = update;
+      window.rtdbRemove = remove;
+      window.rtdbGet = get;
+      window.rtdbQuery = query;
+      window.rtdbOrderByChild = orderByChild;
+      window.rtdbLimitToLast = limitToLast;
+      window.rtdbOnValue = onValue;
+      window.firebaseServerTimestamp = serverTimestamp;
+      window.firebaseReady = true;
+      document.dispatchEvent(new Event('firebase-ready'));
+    } catch (err) {
+      console.error('Firebase init failed:', err);
+      window.firebaseReady = false;
+      window.firebaseConfigMissing = true;
+      document.dispatchEvent(new Event('firebase-config-missing'));
+    }
+  }
 </script>
+
 <style>
   :root{
     --bg: #FAF6F0;
@@ -210,7 +234,77 @@
   .tx-item .tx-amount{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size:14px; }
   .tx-amount.in{ color: var(--good); }
   .tx-amount.out{ color: var(--bad); }
+  .tx-actions{ display:flex; gap:6px; margin-left:10px; }
+  .tx-actions button{
+    width:28px; height:28px; border-radius:8px; border:1px solid var(--line); background:var(--bg);
+    cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center;
+  }
+
+  /* ===== LIVE TAB ===== */
+  .live-header{background:linear-gradient(145deg,#1a1a2e,#16213e);color:#fff;border-radius:var(--radius);padding:20px;margin-bottom:16px;position:relative;overflow:hidden;}
+  .live-header::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(232,99,63,.25),transparent 50%);}
+  .live-header h2{font-size:18px;margin-bottom:4px;position:relative;}
+  .live-header p{font-size:13px;opacity:.78;position:relative;}
+  .live-dot{display:inline-block;width:8px;height:8px;background:#ff4444;border-radius:50%;animation:liveBlink 1s infinite;margin-right:5px;}
+  @keyframes liveBlink{0%,100%{opacity:1;}50%{opacity:0;}}
+  .live-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,68,68,.18);border:1px solid rgba(255,68,68,.35);border-radius:20px;padding:4px 10px;font-size:11.5px;font-weight:700;color:#ff6666;margin-bottom:10px;}
+  .live-setup{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow);}
+  .live-view{display:none;}
+  .live-view.active{display:block;}
+  .live-screen{background:#0f0f0f;border-radius:14px;aspect-ratio:9/16;max-height:340px;position:relative;overflow:hidden;margin-bottom:12px;display:flex;align-items:center;justify-content:center;}
+  .live-screen-ph{color:rgba(255,255,255,.32);font-size:13px;text-align:center;}
+  .live-screen video{width:100%;height:100%;object-fit:cover;}
+  .live-overlay{position:absolute;inset:0;pointer-events:none;}
+  .live-info-bar{position:absolute;top:10px;left:10px;right:10px;display:flex;align-items:center;justify-content:space-between;}
+  .live-label{background:rgba(255,68,68,.92);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px;display:flex;align-items:center;gap:4px;}
+  .viewer-count{background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px;}
+  .emote-rain{position:absolute;bottom:78px;right:10px;display:flex;flex-direction:column;gap:4px;pointer-events:none;}
+  .flying-emote{font-size:22px;animation:flyUp 2.4s ease-out forwards;}
+  @keyframes flyUp{0%{transform:translateY(0) scale(1);opacity:1;}100%{transform:translateY(-130px) scale(.5);opacity:0;}}
+  .live-comments-overlay{position:absolute;bottom:10px;left:10px;right:10px;display:flex;flex-direction:column;gap:3px;pointer-events:none;}
+  .live-cmmt{background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;padding:4px 9px;border-radius:7px;animation:cmmtSlideIn .25s ease;max-width:85%;}
+  @keyframes cmmtSlideIn{from{transform:translateX(-10px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+  .cmmt-user{font-weight:700;color:#FFC107;margin-right:4px;}
+  .coach-panel{background:linear-gradient(135deg,#1a1a2e,#0f3460);border-radius:13px;padding:14px;margin-bottom:12px;color:#fff;border:1px solid rgba(107,79,190,.4);}
+  .coach-title{font-size:12px;font-weight:700;color:#A78BFA;margin-bottom:8px;display:flex;align-items:center;gap:5px;}
+  .coach-msg{font-size:13px;line-height:1.5;background:rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;border-left:3px solid #A78BFA;}
+  .coach-timer{font-size:11px;color:rgba(255,255,255,.5);margin-top:6px;}
+  .live-input-row{display:flex;gap:7px;margin-bottom:12px;}
+  .live-input-row input{flex:1;padding:10px 13px;border-radius:11px;border:1.5px solid var(--line);font-size:13px;font-family:inherit;background:var(--bg-card);}
+  .live-input-row input:focus{outline:none;border-color:var(--coral);}
+  .live-input-row button{padding:10px 14px;border-radius:11px;border:none;background:var(--coral);color:#fff;font-weight:700;font-size:13px;cursor:pointer;}
+  .emote-row{display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;}
+  .emote-send{padding:8px 12px;border-radius:20px;border:1.5px solid var(--line);background:var(--bg-card);font-size:18px;cursor:pointer;transition:transform .15s;}
+  .emote-send:active{transform:scale(1.25);}
+  .orders-section{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;}
+  .orders-section h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+  .order-item{background:var(--sand);border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:12.5px;}
+  .order-item .o-buyer{font-weight:700;margin-bottom:3px;}
+  .order-item .o-detail{color:var(--ink-soft);}
+  .o-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-top:5px;background:#E8F5E9;color:#2D7A4F;}
+  .live-cam-row{display:flex;gap:8px;margin-bottom:12px;}
+  .live-cam-row button{flex:1;padding:10px;border-radius:11px;font-weight:700;font-size:13px;cursor:pointer;border:1.5px solid var(--line);background:var(--bg-card);}
+  .live-cam-row .stop-btn{border-color:var(--bad);color:var(--bad);}
+  .live-cam-row .cam-btn{background:var(--teal);color:#fff;border-color:var(--teal);}
+
   .empty-state{ text-align:center; padding: 30px 16px; color: var(--ink-soft); font-size:13.5px; }
+
+  .review-card{
+    background:#FFF9EE; border:1.5px solid #F0D6A0; border-radius:14px; padding:16px; margin-bottom:12px;
+  }
+  .review-card .rv-title{ font-size:12.5px; font-weight:700; color:#9A6B0E; margin-bottom:10px; }
+  .review-card .rv-row{ display:flex; gap:8px; margin-bottom:8px; }
+  .review-card .rv-field{ flex:1; display:flex; flex-direction:column; gap:4px; }
+  .review-card .rv-field-label{ font-size:10.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em; }
+  .review-card select, .review-card input{
+    flex:1; padding:9px 10px; border-radius:9px; border:1.5px solid var(--line); font-size:13px; font-family:inherit; background:white;
+  }
+  .review-card .rv-actions{ display:flex; gap:8px; margin-top:8px; }
+  .review-card .rv-actions button{
+    flex:1; padding:10px; border-radius:10px; border:none; font-weight:700; font-size:13px; cursor:pointer;
+  }
+  .rv-confirm{ background:var(--good); color:white; }
+  .rv-cancel{ background:var(--bad); color:white; }
 
   .upload-zone{
     background: var(--bg-card); border: 2px dashed var(--line); border-radius: var(--radius);
@@ -291,6 +385,10 @@
     padding-top:8px; border-top:1px solid var(--line);
   }
   .gallery-card .gc-lang{ font-weight:700; padding:2px 8px; border-radius:20px; font-size:10px; background: var(--sand); color: var(--teal); }
+  .gc-owner-actions{ display:flex; gap:6px; margin-top:8px; }
+  .gc-owner-actions button{ flex:1; padding:7px; border-radius:8px; border:none; font-weight:700; font-size:11.5px; cursor:pointer; }
+  .gc-edit-btn{ background: var(--sand); color: var(--teal); }
+  .gc-delete-btn{ background:#FDEAEA; color: var(--bad); }
 
   .stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
   .stat-card{ background: var(--bg-card); border:1px solid var(--line); border-radius:14px; padding:16px; }
@@ -302,7 +400,6 @@
 
   @media (max-width:380px){ .switch{ width:96px; } .switch .knob{ width:46px; } }
 
-  /* ===== BOOST FEATURE ===== */
   .boost-btn{
     width:100%; margin-top:10px; padding:10px; border-radius:10px; border:1.5px solid var(--coral);
     background:#FFF1EC; color:var(--coral-dark); font-weight:700; font-size:12.5px; cursor:pointer;
@@ -326,7 +423,7 @@
   .pay-option{
     background:var(--sand); border-radius:12px; padding:14px; margin-bottom:10px; font-size:13.5px;
   }
-  .pay-option .po-title{ font-weight:700; margin-bottom:4px; font-size:13px; }
+  .pay-option .po-label{ font-weight:700; margin-bottom:4px; font-size:13px; }
   .pay-option .po-num{ font-family:'JetBrains Mono'; font-size:15px; font-weight:600; color:var(--teal); }
   .modal-close{
     position:absolute; top:14px; right:18px; background:none; border:none; font-size:20px; cursor:pointer; color:var(--ink-soft);
@@ -358,6 +455,18 @@
     <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
   </header>
 
+  <div class="key-banner" id="firebaseBanner" style="display:none;background:#FDEAEA;border-color:#F0B0B0;">
+    ⚠️ <strong>Realtime Database belum dibuat di project Firebase kamu.</strong> Config project "sekretaris-umkm" sudah ditempel di kode, tapi <code>databaseURL</code> masih kosong karena Realtime Database belum diaktifkan — itu sebabnya muncul error.
+    <br><br>
+    Langkah terakhir (±1 menit):
+    <br>1. Buka <a href="https://console.firebase.google.com/project/sekretaris-umkm/database" target="_blank">console.firebase.google.com</a> → project <strong>sekretaris-umkm</strong>.
+    <br>2. Di sidebar kiri klik <strong>Build → Realtime Database</strong> (bukan Firestore).
+    <br>3. Klik <strong>"Create Database"</strong>, pilih lokasi server (mis. Singapore/asia-southeast1), lalu pilih <strong>"Start in test mode"</strong>.
+    <br>4. Setelah dibuat, akan muncul URL seperti <code>https://sekretaris-umkm-default-rtdb.asia-southeast1.firebasedatabase.app</code> — salin persis URL itu.
+    <br>5. Tempel URL itu ke <code>databaseURL</code> di awal file index.html, ganti "GANTI_DATABASE_URL".
+    <br>6. Simpan, upload ulang ke GitHub Pages.
+  </div>
+
   <div class="key-banner" id="keyBanner">
     Pakai API key gratis kamu sendiri supaya fitur AI aktif. Tersimpan otomatis di browser ini, gak perlu isi ulang.
     <br><br>
@@ -374,12 +483,12 @@
     <button class="tab" data-panel="dashboard">📊 Dashboard</button>
     <button class="tab" data-panel="content">📸 Bikin Konten</button>
     <button class="tab" data-panel="gallery">🌍 Galeri</button>
+    <button class="tab" data-panel="live">📺 LIVE</button>
   </div>
 
   <main>
     <!-- ===== FINANCE PANEL ===== -->
     <section class="panel active" id="panel-finance">
-
       <div class="record-zone">
         <h2>Ceritakan transaksi hari ini</h2>
         <p class="hint">"Hari ini laku 50 kue, untung 200 ribu"</p>
@@ -388,7 +497,6 @@
         </button>
         <div class="mic-status" id="micStatus">Tekan tombol lalu mulai bicara</div>
         <div class="transcript-preview" id="transcriptPreview"></div>
-
         <div class="text-fallback">
           <input type="text" id="textInput" placeholder="atau ketik di sini...">
           <button id="submitText">Catat</button>
@@ -400,7 +508,18 @@
         <span style="margin-left:6px;">AI lagi proses...</span>
       </div>
 
-      <div class="lang-toggle">
+      <div id="reviewArea"></div>
+
+      <div class="tx-list" id="txList">
+        <div class="empty-state" id="txEmpty">Belum ada transaksi tercatat hari ini.</div>
+      </div>
+
+      <button class="generate-btn" id="finalizeBtn" style="display:none; margin-top:14px;">📋 Selesai & Buat Laporan</button>
+      <div id="reFinalizeNotice" style="display:none; text-align:center; font-size:12.5px; color:var(--coral); font-weight:600; margin-top:8px;">
+        Ada transaksi baru — klik "Selesai & Buat Laporan" lagi buat update.
+      </div>
+
+      <div class="lang-toggle" style="margin-top:18px;">
         <span class="label">Ringkasan laporan dalam:</span>
         <div class="switch" id="financeLangSwitch">
           <span class="opt l">ID</span>
@@ -417,10 +536,6 @@
       </div>
 
       <button class="generate-btn outline" id="exportExcelBtn" style="display:none;">⬇️ Unduh Laporan Excel (.xlsx)</button>
-
-      <div class="tx-list" id="txList">
-        <div class="empty-state" id="txEmpty">Belum ada transaksi tercatat hari ini.</div>
-      </div>
     </section>
 
     <!-- ===== DASHBOARD PANEL ===== -->
@@ -443,23 +558,19 @@
           <div class="st-value" id="dbCount">0</div>
         </div>
       </div>
-
       <div class="chart-card">
         <h3>Pemasukan vs Pengeluaran per Kategori</h3>
         <canvas id="categoryChart"></canvas>
       </div>
-
       <div class="chart-card">
         <h3>Tren Transaksi (urutan catat)</h3>
         <canvas id="trendChart"></canvas>
       </div>
-
       <button class="generate-btn outline" id="exportExcelBtn2">⬇️ Unduh Laporan Excel (.xlsx)</button>
     </section>
 
     <!-- ===== CONTENT PANEL ===== -->
     <section class="panel" id="panel-content">
-
       <div class="upload-zone" id="uploadZone">
         <img id="previewImg" style="display:none;">
         <div class="icon" id="uploadIcon">
@@ -474,7 +585,6 @@
         <label>Nama produk (opsional, bantu AI lebih akurat)</label>
         <input type="text" id="productName" placeholder="contoh: Keripik singkong balado">
       </div>
-
       <div class="field-group">
         <label>Nama toko/UMKM kamu (muncul di galeri publik)</label>
         <input type="text" id="storeName" placeholder="contoh: Kripik Bu Sari">
@@ -532,6 +642,92 @@
       </div>
       <div class="tx-list" id="galleryList" style="gap:14px;"></div>
     </section>
+
+    <!-- ===== LIVE PANEL ===== -->
+    <section class="panel" id="panel-live">
+      <div class="live-header">
+        <div class="live-badge"><span class="live-dot"></span> FITUR BARU</div>
+        <h2>📺 Live Stream AI</h2>
+        <p>Jualan live + AI yang catat pesanan dari komentar dan bisikkan saran real-time, biar kamu gak kewalahan sendirian</p>
+      </div>
+
+      <!-- SETUP -->
+      <div id="liveSetup">
+        <div class="live-setup">
+          <h3 style="font-size:14px; margin-bottom:10px;">🎬 Mulai Sesi Live Baru</h3>
+          <div class="field-group">
+            <label>Nama Sesi / Produk yang Dijual</label>
+            <input type="text" id="liveSessionName" placeholder="contoh: Flash Sale Batik Lebaran">
+          </div>
+          <div class="field-group">
+            <label>Info Produk & Harga (dipakai AI untuk bikin saran & deteksi pesanan)</label>
+            <textarea id="liveProductInfo" rows="3" style="width:100%; padding:11px 13px; border-radius:11px; border:1.5px solid var(--line); font-family:inherit; font-size:13.5px; resize:vertical;" placeholder="contoh: Baju Batik Lengan Panjang - Rp120rb (M,L,XL warna biru/merah), Kerudung Polos - Rp35rb"></textarea>
+          </div>
+          <button class="generate-btn" id="startLiveBtn">🔴 Mulai Sesi Live</button>
+        </div>
+      </div>
+
+      <!-- LIVE VIEW -->
+      <div class="live-view" id="liveView">
+        <div class="live-screen" id="liveScreen">
+          <div class="live-screen-ph" id="liveScreenPh">
+            <div>📷</div>
+            <div style="margin-top:6px; font-size:11px;">Kamera akan tampil di sini</div>
+          </div>
+          <video id="liveVideo" style="display:none;" autoplay muted playsinline></video>
+          <div class="live-overlay">
+            <div class="live-info-bar">
+              <div class="live-label"><span class="live-dot"></span> LIVE</div>
+              <div class="viewer-count">👀 <span id="viewerCount">0</span></div>
+            </div>
+            <div class="emote-rain" id="emoteRain"></div>
+            <div class="live-comments-overlay" id="liveCommentsOverlay"></div>
+          </div>
+        </div>
+
+        <div class="live-cam-row">
+          <button class="cam-btn" id="toggleCamBtn">📷 Aktifkan Kamera</button>
+          <button class="stop-btn" id="stopLiveBtn">⏹ Stop Live</button>
+        </div>
+
+        <div class="coach-panel">
+          <div class="coach-title">🤖 AI Sales Coach — bisikan saran buat kamu</div>
+          <div class="coach-msg" id="coachMsg">Sesi live dimulai! Sapa penonton dan kenalkan produkmu dengan semangat 🎉</div>
+          <div class="coach-timer" id="coachTimer">Saran diperbarui tiap 30 detik</div>
+        </div>
+
+        <div style="font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:6px;">💬 Simulasi reaksi penonton:</div>
+        <div class="emote-row">
+          <button class="emote-send" data-emote="🔥">🔥</button>
+          <button class="emote-send" data-emote="❤️">❤️</button>
+          <button class="emote-send" data-emote="🛒">🛒</button>
+          <button class="emote-send" data-emote="😍">😍</button>
+          <button class="emote-send" data-emote="👏">👏</button>
+          <button class="emote-send" data-emote="🎉">🎉</button>
+        </div>
+
+        <div style="font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:6px;">💬 Simulasi komentar penonton (AI proses jadi pesanan):</div>
+        <div class="live-input-row">
+          <input type="text" id="liveCommentInput" placeholder='contoh: "mau beli baju biru L, kirim ke Surabaya"'>
+          <button id="sendCommentBtn">Kirim</button>
+        </div>
+
+        <div class="orders-section">
+          <h3>🛒 Pesanan Masuk (AI Order Taker) <button class="generate-btn outline" style="width:auto; padding:7px 12px; font-size:12px; margin:0;" id="exportOrdersBtn">⬇️ Export</button></h3>
+          <div class="loading-dots" id="orderLoading"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span style="margin-left:6px;">AI memproses komentar...</span></div>
+          <div id="orderList"><div class="empty-state" style="padding:16px;">Belum ada pesanan. Kirim komentar penonton di atas untuk simulasi.</div></div>
+        </div>
+
+        <div id="liveSummarySection" style="display:none;">
+          <div class="summary-card" style="display:block;">
+            <div class="summary-row"><span class="label">Total Pesanan</span><span class="value pos" id="liveTotalOrders">0</span></div>
+            <div class="summary-row"><span class="label">Estimasi Pemasukan</span><span class="value pos" id="liveTotalIncome">Rp 0</span></div>
+            <div class="ai-note" id="liveSummaryTip">Ringkasan sesi akan muncul di sini setelah live selesai.</div>
+          </div>
+          <button class="generate-btn" id="saveToFinanceBtn">💰 Simpan ke Catatan Keuangan</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
@@ -542,25 +738,23 @@
   <div class="modal-box">
     <button class="modal-close" id="boostModalClose">✕</button>
     <h3>🚀 Boost Produk ke Posisi Teratas</h3>
-    <p class="modal-sub">Produk kamu akan tampil di urutan paling atas Galeri selama 24 jam setelah diverifikasi.</p>
+    <p class="modal-sub">Produk kamu akan tampil di urutan paling atas Galeri selama 24 jam setelah diverifikasi. Slot terbatas 10, gantian biar adil.</p>
 
     <div class="slot-info" id="slotInfo">Memuat info slot...</div>
 
     <div class="pay-option">
       <div class="po-label">Transfer Bank BCA</div>
-      <div class="po-value" id="bcaNumberDisplay">GANTI_NOMOR_REKENING_BCA</div>
-      <div style="font-size:12.5px; color:var(--ink-soft); margin-top:3px;">a.n. GANTI_NAMA_PEMILIK_REKENING</div>
+      <div class="po-num" id="bcaNumberDisplay">(belum diatur — isi di Panel Admin)</div>
     </div>
     <div class="pay-option">
       <div class="po-label">OVO</div>
-      <div class="po-value" id="ovoNumberDisplay">GANTI_NOMOR_OVO</div>
-      <div style="font-size:12.5px; color:var(--ink-soft); margin-top:3px;">a.n. GANTI_NAMA_PEMILIK_OVO</div>
+      <div class="po-num" id="ovoNumberDisplay">082117573435 a.n. Nelson (kode OVO: 39358)</div>
     </div>
     <div class="pay-option" style="background:#FFF1EC;">
       <div class="po-label">Nominal Boost</div>
-      <div class="po-value">Rp 10.000 / 24 jam</div>
+      <div class="po-num">Rp 10.000 / 24 jam</div>
     </div>
-    <a href="#" id="boostWaBtn" class="wa-btn" target="_blank">💬 Konfirmasi via WhatsApp Admin</a>
+    <a href="#" id="boostWaBtn" target="_blank" style="display:block; margin-bottom:12px; padding:11px; background:#25D366; color:white; border-radius:11px; text-align:center; font-weight:700; font-size:13.5px; text-decoration:none;">💬 Konfirmasi via WhatsApp Admin</a>
 
     <div class="field-group">
       <label>Nama Pengirim Transfer</label>
@@ -571,7 +765,22 @@
     <input type="file" id="proofFileInput" accept="image/*" style="display:none;">
 
     <button class="generate-btn" id="submitBoostBtn">Kirim & Tunggu Verifikasi</button>
-    <p style="font-size:11.5px; color:var(--ink-soft); text-align:center;">Verifikasi manual oleh admin, biasanya beberapa jam. Slot dibagi rata gantian.</p>
+    <p style="font-size:11.5px; color:var(--ink-soft); text-align:center;">Verifikasi manual oleh admin, biasanya beberapa jam.</p>
+  </div>
+</div>
+
+<!-- ===== EDIT POSTINGAN GALERI ===== -->
+<div class="modal-overlay" id="editGalleryModal">
+  <div class="modal-box">
+    <button class="modal-close" id="editGalleryModalClose">✕</button>
+    <h3>✏️ Edit Postingan</h3>
+    <p class="modal-sub">Ubah info produk kamu di Galeri Publik.</p>
+    <input type="hidden" id="editGalleryId">
+    <div class="field-group"><label>Judul Produk</label><input type="text" id="editGalleryTitle"></div>
+    <div class="field-group"><label>Caption & Deskripsi</label><textarea id="editGalleryCaption" rows="4" style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid var(--line);font-family:inherit;font-size:14px;"></textarea></div>
+    <div class="field-group"><label>Hashtag</label><input type="text" id="editGalleryHashtags"></div>
+    <div class="field-group"><label>Nama Toko / UMKM</label><input type="text" id="editGalleryStoreName"></div>
+    <button class="generate-btn" id="saveGalleryEditBtn">💾 Simpan Perubahan</button>
   </div>
 </div>
 
@@ -579,7 +788,7 @@
 <div class="modal-overlay" id="adminPanel">
   <div class="modal-box" style="max-width:680px;">
     <button class="modal-close" id="adminClose">✕</button>
-    <h3>🔐 Panel Verifikasi Boost</h3>
+    <h3>🔐 Panel Admin</h3>
     <div id="adminLoginBox">
       <div class="field-group">
         <label>Password Admin</label>
@@ -589,13 +798,43 @@
     </div>
     <div id="adminContent" style="display:none;">
       <div class="slot-info" id="adminSlotInfo"></div>
+
+      <!-- KONFIGURASI PEMBAYARAN -->
+      <div style="background:#F0F9F4; border:1px solid #B7DFC8; border-radius:12px; padding:14px; margin-bottom:14px;">
+        <div style="font-size:12.5px; font-weight:700; color:#2D7A4F; margin-bottom:10px;">⚙️ Pengaturan Pembayaran</div>
+        <div class="field-group" style="margin-bottom:8px;">
+          <label>Nomor Rekening BCA</label>
+          <input type="text" id="adminBcaNumber" placeholder="contoh: 1234567890">
+        </div>
+        <div class="field-group" style="margin-bottom:8px;">
+          <label>Nama Pemilik Rekening BCA</label>
+          <input type="text" id="adminBcaOwner" placeholder="contoh: Nelson Wijaya">
+        </div>
+        <div class="field-group" style="margin-bottom:8px;">
+          <label>Ganti Password Admin (kosongkan kalau tidak mau ganti)</label>
+          <input type="password" id="adminNewPassword" placeholder="Password baru...">
+        </div>
+        <div style="font-size:11.5px; color:var(--ink-soft); margin-bottom:10px;">OVO sudah tetap: <strong>082117573435 a.n. Nelson (kode OVO: 39358)</strong></div>
+        <button class="generate-btn secondary" id="saveAdminConfig" style="margin-bottom:0; padding:10px;">💾 Simpan Pengaturan</button>
+        <div id="adminConfigStatus" style="font-size:12px; font-weight:600; margin-top:8px;"></div>
+      </div>
+
       <div id="adminPendingList"></div>
     </div>
   </div>
 </div>
 
-
 <script>
+// ============ USER IDENTITY (device-based, no login) ============
+function getUserId(){
+  try{
+    let uid = localStorage.getItem('umkm_user_id');
+    if(!uid){ uid = 'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); localStorage.setItem('umkm_user_id', uid); }
+    return uid;
+  }catch(e){ return 'guest_'+Math.random().toString(36).slice(2,8); }
+}
+const MY_UID = getUserId();
+
 // ============ STATE ============
 let groqKey = "";
 let openrouterKey = "";
@@ -610,10 +849,9 @@ let categoryChartInstance = null;
 let trendChartInstance = null;
 
 const $ = (id) => document.getElementById(id);
-
 function hasAnyKey(){ return !!(groqKey || openrouterKey); }
 
-// ============ API KEY (auto-save to localStorage) ============
+// ============ API KEY ============
 function loadSavedKeys(){
   try{
     groqKey = localStorage.getItem('sekretaris_umkm_groq_key') || "";
@@ -621,12 +859,11 @@ function loadSavedKeys(){
     $('groqKeyInput').value = groqKey;
     $('openrouterKeyInput').value = openrouterKey;
     updateKeyStatus();
-  } catch(e){ /* localStorage unavailable, ignore */ }
+  } catch(e){}
 }
 
 function updateKeyStatus(){
-  const ready = hasAnyKey();
-  $('generateBtn').disabled = !(ready && uploadedImageBase64);
+  $('generateBtn').disabled = !(hasAnyKey() && uploadedImageBase64);
   const status = $('keyStatus');
   if(groqKey && openrouterKey){
     status.textContent = '✅ Groq + OpenRouter siap (anti-limit, otomatis pindah kalau salah satu kena limit)';
@@ -638,7 +875,7 @@ function updateKeyStatus(){
     status.textContent = '⚠️ Masukkan minimal satu API key untuk mulai';
     status.style.color = '#C84F2F';
   }
-  if(ready){ $('keyBanner').style.opacity = '0.75'; }
+  if(hasAnyKey()){ $('keyBanner').style.opacity = '0.75'; }
 }
 
 $('groqKeyInput').addEventListener('input', (e) => {
@@ -686,17 +923,12 @@ if(SpeechRecognition){
   recognition.lang = 'id-ID';
   recognition.continuous = false;
   recognition.interimResults = true;
-
   recognition.onresult = (event) => {
     let transcript = '';
-    for(let i=0; i<event.results.length; i++){
-      transcript += event.results[i][0].transcript;
-    }
+    for(let i=0; i<event.results.length; i++) transcript += event.results[i][0].transcript;
     $('transcriptPreview').textContent = transcript;
     $('transcriptPreview').classList.add('show');
-    if(event.results[event.results.length-1].isFinal){
-      processTransaction(transcript);
-    }
+    if(event.results[event.results.length-1].isFinal) processTransaction(transcript);
   };
   recognition.onend = () => {
     isListening = false;
@@ -704,7 +936,7 @@ if(SpeechRecognition){
     $('micStatus').textContent = 'Tekan tombol lalu mulai bicara';
     $('micStatus').classList.remove('live');
   };
-  recognition.onerror = (e) => {
+  recognition.onerror = () => {
     isListening = false;
     $('micBtn').classList.remove('listening');
     $('micStatus').textContent = 'Gagal mendengar, coba lagi atau ketik manual';
@@ -715,10 +947,7 @@ if(SpeechRecognition){
 
 $('micBtn').addEventListener('click', () => {
   if(!recognition) return;
-  if(isListening){
-    recognition.stop();
-    return;
-  }
+  if(isListening){ recognition.stop(); return; }
   isListening = true;
   $('micBtn').classList.add('listening');
   $('micStatus').textContent = 'Mendengarkan...';
@@ -729,39 +958,27 @@ $('micBtn').addEventListener('click', () => {
 
 $('submitText').addEventListener('click', () => {
   const text = $('textInput').value.trim();
-  if(text){
-    processTransaction(text);
-    $('textInput').value = '';
-  }
+  if(text){ processTransaction(text); $('textInput').value = ''; }
 });
-$('textInput').addEventListener('keydown', (e) => {
-  if(e.key === 'Enter') $('submitText').click();
-});
+$('textInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') $('submitText').click(); });
 
-// ============ AI API CALL (Groq primary, OpenRouter fallback, with retry to dodge limits) ============
+// ============ AI API CALL ============
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 async function callGroq(prompt, imageBase64 = null){
   const model = imageBase64 ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
   const content = imageBase64
-    ? [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-      ]
+    ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
-
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content }], temperature: 0.7 })
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${groqKey}` },
+    body: JSON.stringify({ model, messages:[{ role:'user', content }], temperature:0.7 })
   });
   if(!res.ok){
     const err = await res.json().catch(() => ({}));
     const msg = err?.error?.message || `HTTP_${res.status}`;
-    const isLimited = res.status === 429 || /rate.?limit|quota/i.test(msg);
-    const e = new Error(msg);
-    e.limited = isLimited;
-    throw e;
+    const e = new Error(msg); e.limited = res.status===429||/rate.?limit|quota/i.test(msg); throw e;
   }
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content;
@@ -772,24 +989,17 @@ async function callGroq(prompt, imageBase64 = null){
 async function callOpenRouter(prompt, imageBase64 = null){
   const model = imageBase64 ? "meta-llama/llama-3.2-11b-vision-instruct:free" : "meta-llama/llama-3.3-70b-instruct:free";
   const content = imageBase64
-    ? [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } }
-      ]
+    ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
-
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openrouterKey}`, 'HTTP-Referer': 'https://nelsonfw01.github.io', 'X-Title': 'Sekretaris UMKM' },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content }], temperature: 0.7 })
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${openrouterKey}` },
+    body: JSON.stringify({ model, messages:[{ role:'user', content }], temperature:0.7 })
   });
   if(!res.ok){
     const err = await res.json().catch(() => ({}));
     const msg = err?.error?.message || `HTTP_${res.status}`;
-    const isLimited = res.status === 429 || /rate.?limit|quota/i.test(msg);
-    const e = new Error(msg);
-    e.limited = isLimited;
-    throw e;
+    const e = new Error(msg); e.limited = res.status===429||/rate.?limit|quota/i.test(msg); throw e;
   }
   const data = await res.json();
   const text = data?.choices?.[0]?.message?.content;
@@ -797,34 +1007,21 @@ async function callOpenRouter(prompt, imageBase64 = null){
   return text;
 }
 
-// callAI: coba Groq -> kalau limit, tunggu sebentar & retry sekali -> kalau masih limit, pindah ke OpenRouter -> kalau itu juga limit, retry sekali lagi.
 async function callAI(prompt, imageBase64 = null){
   if(!hasAnyKey()) throw new Error('NO_KEY');
-
   const attempts = [];
   if(groqKey) attempts.push(() => callGroq(prompt, imageBase64));
   if(openrouterKey) attempts.push(() => callOpenRouter(prompt, imageBase64));
-
   let lastErr = null;
-  for(let i = 0; i < attempts.length; i++){
-    try{
-      return await attempts[i]();
-    } catch(err){
+  for(let i=0; i<attempts.length; i++){
+    try{ return await attempts[i](); }
+    catch(err){
       lastErr = err;
-      console.warn('Provider gagal:', err.message);
-      if(err.limited){
-        // beri jeda singkat lalu coba sekali lagi provider yang sama sebelum pindah
-        await sleep(1200);
-        try{ return await attempts[i](); } catch(err2){ lastErr = err2; }
-      }
-      // lanjut ke provider berikutnya
+      if(err.limited){ await sleep(1200); try{ return await attempts[i](); } catch(err2){ lastErr = err2; } }
     }
   }
   throw lastErr || new Error('ALL_PROVIDERS_FAILED');
 }
-
-// alias supaya kompatibel jika ada pemanggilan lama
-const callGemini = callAI;
 
 function extractJson(text){
   let cleaned = text.replace(/```json|```/g, '').trim();
@@ -834,205 +1031,262 @@ function extractJson(text){
 }
 
 // ============ FINANCE LOGIC ============
+let pendingReviews = [];
+let reportFinalized = false;
+
 async function processTransaction(transcript){
   if(!transcript || transcript.length < 3) return;
-
   if(!hasAnyKey()){
-    alert('Masukkan minimal satu API key dulu di kotak kuning atas ya, supaya AI bisa proses transaksi kamu.');
+    alert('Masukkan minimal satu API key dulu di kotak kuning atas ya.');
     return;
   }
-
   $('financeLoading').classList.add('show');
-
   const prompt = `Kamu adalah asisten pencatat keuangan untuk pelaku UMKM Indonesia.
 Dari kalimat berikut, ekstrak SATU ATAU LEBIH transaksi keuangan.
 Kalimat: "${transcript}"
-
-Balas HANYA dengan JSON array (tanpa markdown, tanpa penjelasan) dengan format:
-[{"type": "in" atau "out", "desc": "deskripsi singkat", "category": "kategori (misal: Penjualan, Bahan Baku, Operasional)", "amount": angka_dalam_rupiah_tanpa_titik_koma}]
-
-Jika kalimat tidak mengandung info transaksi yang jelas, balas dengan array kosong [].`;
-
+Balas HANYA dengan JSON array (tanpa markdown) format:
+[{"type":"in"atau"out","desc":"deskripsi singkat","category":"kategori","amount":angka_rupiah}]
+Jika tidak ada transaksi jelas, balas [].`;
   try{
     const result = await callAI(prompt);
     const txs = extractJson(result);
     if(Array.isArray(txs) && txs.length > 0){
-      txs.forEach(tx => transactions.push({ ...tx, time: new Date().toISOString() }));
-      renderTransactions();
-      await generateFinanceSummary();
-      $('exportExcelBtn').style.display = 'block';
+      txs.forEach(tx => pendingReviews.push({...tx}));
+      renderReviewArea();
     } else {
       $('micStatus').textContent = 'Tidak terdeteksi transaksi — coba lebih spesifik';
       $('micStatus').classList.remove('live');
     }
   } catch(err){
-    console.error(err);
     alert('Gagal memproses: ' + (err.message === 'NO_KEY' ? 'API key belum diisi' : err.message));
   } finally {
     $('financeLoading').classList.remove('show');
   }
 }
 
-function renderTransactions(){
-  const list = $('txList');
-  if(transactions.length === 0){
-    list.innerHTML = '<div class="empty-state" id="txEmpty">Belum ada transaksi tercatat hari ini.</div>';
-    return;
-  }
-  list.innerHTML = transactions.slice().reverse().map(tx => `
-    <div class="tx-item">
-      <div>
-        <div class="tx-desc">${escapeHtml(tx.desc)}</div>
-        <div class="tx-cat">${escapeHtml(tx.category || '')}</div>
+function escapeAttr(str){ return String(str).replace(/"/g, '&quot;'); }
+
+function renderReviewArea(){
+  const area = $('reviewArea');
+  if(pendingReviews.length === 0){ area.innerHTML = ''; return; }
+  area.innerHTML = pendingReviews.map((tx, i) => `
+    <div class="review-card" data-idx="${i}">
+      <div class="rv-title">🤖 AI dengar transaksi ini — cek dulu, betulkan kalau ada yang salah:</div>
+      <div class="rv-row">
+        <div class="rv-field">
+          <span class="rv-field-label">Jenis Transaksi</span>
+          <select class="rv-type">
+            <option value="in" ${tx.type==='in'?'selected':''}>💰 Pemasukan</option>
+            <option value="out" ${tx.type==='out'?'selected':''}>📤 Pengeluaran</option>
+          </select>
+        </div>
+        <div class="rv-field">
+          <span class="rv-field-label">Jumlah (Rp)</span>
+          <input class="rv-amount" type="number" value="${Number(tx.amount)||0}">
+        </div>
       </div>
-      <div class="tx-amount ${tx.type === 'in' ? 'in' : 'out'}">
-        ${tx.type === 'in' ? '+' : '−'} Rp ${Number(tx.amount).toLocaleString('id-ID')}
+      <div class="rv-row">
+        <div class="rv-field">
+          <span class="rv-field-label">Deskripsi</span>
+          <input class="rv-desc" type="text" value="${escapeAttr(tx.desc||'')}">
+        </div>
+        <div class="rv-field">
+          <span class="rv-field-label">Kategori</span>
+          <input class="rv-category" type="text" value="${escapeAttr(tx.category||'')}">
+        </div>
+      </div>
+      <div class="rv-actions">
+        <button class="rv-confirm">✅ Tambahkan ke Catatan</button>
+        <button class="rv-cancel">✕ Batal</button>
       </div>
     </div>
   `).join('');
 }
 
+document.addEventListener('click', (e) => {
+  const card = e.target.closest('.review-card');
+  if(!card) return;
+  const idx = Number(card.dataset.idx);
+  if(e.target.classList.contains('rv-confirm')){
+    transactions.push({
+      type: card.querySelector('.rv-type').value,
+      amount: Number(card.querySelector('.rv-amount').value)||0,
+      desc: card.querySelector('.rv-desc').value.trim(),
+      category: card.querySelector('.rv-category').value.trim(),
+      time: new Date().toISOString()
+    });
+    pendingReviews.splice(idx,1);
+    renderReviewArea(); renderTransactions(); onTransactionsChanged();
+  } else if(e.target.classList.contains('rv-cancel')){
+    pendingReviews.splice(idx,1); renderReviewArea();
+  }
+});
+
+function onTransactionsChanged(){
+  $('finalizeBtn').style.display = transactions.length > 0 ? 'block' : 'none';
+  if(reportFinalized) $('reFinalizeNotice').style.display = 'block';
+}
+
+$('finalizeBtn').addEventListener('click', async () => {
+  $('finalizeBtn').disabled = true;
+  $('finalizeBtn').textContent = 'Membuat laporan...';
+  $('reFinalizeNotice').style.display = 'none';
+  await generateFinanceSummary();
+  reportFinalized = true;
+  $('exportExcelBtn').style.display = 'block';
+  $('finalizeBtn').disabled = false;
+  $('finalizeBtn').textContent = '📋 Selesai & Buat Laporan';
+});
+
+function renderTransactions(){
+  const list = $('txList');
+  if(transactions.length === 0){
+    list.innerHTML = '<div class="empty-state">Belum ada transaksi tercatat hari ini.</div>';
+    return;
+  }
+  list.innerHTML = transactions.map((_,i)=>i).reverse().map(i => {
+    const tx = transactions[i];
+    return `<div class="tx-item" data-idx="${i}">
+      <div>
+        <div class="tx-desc">${escapeHtml(tx.desc)}</div>
+        <div class="tx-cat">${escapeHtml(tx.category||'')}</div>
+      </div>
+      <div class="tx-amount ${tx.type==='in'?'in':'out'}">
+        ${tx.type==='in'?'+':'−'} Rp ${Number(tx.amount).toLocaleString('id-ID')}
+      </div>
+      <div class="tx-actions">
+        <button class="tx-edit-btn">✏️</button>
+        <button class="tx-delete-btn">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.addEventListener('click', (e) => {
+  const item = e.target.closest('.tx-item');
+  if(!item) return;
+  const idx = Number(item.dataset.idx);
+  const tx = transactions[idx];
+  if(!tx) return;
+  if(e.target.classList.contains('tx-delete-btn')){
+    if(confirm('Hapus transaksi "'+tx.desc+'"?')){
+      transactions.splice(idx,1); renderTransactions(); onTransactionsChanged();
+    }
+  } else if(e.target.classList.contains('tx-edit-btn')){
+    transactions.splice(idx,1);
+    pendingReviews.unshift(tx);
+    renderTransactions(); renderReviewArea(); onTransactionsChanged();
+    window.scrollTo({top:$('reviewArea').offsetTop-80,behavior:'smooth'});
+  }
+});
+
 async function generateFinanceSummary(){
-  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
-  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
+  const totalIn = transactions.filter(t=>t.type==='in').reduce((s,t)=>s+Number(t.amount),0);
+  const totalOut = transactions.filter(t=>t.type==='out').reduce((s,t)=>s+Number(t.amount),0);
   const net = totalIn - totalOut;
-
   $('summaryCard').style.display = 'block';
-  $('sumIn').textContent = 'Rp ' + totalIn.toLocaleString('id-ID');
-  $('sumOut').textContent = 'Rp ' + totalOut.toLocaleString('id-ID');
-  $('sumNet').textContent = 'Rp ' + net.toLocaleString('id-ID');
-  $('sumNet').className = 'value ' + (net >= 0 ? 'pos' : 'neg');
-
-  const langInstruction = financeLang === 'en'
+  $('sumIn').textContent = 'Rp '+totalIn.toLocaleString('id-ID');
+  $('sumOut').textContent = 'Rp '+totalOut.toLocaleString('id-ID');
+  $('sumNet').textContent = 'Rp '+net.toLocaleString('id-ID');
+  $('sumNet').className = 'value '+(net>=0?'pos':'neg');
+  const langInstruction = financeLang==='en'
     ? 'Respond in English, formatted professionally as if for an investor or bank loan officer.'
     : 'Jawab dalam Bahasa Indonesia, gaya santai dan akrab seperti ngobrol dengan teman.';
-
   const prompt = `Kamu adalah asisten keuangan untuk UMKM Indonesia. Berikut daftar transaksi:
 ${JSON.stringify(transactions)}
 Total pemasukan: Rp ${totalIn}, Total pengeluaran: Rp ${totalOut}, Untung bersih: Rp ${net}.
-
-Berikan SATU saran singkat (maksimal 3 kalimat) yang actionable berdasarkan pola transaksi ini — misalnya soal stok, margin, atau pengeluaran yang perlu diperhatikan. ${langInstruction}
-Balas hanya dengan teks saran, tanpa markdown atau pembuka seperti "Berikut saran:".`;
-
+Berikan SATU saran singkat (maksimal 3 kalimat) yang actionable. ${langInstruction}
+Balas hanya dengan teks saran, tanpa markdown.`;
   try{
     const note = await callAI(prompt);
     $('aiNote').textContent = note.trim();
   } catch(err){
-    $('aiNote').textContent = 'Saran AI tidak tersedia saat ini (' + err.message + ').';
+    $('aiNote').textContent = 'Saran AI tidak tersedia saat ini ('+err.message+').';
   }
   renderDashboard();
 }
 
 function escapeHtml(str){
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
 }
 
 // ============ EXCEL EXPORT ============
 function exportToExcel(){
-  if(transactions.length === 0){
-    alert('Belum ada transaksi untuk diexport. Catat dulu ya.');
-    return;
-  }
-  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
-  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
-  const net = totalIn - totalOut;
-
-  const rows = transactions.map((tx, i) => ({
-    'No': i + 1,
-    'Waktu': tx.time ? new Date(tx.time).toLocaleString('id-ID') : '',
-    'Jenis': tx.type === 'in' ? 'Pemasukan' : 'Pengeluaran',
-    'Deskripsi': tx.desc || '',
-    'Kategori': tx.category || '',
-    'Jumlah (Rp)': Number(tx.amount) || 0
+  if(typeof XLSX==='undefined'){ alert('Library Excel (XLSX) gagal dimuat. Cek koneksi internet kamu lalu refresh halaman ini.'); return; }
+  if(transactions.length===0){ alert('Belum ada transaksi untuk diexport.'); return; }
+  const totalIn = transactions.filter(t=>t.type==='in').reduce((s,t)=>s+Number(t.amount),0);
+  const totalOut = transactions.filter(t=>t.type==='out').reduce((s,t)=>s+Number(t.amount),0);
+  const rows = transactions.map((tx,i)=>({
+    'No':i+1,'Waktu':tx.time?new Date(tx.time).toLocaleString('id-ID'):'',
+    'Jenis':tx.type==='in'?'Pemasukan':'Pengeluaran','Deskripsi':tx.desc||'',
+    'Kategori':tx.category||'','Jumlah (Rp)':Number(tx.amount)||0
   }));
-
-  const summaryRows = [
-    {}, {},
-    { 'No': 'Ringkasan' },
-    { 'No': '', 'Deskripsi': 'Total Pemasukan', 'Jumlah (Rp)': totalIn },
-    { 'No': '', 'Deskripsi': 'Total Pengeluaran', 'Jumlah (Rp)': totalOut },
-    { 'No': '', 'Deskripsi': 'Untung / Rugi Bersih', 'Jumlah (Rp)': net },
-    { 'No': '', 'Deskripsi': 'Saran AI', 'Jumlah (Rp)': $('aiNote').textContent }
+  const summaryRows = [{},{},{'No':'Ringkasan'},
+    {'No':'','Deskripsi':'Total Pemasukan','Jumlah (Rp)':totalIn},
+    {'No':'','Deskripsi':'Total Pengeluaran','Jumlah (Rp)':totalOut},
+    {'No':'','Deskripsi':'Untung/Rugi Bersih','Jumlah (Rp)':totalIn-totalOut},
+    {'No':'','Deskripsi':'Saran AI','Jumlah (Rp)':$('aiNote').textContent}
   ];
-
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet([...rows, ...summaryRows]);
-  ws['!cols'] = [{wch:6},{wch:20},{wch:14},{wch:28},{wch:18},{wch:16}];
-  XLSX.utils.book_append_sheet(wb, ws, 'Laporan Keuangan');
-
-  const today = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `Laporan_Keuangan_UMKM_${today}.xlsx`);
+  const ws = XLSX.utils.json_to_sheet([...rows,...summaryRows]);
+  ws['!cols']=[{wch:6},{wch:20},{wch:14},{wch:28},{wch:18},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws,'Laporan Keuangan');
+  XLSX.writeFile(wb,`Laporan_Keuangan_UMKM_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
-
 $('exportExcelBtn').addEventListener('click', exportToExcel);
 $('exportExcelBtn2').addEventListener('click', exportToExcel);
 
 // ============ DASHBOARD ============
 function renderDashboard(){
-  const totalIn = transactions.filter(t => t.type === 'in').reduce((s,t) => s + Number(t.amount), 0);
-  const totalOut = transactions.filter(t => t.type === 'out').reduce((s,t) => s + Number(t.amount), 0);
-  const net = totalIn - totalOut;
-
-  $('dbIn').textContent = 'Rp ' + totalIn.toLocaleString('id-ID');
-  $('dbOut').textContent = 'Rp ' + totalOut.toLocaleString('id-ID');
-  $('dbNet').textContent = 'Rp ' + net.toLocaleString('id-ID');
-  $('dbNet').style.color = net >= 0 ? 'var(--good)' : 'var(--bad)';
-  $('dbCount').textContent = transactions.length;
-
-  // Category breakdown
-  const catMap = {};
-  transactions.forEach(t => {
-    const cat = t.category || 'Lainnya';
-    if(!catMap[cat]) catMap[cat] = { in: 0, out: 0 };
-    catMap[cat][t.type === 'in' ? 'in' : 'out'] += Number(t.amount) || 0;
+  const totalIn = transactions.filter(t=>t.type==='in').reduce((s,t)=>s+Number(t.amount),0);
+  const totalOut = transactions.filter(t=>t.type==='out').reduce((s,t)=>s+Number(t.amount),0);
+  const net = totalIn-totalOut;
+  $('dbIn').textContent='Rp '+totalIn.toLocaleString('id-ID');
+  $('dbOut').textContent='Rp '+totalOut.toLocaleString('id-ID');
+  $('dbNet').textContent='Rp '+net.toLocaleString('id-ID');
+  $('dbNet').style.color=net>=0?'var(--good)':'var(--bad)';
+  $('dbCount').textContent=transactions.length;
+  const catMap={};
+  transactions.forEach(t=>{
+    const cat=t.category||'Lainnya';
+    if(!catMap[cat]) catMap[cat]={in:0,out:0};
+    catMap[cat][t.type==='in'?'in':'out']+=Number(t.amount)||0;
   });
-  const cats = Object.keys(catMap);
-
-  const catCtx = $('categoryChart').getContext('2d');
+  const cats=Object.keys(catMap);
+  const catCtx=$('categoryChart').getContext('2d');
   if(categoryChartInstance) categoryChartInstance.destroy();
-  categoryChartInstance = new Chart(catCtx, {
-    type: 'bar',
-    data: {
-      labels: cats.length ? cats : ['Belum ada data'],
-      datasets: [
-        { label: 'Pemasukan', data: cats.length ? cats.map(c => catMap[c].in) : [0], backgroundColor: '#2D7A4F' },
-        { label: 'Pengeluaran', data: cats.length ? cats.map(c => catMap[c].out) : [0], backgroundColor: '#C84F2F' }
+  categoryChartInstance=new Chart(catCtx,{
+    type:'bar',
+    data:{
+      labels:cats.length?cats:['Belum ada data'],
+      datasets:[
+        {label:'Pemasukan',data:cats.length?cats.map(c=>catMap[c].in):[0],backgroundColor:'#2D7A4F'},
+        {label:'Pengeluaran',data:cats.length?cats.map(c=>catMap[c].out):[0],backgroundColor:'#C84F2F'}
       ]
     },
-    options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
   });
-
-  // Trend (cumulative net over recorded order)
-  let running = 0;
-  const trendLabels = transactions.map((_, i) => 'Tx ' + (i+1));
-  const trendData = transactions.map(t => {
-    running += (t.type === 'in' ? Number(t.amount) : -Number(t.amount)) || 0;
-    return running;
-  });
-  const trendCtx = $('trendChart').getContext('2d');
+  let running=0;
+  const trendCtx=$('trendChart').getContext('2d');
   if(trendChartInstance) trendChartInstance.destroy();
-  trendChartInstance = new Chart(trendCtx, {
-    type: 'line',
-    data: {
-      labels: trendLabels.length ? trendLabels : ['Belum ada data'],
-      datasets: [{ label: 'Saldo Kumulatif (Rp)', data: trendData.length ? trendData : [0], borderColor:'#1B4D4A', backgroundColor:'rgba(27,77,74,0.1)', fill:true, tension:0.3 }]
+  trendChartInstance=new Chart(trendCtx,{
+    type:'line',
+    data:{
+      labels:transactions.length?transactions.map((_,i)=>'Tx '+(i+1)):['Belum ada data'],
+      datasets:[{label:'Saldo Kumulatif (Rp)',data:transactions.length?transactions.map(t=>{running+=(t.type==='in'?1:-1)*Number(t.amount);return running;}):[0],borderColor:'#1B4D4A',backgroundColor:'rgba(27,77,74,0.1)',fill:true,tension:0.3}]
     },
-    options: { responsive:true, maintainAspectRatio:false }
+    options:{responsive:true,maintainAspectRatio:false}
   });
 }
 
 // ============ CONTENT GENERATION ============
 $('uploadZone').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
+  const file = e.target.files[0]; if(!file) return;
   const reader = new FileReader();
   reader.onload = (ev) => {
-    const dataUrl = ev.target.result;
-    uploadedImageBase64 = dataUrl.split(',')[1];
-    $('previewImg').src = dataUrl;
+    uploadedImageBase64 = ev.target.result.split(',')[1];
+    $('previewImg').src = ev.target.result;
     $('previewImg').style.display = 'block';
     $('uploadIcon').style.display = 'none';
     $('uploadCta').textContent = 'Ganti foto';
@@ -1042,51 +1296,35 @@ $('fileInput').addEventListener('change', (e) => {
 });
 
 $('generateBtn').addEventListener('click', async () => {
-  if(!hasAnyKey() || !uploadedImageBase64) return;
-
+  if(!hasAnyKey()||!uploadedImageBase64) return;
   $('contentLoading').classList.add('show');
   $('contentResult').classList.remove('show');
   $('generateBtn').disabled = true;
-
   const productName = $('productName').value.trim();
-  const langInstruction = contentLang === 'en'
-    ? 'Write everything in English, suitable for international/export buyers. Adjust tone and cultural references for a global audience.'
+  const langInstruction = contentLang==='en'
+    ? 'Write everything in English, suitable for international/export buyers.'
     : 'Tulis semua dalam Bahasa Indonesia, gaya santai dan menarik untuk pasar lokal Instagram/WhatsApp.';
-
-  const prompt = `Kamu adalah copywriter ahli untuk produk UMKM Indonesia. Lihat foto produk ini${productName ? ` (nama produk: ${productName})` : ''}.
-
+  const prompt = `Kamu adalah copywriter ahli untuk produk UMKM Indonesia. Lihat foto produk ini${productName?' (nama produk: '+productName+')':''}.
 ${langInstruction}
-
 Balas HANYA dengan JSON (tanpa markdown) format:
-{
-  "title": "judul produk yang menarik dan SEO-friendly",
-  "caption": "caption promosi 3-4 kalimat untuk Instagram/WhatsApp",
-  "price_estimate": "estimasi rentang harga jual yang wajar di Indonesia beserta alasan singkat",
-  "hashtags": "5-8 hashtag relevan dipisah spasi"
-}`;
-
+{"title":"judul produk menarik","caption":"caption promosi 3-4 kalimat","price_estimate":"estimasi rentang harga jual beserta alasan singkat","hashtags":"5-8 hashtag relevan dipisah spasi"}`;
   try{
     const result = await callAI(prompt, uploadedImageBase64);
     const data = extractJson(result);
-    $('resTitle').textContent = data.title || '-';
-    $('resCaption').textContent = data.caption || '-';
-    $('resPrice').textContent = data.price_estimate || '-';
-    $('resTags').textContent = data.hashtags || '-';
+    $('resTitle').textContent = data.title||'-';
+    $('resCaption').textContent = data.caption||'-';
+    $('resPrice').textContent = data.price_estimate||'-';
+    $('resTags').textContent = data.hashtags||'-';
     $('contentResult').classList.add('show');
-
     lastGenerated = {
-      title: data.title || '',
-      caption: data.caption || '',
-      hashtags: data.hashtags || '',
-      lang: contentLang,
-      storeName: $('storeName').value.trim() || 'UMKM Indonesia',
-      imageBase64: uploadedImageBase64
+      title:data.title||'',caption:data.caption||'',hashtags:data.hashtags||'',
+      lang:contentLang,storeName:$('storeName').value.trim()||'UMKM Indonesia',
+      imageBase64:uploadedImageBase64
     };
     $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
     $('publishBtn').disabled = false;
   } catch(err){
-    console.error(err);
-    alert('Gagal generate konten: ' + err.message);
+    alert('Gagal generate konten: '+err.message);
   } finally {
     $('contentLoading').classList.remove('show');
     $('generateBtn').disabled = false;
@@ -1095,127 +1333,175 @@ Balas HANYA dengan JSON (tanpa markdown) format:
 
 document.addEventListener('click', (e) => {
   if(e.target.classList.contains('copy-btn')){
-    const targetId = e.target.dataset.target;
-    const text = $(targetId).textContent;
+    const text = $(e.target.dataset.target).textContent;
     navigator.clipboard.writeText(text).then(() => {
-      const original = e.target.textContent;
+      const orig = e.target.textContent;
       e.target.textContent = 'Tersalin!';
-      setTimeout(() => { e.target.textContent = original; }, 1500);
+      setTimeout(()=>{ e.target.textContent=orig; },1500);
     });
   }
 });
 
-// ============ PUBLISH TO PUBLIC GALLERY (Firebase) ============
+// ============ GALLERY ============
 $('publishBtn').addEventListener('click', async () => {
   if(!lastGenerated) return;
-  if(!window.firebaseReady){
-    alert('Galeri belum siap. Pastikan Firebase sudah dikonfigurasi di kode (lihat komentar di bagian <head>).');
-    return;
-  }
+  if(!window.firebaseReady){ alert('Galeri belum siap. Konfigurasi Firebase dulu di kode.'); return; }
   $('publishBtn').disabled = true;
   $('publishBtn').textContent = 'Mengunggah...';
   try{
-    await window.firebaseAddDoc(window.firebaseCollection(window.firebaseDb, 'gallery'), {
-      title: lastGenerated.title,
-      caption: lastGenerated.caption,
-      hashtags: lastGenerated.hashtags,
-      lang: lastGenerated.lang,
-      storeName: lastGenerated.storeName,
-      imageBase64: lastGenerated.imageBase64,
-      createdAt: window.firebaseServerTimestamp()
+    const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb,'gallery'));
+    await window.rtdbSet(newRef,{
+      uid:MY_UID,
+      title:lastGenerated.title,caption:lastGenerated.caption,hashtags:lastGenerated.hashtags,
+      lang:lastGenerated.lang,storeName:lastGenerated.storeName,
+      imageBase64:lastGenerated.imageBase64,createdAt:Date.now()
     });
     $('publishBtn').textContent = 'Berhasil dibagikan! ✅';
-    setTimeout(() => {
-      $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
-      $('publishBtn').disabled = false;
-    }, 2000);
+    setTimeout(()=>{ $('publishBtn').textContent='Bagikan ke Galeri Publik 🌍'; $('publishBtn').disabled=false; },2000);
   } catch(err){
-    console.error(err);
-    alert('Gagal membagikan ke galeri: ' + err.message);
+    alert('Gagal membagikan: '+err.message);
     $('publishBtn').textContent = 'Bagikan ke Galeri Publik 🌍';
     $('publishBtn').disabled = false;
   }
 });
 
-// ============ LOAD PUBLIC GALLERY (realtime) ============
 function startGalleryListener(){
-  if(!window.firebaseReady) return;
-  const q = window.firebaseQuery(
-    window.firebaseCollection(window.firebaseDb, 'gallery'),
-    window.firebaseOrderBy('createdAt', 'desc'),
-    window.firebaseLimit(30)
-  );
-  window.firebaseOnSnapshot(q, (snapshot) => {
+  if(!window.firebaseReady){
     $('galleryLoading').classList.remove('show');
-    if(snapshot.empty){
-      $('galleryList').innerHTML = '<div class="empty-state">Belum ada yang membagikan konten. Jadilah yang pertama!</div>';
-      return;
-    }
-    const cards = [];
+    $('galleryList').innerHTML='<div class="empty-state">Galeri Global belum aktif — Firebase belum dikonfigurasi (lihat peringatan di atas).</div>';
+    return;
+  }
+  const q = window.rtdbQuery(window.rtdbRef(window.firebaseDb,'gallery'),window.rtdbOrderByChild('createdAt'),window.rtdbLimitToLast(30));
+  window.rtdbOnValue(q,(snapshot)=>{
+    $('galleryLoading').classList.remove('show');
+    const val = snapshot.val();
+    if(!val){ $('galleryList').innerHTML='<div class="empty-state">Belum ada yang membagikan konten. Jadilah yang pertama!</div>'; return; }
     const now = Date.now();
-    const docsArr = [];
-    snapshot.forEach(d => docsArr.push({ id: d.id, ...d.data() }));
-    docsArr.sort((a, b) => {
-      const aBoost = a.boostExpiresAt && a.boostExpiresAt > now;
-      const bBoost = b.boostExpiresAt && b.boostExpiresAt > now;
-      if(aBoost && bBoost) return a.boostExpiresAt - b.boostExpiresAt;
-      if(aBoost) return -1;
-      if(bBoost) return 1;
-      return 0; // keep original createdAt desc order for the rest
+    const docsArr = Object.keys(val).map(id=>({id,...val[id]}));
+    docsArr.sort((a,b)=>{
+      const aB=a.boostExpiresAt&&a.boostExpiresAt>now, bB=b.boostExpiresAt&&b.boostExpiresAt>now;
+      if(aB&&bB) return a.boostExpiresAt-b.boostExpiresAt;
+      if(aB) return -1; if(bB) return 1;
+      return (b.createdAt||0)-(a.createdAt||0);
     });
-    docsArr.forEach(d => {
-      const isBoosted = d.boostExpiresAt && d.boostExpiresAt > now;
-      const hoursLeft = isBoosted ? Math.max(1, Math.round((d.boostExpiresAt - now) / 3600000)) : 0;
-      cards.push(`
-        <div class="gallery-card">
-          ${d.imageBase64 ? `<img src="data:image/jpeg;base64,${d.imageBase64}">` : ''}
-          <div class="gc-body">
-            ${isBoosted ? `<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>` : ''}
-            <div class="gc-title">${escapeHtml(d.title || '')}</div>
-            <div class="gc-caption">${escapeHtml((d.caption || '').slice(0, 120))}${(d.caption||'').length > 120 ? '...' : ''}</div>
-            <div class="gc-meta">
-              <span>🏪 ${escapeHtml(d.storeName || 'UMKM')}</span>
-              <span class="gc-lang">${d.lang === 'en' ? 'GLOBAL' : 'LOKAL'}</span>
-            </div>
-            ${!isBoosted ? `<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>` : ''}
+    $('galleryList').innerHTML = docsArr.map(d=>{
+      const isBoosted=d.boostExpiresAt&&d.boostExpiresAt>now;
+      const hoursLeft=isBoosted?Math.max(1,Math.round((d.boostExpiresAt-now)/3600000)):0;
+      const isOwner = d.uid===MY_UID || !d.uid;
+      const ownerActions = isOwner?`<div class="gc-owner-actions"><button class="gc-edit-btn" data-id="${d.id}">✏️ Edit</button><button class="gc-delete-btn" data-id="${d.id}">🗑️ Hapus</button></div>`:'';
+      return `<div class="gallery-card">
+        ${d.imageBase64?`<img src="data:image/jpeg;base64,${d.imageBase64}">`:'' }
+        <div class="gc-body">
+          ${isBoosted?`<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>`:''}
+          <div class="gc-title">${escapeHtml(d.title||'')}</div>
+          <div class="gc-caption">${escapeHtml((d.caption||'').slice(0,120))}${(d.caption||'').length>120?'...':''}</div>
+          <div class="gc-meta">
+            <span>🏪 ${escapeHtml(d.storeName||'UMKM')}</span>
+            <span class="gc-lang">${d.lang==='en'?'GLOBAL':'LOKAL'}</span>
           </div>
+          ${!isBoosted?`<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>`:''}
+          ${ownerActions}
         </div>
-      `);
-    });
-    $('galleryList').innerHTML = cards.join('');
-  }, (err) => {
+      </div>`;
+    }).join('');
+  },(err)=>{
     $('galleryLoading').classList.remove('show');
-    $('galleryList').innerHTML = '<div class="empty-state">Gagal memuat galeri. Cek konfigurasi Firebase.</div>';
-    console.error(err);
+    $('galleryList').innerHTML='<div class="empty-state">Gagal memuat galeri. Cek konfigurasi Firebase.</div>';
   });
 }
 
-if(window.firebaseReady){
-  startGalleryListener();
+if (window.firebaseConfigMissing) {
+  document.getElementById('firebaseBanner').style.display = 'block';
 } else {
-  document.addEventListener('firebase-ready', startGalleryListener);
+  document.addEventListener('firebase-config-missing', () => {
+    document.getElementById('firebaseBanner').style.display = 'block';
+  });
 }
+if(window.firebaseReady){ startGalleryListener(); }
+else { document.addEventListener('firebase-ready', startGalleryListener); }
+
+// ===== EDIT & DELETE OWN GALLERY POSTS =====
+document.addEventListener('click', async (e) => {
+  if(e.target.classList.contains('gc-edit-btn')){
+    const id = e.target.dataset.id;
+    if(!window.firebaseReady) return;
+    try{
+      const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery/'+id));
+      const d = snap.val();
+      if(!d || (d.uid && d.uid!==MY_UID)){ alert('Kamu bukan pemilik postingan ini.'); return; }
+      $('editGalleryId').value = id;
+      $('editGalleryTitle').value = d.title||'';
+      $('editGalleryCaption').value = d.caption||'';
+      $('editGalleryHashtags').value = d.hashtags||'';
+      $('editGalleryStoreName').value = d.storeName||'';
+      $('editGalleryModal').classList.add('show');
+    }catch(err){ alert('Gagal memuat data: '+err.message); }
+  }
+  if(e.target.classList.contains('gc-delete-btn')){
+    const id = e.target.dataset.id;
+    if(!window.firebaseReady) return;
+    if(!confirm('Hapus postingan ini dari Galeri Publik? Tindakan ini tidak bisa dibatalkan.')) return;
+    try{
+      const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery/'+id));
+      const d = snap.val();
+      if(!d || (d.uid && d.uid!==MY_UID)){ alert('Kamu bukan pemilik postingan ini.'); return; }
+      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'gallery/'+id));
+    }catch(err){ alert('Gagal menghapus: '+err.message); }
+  }
+});
+$('editGalleryModalClose').addEventListener('click', () => $('editGalleryModal').classList.remove('show'));
+$('saveGalleryEditBtn').addEventListener('click', async () => {
+  const id = $('editGalleryId').value;
+  if(!id || !window.firebaseReady) return;
+  $('saveGalleryEditBtn').disabled = true;
+  $('saveGalleryEditBtn').textContent = 'Menyimpan...';
+  try{
+    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery/'+id));
+    const d = snap.val();
+    if(!d || (d.uid && d.uid!==MY_UID)){ alert('Kamu bukan pemilik postingan ini.'); $('editGalleryModal').classList.remove('show'); return; }
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'gallery/'+id),{
+      title: $('editGalleryTitle').value.trim(),
+      caption: $('editGalleryCaption').value.trim(),
+      hashtags: $('editGalleryHashtags').value.trim(),
+      storeName: $('editGalleryStoreName').value.trim()
+    });
+    $('editGalleryModal').classList.remove('show');
+  }catch(err){ alert('Gagal menyimpan: '+err.message); }
+  finally{ $('saveGalleryEditBtn').disabled=false; $('saveGalleryEditBtn').textContent='💾 Simpan Perubahan'; }
+});
 
 renderDashboard();
 
-// ============ BOOST FEATURE CONFIG ============
-// Ganti nilai-nilai ini sesuai data kamu:
+// ============ BOOST CONFIG ============
+function getSavedBoostConfig(){
+  try{
+    return {
+      bcaNumber: localStorage.getItem('boost_bca_number')||'',
+      bcaOwner: localStorage.getItem('boost_bca_owner')||'',
+      adminPassword: localStorage.getItem('boost_admin_password')||''
+    };
+  } catch(e){ return {bcaNumber:'',bcaOwner:'',adminPassword:''}; }
+}
+
 const BOOST_CONFIG = {
-  bcaNumber: "GANTI_NOMOR_REKENING_BCA",
-  bcaOwner: "GANTI_NAMA_PEMILIK_REKENING",
-  ovoNumber: "39358082117573435",
+  get bcaNumber(){ return getSavedBoostConfig().bcaNumber||'(belum diatur — isi di Panel Admin)'; },
+  get bcaOwner(){ return getSavedBoostConfig().bcaOwner||''; },
+  ovoNumber: "082117573435",
+  ovoCode: "39358",
   ovoOwner: "Nelson",
-  waNumber: "6282117573435", // sudah diisi sesuai permintaan
+  waNumber: "6282117573435",
   priceText: "Rp 10.000 / 24 jam",
   maxActiveSlots: 10,
-  boostDurationMs: 24 * 60 * 60 * 1000,
-  adminPassword: "GANTI_PASSWORD_ADMIN" // WAJIB diganti sebelum publish!
+  boostDurationMs: 24*60*60*1000,
+  get adminPassword(){ return getSavedBoostConfig().adminPassword||'admin123'; }
 };
 
-$('bcaNumberDisplay').textContent = BOOST_CONFIG.bcaNumber + ' (a.n. ' + BOOST_CONFIG.bcaOwner + ')';
-$('ovoNumberDisplay').textContent = BOOST_CONFIG.ovoNumber + ' (a.n. ' + BOOST_CONFIG.ovoOwner + ')';
-document.querySelector('.modal-sub') && (document.querySelector('.modal-sub').textContent =
-  'Produk kamu tampil paling atas Galeri selama 24 jam setelah diverifikasi. Slot terbatas ' + BOOST_CONFIG.maxActiveSlots + ', gantian biar adil.');
+function refreshPaymentDisplay(){
+  const cfg = getSavedBoostConfig();
+  $('bcaNumberDisplay').textContent = (cfg.bcaNumber||'(belum diatur)') + (cfg.bcaOwner?' a.n. '+cfg.bcaOwner:'');
+  $('ovoNumberDisplay').textContent = BOOST_CONFIG.ovoNumber+' a.n. '+BOOST_CONFIG.ovoOwner+' (kode OVO: '+BOOST_CONFIG.ovoCode+')';
+}
+refreshPaymentDisplay();
 
 let currentBoostGalleryId = null;
 let boostProofBase64 = null;
@@ -1226,189 +1512,343 @@ function openBoostModal(galleryId, storeName){
   $('proofUpload').innerHTML = '📎 Ketuk untuk unggah screenshot bukti transfer';
   $('boostSenderName').value = '';
   $('boostWaBtn').href = `https://wa.me/${BOOST_CONFIG.waNumber}?text=${encodeURIComponent(
-    `Halo admin, saya mau konfirmasi Boost produk "${storeName || ''}" di Sekretaris UMKM. Nominal: ${BOOST_CONFIG.priceText}. Bukti transfer sudah saya kirim lewat aplikasi.`
+    `Halo admin, saya mau konfirmasi Boost produk "${storeName||''}" di Sekretaris UMKM. Nominal: ${BOOST_CONFIG.priceText}. Bukti transfer sudah saya kirim lewat aplikasi.`
   )}`;
   refreshSlotInfo();
   $('boostModal').classList.add('show');
 }
 
 async function refreshSlotInfo(){
-  if(!window.firebaseReady){ $('slotInfo').textContent = 'Info slot tidak tersedia (Firebase belum dikonfigurasi)'; return; }
+  if(!window.firebaseReady){ $('slotInfo').textContent='Info slot tidak tersedia'; return; }
   try{
-    const snap = await new Promise((resolve) => {
-      const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
-    });
+    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery'));
+    const val = snap.val()||{};
     const now = Date.now();
     let active = 0;
-    snap.forEach(d => { const data = d.data(); if(data.boostExpiresAt && data.boostExpiresAt > now) active++; });
+    Object.values(val).forEach(d=>{ if(d.boostExpiresAt&&d.boostExpiresAt>now) active++; });
     $('slotInfo').textContent = `Slot boost aktif sekarang: ${active} / ${BOOST_CONFIG.maxActiveSlots}`;
-  } catch(e){ $('slotInfo').textContent = ''; }
+  } catch(e){ $('slotInfo').textContent=''; }
 }
 
-$('boostModalClose').addEventListener('click', () => $('boostModal').classList.remove('show'));
-$('adminClose').addEventListener('click', () => $('adminPanel').classList.remove('show'));
+$('boostModalClose').addEventListener('click',()=>$('boostModal').classList.remove('show'));
+$('adminClose').addEventListener('click',()=>$('adminPanel').classList.remove('show'));
 
-$('proofUpload').addEventListener('click', () => $('proofFileInput').click());
-$('proofFileInput').addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    boostProofBase64 = ev.target.result.split(',')[1];
-    $('proofUpload').innerHTML = '✅ Bukti terlampir<br><img src="' + ev.target.result + '">';
+$('proofUpload').addEventListener('click',()=>$('proofFileInput').click());
+$('proofFileInput').addEventListener('change',(e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    boostProofBase64=ev.target.result.split(',')[1];
+    $('proofUpload').innerHTML='✅ Bukti terlampir<br><img src="'+ev.target.result+'" style="max-width:100%;border-radius:8px;margin-top:8px;">';
   };
   reader.readAsDataURL(file);
 });
 
-$('submitBoostBtn').addEventListener('click', async () => {
+$('submitBoostBtn').addEventListener('click', async ()=>{
   if(!currentBoostGalleryId) return;
   const senderName = $('boostSenderName').value.trim();
   if(!senderName){ alert('Isi nama pengirim transfer dulu ya.'); return; }
   if(!boostProofBase64){ alert('Unggah screenshot bukti transfer dulu ya.'); return; }
   if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi.'); return; }
-
-  $('submitBoostBtn').disabled = true;
-  $('submitBoostBtn').textContent = 'Mengirim...';
+  $('submitBoostBtn').disabled=true; $('submitBoostBtn').textContent='Mengirim...';
   try{
-    await window.firebaseAddDoc(window.firebaseCollection(window.firebaseDb, 'boostRequests'), {
-      galleryId: currentBoostGalleryId,
-      senderName,
-      proofBase64: boostProofBase64,
-      status: 'pending',
-      createdAt: window.firebaseServerTimestamp()
-    });
-    alert('Berhasil dikirim! Tunggu verifikasi admin (boleh juga klik tombol WhatsApp untuk lebih cepat).');
+    const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb,'boostRequests'));
+    await window.rtdbSet(newRef,{galleryId:currentBoostGalleryId,senderName,proofBase64:boostProofBase64,status:'pending',createdAt:Date.now()});
+    alert('Berhasil dikirim! Tunggu verifikasi admin.');
     $('boostModal').classList.remove('show');
-  } catch(err){
-    alert('Gagal mengirim: ' + err.message);
-  } finally {
-    $('submitBoostBtn').disabled = false;
-    $('submitBoostBtn').textContent = 'Kirim & Tunggu Verifikasi';
-  }
+  } catch(err){ alert('Gagal mengirim: '+err.message); }
+  finally{ $('submitBoostBtn').disabled=false; $('submitBoostBtn').textContent='Kirim & Tunggu Verifikasi'; }
 });
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click',(e)=>{
   if(e.target.classList.contains('boost-btn')){
-    const id = e.target.dataset.galleryId;
-    const card = e.target.closest('.gallery-card');
-    const storeName = card ? card.querySelector('.gc-meta span')?.textContent.replace('🏪 ', '') : '';
-    openBoostModal(id, storeName);
+    const id=e.target.dataset.galleryId;
+    const card=e.target.closest('.gallery-card');
+    const storeName=card?card.querySelector('.gc-meta span')?.textContent.replace('🏪 ',''):'';
+    openBoostModal(id,storeName);
   }
 });
 
 // ============ ADMIN PANEL ============
-let adminUnsubscribe = null;
-
-function openAdminPanel(){
-  $('adminPanel').classList.add('show');
-}
-
-$('adminLoginBtn').addEventListener('click', () => {
-  if($('adminPassword').value === BOOST_CONFIG.adminPassword){
-    $('adminLoginBox').style.display = 'none';
-    $('adminContent').style.display = 'block';
+$('adminLoginBtn').addEventListener('click',()=>{
+  if($('adminPassword').value===BOOST_CONFIG.adminPassword){
+    $('adminLoginBox').style.display='none';
+    $('adminContent').style.display='block';
+    const cfg=getSavedBoostConfig();
+    $('adminBcaNumber').value=cfg.bcaNumber||'';
+    $('adminBcaOwner').value=cfg.bcaOwner||'';
     startAdminListener();
-  } else {
-    alert('Password salah.');
+  } else { alert('Password salah.'); }
+});
+
+$('saveAdminConfig').addEventListener('click',()=>{
+  const bca=$('adminBcaNumber').value.trim();
+  const bcaOwner=$('adminBcaOwner').value.trim();
+  const newPass=$('adminNewPassword').value.trim();
+  try{
+    if(bca) localStorage.setItem('boost_bca_number',bca);
+    if(bcaOwner) localStorage.setItem('boost_bca_owner',bcaOwner);
+    if(newPass) localStorage.setItem('boost_admin_password',newPass);
+    refreshPaymentDisplay();
+    $('adminConfigStatus').textContent='✅ Tersimpan!';
+    $('adminConfigStatus').style.color='#2D7A4F';
+    setTimeout(()=>{ $('adminConfigStatus').textContent=''; },2000);
+  } catch(e){
+    $('adminConfigStatus').textContent='Gagal simpan: '+e.message;
+    $('adminConfigStatus').style.color='var(--bad)';
   }
 });
 
 function startAdminListener(){
-  if(!window.firebaseReady) return;
-  const q = window.firebaseQuery(
-    window.firebaseCollection(window.firebaseDb, 'boostRequests'),
-    window.firebaseOrderBy('createdAt', 'desc'),
-    window.firebaseLimit(50)
-  );
-  adminUnsubscribe = window.firebaseOnSnapshot(q, async (snapshot) => {
-    const now = Date.now();
-    // hitung slot aktif
-    const gallerySnap = await new Promise((resolve) => {
-      const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
-    });
-    let activeSlots = 0;
-    const galleryMap = {};
-    gallerySnap.forEach(d => {
-      const data = d.data();
-      galleryMap[d.id] = data;
-      if(data.boostExpiresAt && data.boostExpiresAt > now) activeSlots++;
-    });
-    $('adminSlotInfo').textContent = `Slot boost aktif: ${activeSlots} / ${BOOST_CONFIG.maxActiveSlots}`;
-
-    const pendingDocs = [];
-    snapshot.forEach(d => { const data = d.data(); if(data.status === 'pending') pendingDocs.push({ id: d.id, ...data }); });
-
-    if(pendingDocs.length === 0){
-      $('adminPendingList').innerHTML = '<div class="empty-state">Tidak ada permintaan boost yang menunggu.</div>';
-      return;
-    }
-
-    $('adminPendingList').innerHTML = pendingDocs.map(p => {
-      const galleryItem = galleryMap[p.galleryId];
-      return `
-        <div class="admin-item" data-req-id="${p.id}" data-gallery-id="${p.galleryId}">
-          <div><strong>${escapeHtml(galleryItem?.title || p.galleryId)}</strong> · oleh ${escapeHtml(galleryItem?.storeName || '-')}</div>
-          <div style="font-size:12.5px; color:var(--ink-soft);">Pengirim transfer: ${escapeHtml(p.senderName || '-')}</div>
-          ${p.proofBase64 ? `<img src="data:image/jpeg;base64,${p.proofBase64}">` : ''}
-          <div class="admin-actions">
-            <button class="btn-approve">✅ Approve (boost 24 jam)</button>
-            <button class="btn-reject">❌ Reject</button>
-          </div>
+  if(!window.firebaseReady){ $('adminPendingList').innerHTML='<div class="empty-state">Firebase belum dikonfigurasi.</div>'; return; }
+  const boostRef = window.rtdbRef(window.firebaseDb,'boostRequests');
+  const q = window.rtdbQuery(boostRef,window.rtdbOrderByChild('createdAt'),window.rtdbLimitToLast(50));
+  window.rtdbOnValue(q,async(snapshot)=>{
+    const val=snapshot.val()||{};
+    const pending=Object.keys(val).map(id=>({id,...val[id]})).filter(d=>d.status==='pending');
+    const gallerySnap=await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery'));
+    const galleryMap={}; if(gallerySnap.val()) Object.keys(gallerySnap.val()).forEach(id=>{galleryMap[id]=gallerySnap.val()[id];});
+    const now=Date.now();
+    let active=0; Object.values(galleryMap).forEach(d=>{if(d.boostExpiresAt&&d.boostExpiresAt>now)active++;});
+    $('adminSlotInfo').textContent=`Slot boost aktif: ${active} / ${BOOST_CONFIG.maxActiveSlots}`;
+    if(pending.length===0){ $('adminPendingList').innerHTML='<div class="empty-state">Tidak ada permintaan boost yang menunggu.</div>'; return; }
+    $('adminPendingList').innerHTML=pending.map(p=>{
+      const g=galleryMap[p.galleryId];
+      return `<div class="admin-row" data-req-id="${p.id}" data-gallery-id="${p.galleryId}">
+        <div><strong>${escapeHtml(g?.title||p.galleryId)}</strong> · ${escapeHtml(g?.storeName||'-')}</div>
+        <div style="font-size:12.5px;color:var(--ink-soft);">Pengirim: ${escapeHtml(p.senderName||'-')}</div>
+        ${p.proofBase64?`<img src="data:image/jpeg;base64,${p.proofBase64}">`:'' }
+        <div class="admin-actions">
+          <button class="btn-approve">✅ Approve (boost 24 jam)</button>
+          <button class="btn-reject">❌ Reject</button>
         </div>
-      `;
+      </div>`;
     }).join('');
   });
 }
 
-document.addEventListener('click', async (e) => {
-  if(e.target.classList.contains('btn-approve') || e.target.classList.contains('btn-reject')){
-    const item = e.target.closest('.admin-item');
-    const reqId = item.dataset.reqId;
-    const galleryId = item.dataset.galleryId;
-    const approve = e.target.classList.contains('btn-approve');
-
+document.addEventListener('click',async(e)=>{
+  if(e.target.classList.contains('btn-approve')||e.target.classList.contains('btn-reject')){
+    const row=e.target.closest('.admin-row');
+    if(!row) return;
+    const reqId=row.dataset.reqId, galleryId=row.dataset.galleryId;
+    const approve=e.target.classList.contains('btn-approve');
     if(approve){
-      // cek slot dulu
-      const gallerySnap = await new Promise((resolve) => {
-        const unsub = window.firebaseOnSnapshot(window.firebaseCollection(window.firebaseDb, 'gallery'), (s) => { unsub(); resolve(s); });
-      });
-      const now = Date.now();
-      let activeSlots = 0;
-      gallerySnap.forEach(d => { const data = d.data(); if(data.boostExpiresAt && data.boostExpiresAt > now) activeSlots++; });
-      if(activeSlots >= BOOST_CONFIG.maxActiveSlots){
-        alert('Slot boost penuh (' + BOOST_CONFIG.maxActiveSlots + '). Tolak atau minta user tunggu slot kosong dulu.');
-        return;
-      }
+      const gallerySnap=await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery'));
+      const val=gallerySnap.val()||{};
+      const now=Date.now();
+      let active=0; Object.values(val).forEach(d=>{if(d.boostExpiresAt&&d.boostExpiresAt>now)active++;});
+      if(active>=BOOST_CONFIG.maxActiveSlots){ alert('Slot boost penuh!'); return; }
       try{
-        // update dokumen gallery dengan field boostExpiresAt (pakai setDoc merge via addDoc tidak bisa update, perlu updateDoc - import dinamis)
-        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-        await updateDoc(doc(window.firebaseDb, 'gallery', galleryId), {
-          boostExpiresAt: now + BOOST_CONFIG.boostDurationMs
-        });
-        await updateDoc(doc(window.firebaseDb, 'boostRequests', reqId), { status: 'approved' });
-        alert('Boost disetujui! Produk akan tampil teratas selama 24 jam.');
-      } catch(err){
-        alert('Gagal approve: ' + err.message);
-      }
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'gallery/'+galleryId),{boostExpiresAt:now+BOOST_CONFIG.boostDurationMs});
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'boostRequests/'+reqId),{status:'approved'});
+        alert('Boost disetujui!');
+      } catch(err){ alert('Gagal approve: '+err.message); }
     } else {
       try{
-        const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
-        await updateDoc(doc(window.firebaseDb, 'boostRequests', reqId), { status: 'rejected' });
-      } catch(err){
-        alert('Gagal reject: ' + err.message);
-      }
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'boostRequests/'+reqId),{status:'rejected'});
+      } catch(err){ alert('Gagal reject: '+err.message); }
     }
   }
 });
 
-// Buka panel admin lewat URL: namafile.html#admin
-if(location.hash === '#admin'){
-  document.addEventListener('DOMContentLoaded', openAdminPanel);
-  if(document.readyState !== 'loading') openAdminPanel();
+if(location.hash==='#admin'){
+  document.addEventListener('DOMContentLoaded',()=>$('adminPanel').classList.add('show'));
+  if(document.readyState!=='loading') $('adminPanel').classList.add('show');
 }
 
-// Re-render gallery tiap 60 detik supaya badge "X jam lagi" & status boost akurat
-setInterval(() => { if(window.firebaseReady) startGalleryListener(); }, 60000);
+setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
+
+// ============ LIVE STREAM ============
+let liveActive=false, liveOrders=[], liveComments=[], liveCoachInterval=null;
+let liveDurationTimer=null, liveSeconds=0, camStream=null;
+
+const COACH_SCRIPTS=[
+  'Sapa penonton dan perkenalkan dirimu dengan senyum! 😄',
+  'Sudah 1 menit — tunjukkan produk utama dan sebutkan harganya dengan jelas.',
+  'Tanya penonton: "Mau yang warna apa?" — ini bikin mereka aktif komentar!',
+  'Ceritakan keunggulan produk: bahan, kualitas, atau cerita di baliknya.',
+  'Umumkan promo khusus untuk pembeli yang order selama live ini 🎁',
+  'Baca komentar yang masuk dan sebut nama penonton — bikin mereka merasa diperhatikan!',
+  'Tunjukkan detail produk lebih dekat ke kamera — tekstur, ukuran, warna.',
+  'Ingatkan: "Stok terbatas! Komentar sekarang kalau mau pesan."',
+  'Buat urgensi: sebutkan berapa menit lagi sesi ini berakhir.',
+  'Terima kasih ke penonton yang sudah like dan share — minta mereka tag teman.'
+];
+
+$('startLiveBtn').addEventListener('click',()=>{
+  const name=$('liveSessionName').value.trim();
+  if(!name){ alert('Isi nama sesi live dulu ya!'); return; }
+  liveActive=true; liveOrders=[]; liveComments=[]; liveSeconds=0;
+  $('liveSetup').style.display='none';
+  $('liveView').classList.add('active');
+  $('viewerCount').textContent=Math.floor(Math.random()*15)+3;
+  $('orderList').innerHTML='<div class="empty-state" style="padding:16px;">Belum ada pesanan. Kirim komentar penonton di atas untuk simulasi.</div>';
+  $('liveSummarySection').style.display='none';
+  startCoach(); startLiveTimer();
+});
+
+function startLiveTimer(){
+  liveDurationTimer=setInterval(()=>{
+    liveSeconds++;
+    if(liveSeconds%8===0){ const c=parseInt($('viewerCount').textContent)||0; $('viewerCount').textContent=c+Math.floor(Math.random()*3); }
+  },1000);
+}
+
+function startCoach(){
+  let idx=0;
+  updateCoach(COACH_SCRIPTS[0]);
+  liveCoachInterval=setInterval(async()=>{
+    idx++;
+    if(idx<COACH_SCRIPTS.length){ updateCoach(COACH_SCRIPTS[idx]); }
+    else if(hasAnyKey()){
+      try{
+        const tip=await callAI(`Kamu AI Sales Coach untuk penjual UMKM live stream di Indonesia. Produk: ${$('liveProductInfo').value.trim()||'Produk UMKM'}. Sesi sudah ${Math.floor(liveSeconds/60)} menit, pesanan: ${liveOrders.length}. Beri 1 saran singkat (1-2 kalimat), Bahasa Indonesia, santai, tanpa markdown.`);
+        updateCoach(tip.trim());
+      } catch(e){ updateCoach('Tetap semangat — kamu sudah melakukannya dengan baik! 🌟'); }
+    }
+  },30000);
+}
+
+function updateCoach(msg){
+  $('coachMsg').textContent=msg;
+  $('coachTimer').textContent='Diperbarui '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+}
+
+$('toggleCamBtn').addEventListener('click',async()=>{
+  const vid=$('liveVideo');
+  if(camStream){
+    camStream.getTracks().forEach(t=>t.stop()); camStream=null;
+    vid.style.display='none'; $('liveScreenPh').style.display='flex';
+    $('toggleCamBtn').textContent='📷 Aktifkan Kamera'; return;
+  }
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+    vid.srcObject=camStream; vid.style.display='block';
+    $('liveScreenPh').style.display='none';
+    $('toggleCamBtn').textContent='📷 Matikan Kamera';
+  } catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
+});
+
+$('stopLiveBtn').addEventListener('click',()=>{
+  if(!confirm('Akhiri sesi live sekarang?')) return;
+  if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
+  liveActive=false; generateLiveSummary();
+});
+
+document.querySelectorAll('.emote-send').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    addEmoteRain(btn.dataset.emote);
+    addLiveComment('Penonton',btn.dataset.emote+' '+btn.dataset.emote);
+    const c=parseInt($('viewerCount').textContent)||0;
+    $('viewerCount').textContent=Math.max(0,c+(Math.random()>0.5?1:0));
+  });
+});
+
+function addEmoteRain(emote){
+  const rain=$('emoteRain');
+  const span=document.createElement('span');
+  span.className='flying-emote'; span.textContent=emote;
+  rain.appendChild(span);
+  setTimeout(()=>{ if(rain.contains(span)) rain.removeChild(span); },2500);
+}
+
+function addLiveComment(user,text){
+  const overlay=$('liveCommentsOverlay');
+  const div=document.createElement('div');
+  div.className='live-cmmt';
+  div.innerHTML=`<span class="cmmt-user">${escapeHtml(user)}:</span>${escapeHtml(text)}`;
+  overlay.appendChild(div);
+  while(overlay.children.length>4) overlay.removeChild(overlay.firstChild);
+  liveComments.push({user,text,time:new Date().toISOString()});
+}
+
+$('sendCommentBtn').addEventListener('click',processLiveComment);
+$('liveCommentInput').addEventListener('keydown',(e)=>{ if(e.key==='Enter') processLiveComment(); });
+
+async function processLiveComment(){
+  const txt=$('liveCommentInput').value.trim(); if(!txt) return;
+  $('liveCommentInput').value='';
+  const names=['Budi','Sari','Dewi','Andi','Rina','Hendra','Lilis','Doni','Mega','Rudi'];
+  const user=names[Math.floor(Math.random()*names.length)];
+  addLiveComment(user,txt);
+  if(!hasAnyKey()) return;
+  $('orderLoading').classList.add('show');
+  const productInfo=$('liveProductInfo').value.trim();
+  const prompt=`Kamu AI Order Taker untuk penjual UMKM live stream di Indonesia.
+Info produk: ${productInfo||'Produk UMKM'}
+Komentar dari "${user}": "${txt}"
+Tentukan apakah ini PESANAN pembelian. Balas HANYA JSON tanpa markdown:
+{"is_order":true/false,"buyer":"nama pembeli","product":"produk dipesan","variant":"varian/ukuran/warna atau kosong","destination":"kota tujuan atau kosong","estimated_amount":angka_atau_0,"notes":"catatan atau kosong"}
+Jika BUKAN pesanan, balas {"is_order":false}.`;
+  try{
+    const result=await callAI(prompt);
+    const d=extractJson(result);
+    if(d.is_order){
+      liveOrders.push({...d,orderNum:liveOrders.length+1,time:new Date().toISOString()});
+      renderLiveOrders();
+      addLiveComment('AI 🤖','Pesanan '+user+' dicatat! ✅');
+    }
+  } catch(err){ console.error(err); }
+  finally{ $('orderLoading').classList.remove('show'); }
+}
+
+function renderLiveOrders(){
+  const list=$('orderList');
+  if(liveOrders.length===0){
+    list.innerHTML='<div class="empty-state" style="padding:16px;">Belum ada pesanan.</div>'; return;
+  }
+  list.innerHTML=liveOrders.map(o=>`
+    <div class="order-item">
+      <div class="o-buyer">#${o.orderNum} · ${escapeHtml(o.buyer||'Penonton')}</div>
+      <div class="o-detail">🛍️ ${escapeHtml(o.product||'')}${o.variant?' ('+escapeHtml(o.variant)+')':''}</div>
+      ${o.destination?`<div class="o-detail">📦 Kirim ke: ${escapeHtml(o.destination)}</div>`:''}
+      ${o.estimated_amount?`<div class="o-detail">💰 Rp ${Number(o.estimated_amount).toLocaleString('id-ID')}</div>`:''}
+      ${o.notes?`<div class="o-detail" style="color:var(--ink-soft);">📝 ${escapeHtml(o.notes)}</div>`:''}
+      <span class="o-status">✅ Pesanan Baru</span>
+    </div>
+  `).join('');
+}
+
+$('exportOrdersBtn').addEventListener('click',(e)=>{
+  e.stopPropagation();
+  if(typeof XLSX==='undefined'){ alert('Library Excel (XLSX) gagal dimuat. Cek koneksi internet kamu lalu refresh halaman ini.'); return; }
+  if(liveOrders.length===0){ alert('Belum ada pesanan untuk diekspor.'); return; }
+  try{
+    const rows=liveOrders.map(o=>({'#':o.orderNum,'Pembeli':o.buyer||'','Produk':o.product||'','Varian':o.variant||'','Tujuan':o.destination||'','Estimasi (Rp)':o.estimated_amount||0,'Catatan':o.notes||'','Waktu':o.time?new Date(o.time).toLocaleString('id-ID'):''}));
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:4},{wch:16},{wch:20},{wch:14},{wch:16},{wch:14},{wch:22},{wch:20}];
+    XLSX.utils.book_append_sheet(wb,ws,'Pesanan Live');
+    XLSX.writeFile(wb,`Pesanan_Live_${new Date().toISOString().slice(0,10)}.xlsx`);
+  } catch(err){ alert('Gagal mengekspor: '+err.message); }
+});
+
+async function generateLiveSummary(){
+  const total=liveOrders.reduce((s,o)=>s+(Number(o.estimated_amount)||0),0);
+  $('liveSummarySection').style.display='block';
+  $('liveTotalOrders').textContent=liveOrders.length;
+  $('liveTotalIncome').textContent='Rp '+total.toLocaleString('id-ID');
+  if(liveOrders.length===0){ $('liveSummaryTip').textContent='Belum ada pesanan di sesi ini. Coba lagi dengan promo lebih menarik!'; return; }
+  if(!hasAnyKey()){ $('liveSummaryTip').textContent='Sesi live selesai dengan '+liveOrders.length+' pesanan.'; return; }
+  try{
+    const tip=await callAI(`Kamu asisten AI UMKM. Sesi live baru selesai. Pesanan: ${liveOrders.length}, total Rp ${total}. Data: ${JSON.stringify(liveOrders.slice(0,10))}. Beri 2 kalimat ringkasan performa dan 1 saran untuk sesi berikutnya. Bahasa Indonesia, semangat, tanpa markdown.`);
+    $('liveSummaryTip').textContent=tip.trim();
+  } catch(e){ $('liveSummaryTip').textContent='Sesi live selesai dengan '+liveOrders.length+' pesanan tercatat. Kerja bagus!'; }
+}
+
+$('saveToFinanceBtn').addEventListener('click',()=>{
+  if(liveOrders.length===0){ alert('Belum ada pesanan untuk disimpan.'); return; }
+  const total=liveOrders.reduce((s,o)=>s+(Number(o.estimated_amount)||0),0);
+  const sessionName=$('liveSessionName').value.trim()||'Sesi Live Stream';
+  transactions.push({type:'in',amount:total,desc:sessionName+' ('+liveOrders.length+' pesanan)',category:'Live Stream',time:new Date().toISOString()});
+  renderTransactions(); onTransactionsChanged();
+  $('liveSetup').style.display='block';
+  $('liveView').classList.remove('active');
+  $('liveSessionName').value=''; $('liveProductInfo').value='';
+  document.querySelector('.tab[data-panel="finance"]').click();
+});
 
 </script>
 </body>

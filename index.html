@@ -832,7 +832,7 @@
           <div class="live-screen" id="viewerScreen">
             <div class="live-screen-ph" id="viewerScreenPh">
               <div>📡</div>
-              <div style="margin-top:6px; font-size:11px;">Menghubungkan ke siaran...</div>
+              <div id="viewerConnStatus" style="margin-top:6px; font-size:11px;">Menghubungkan ke siaran...</div>
             </div>
             <video id="viewerVideo" style="display:none;" autoplay playsinline controls></video>
             <div class="live-overlay">
@@ -1023,6 +1023,28 @@
 </div>
 
 <script>
+// ============ DEBUG TOAST (opsional, aktifkan dgn ?debug=1 di URL) ============
+// Tujuannya: biar error JS kelihatan langsung di layar HP pas testing live,
+// gak perlu sambung ke laptop buat liat console.
+const DEBUG_MODE = location.search.includes('debug');
+function showDebugToast(msg){
+  console.error(msg);
+  if(!DEBUG_MODE) return;
+  let box=document.getElementById('debugToastBox');
+  if(!box){
+    box=document.createElement('div');
+    box.id='debugToastBox';
+    box.style.cssText='position:fixed;left:6px;right:6px;bottom:6px;max-height:140px;overflow-y:auto;background:rgba(40,20,15,.92);color:#ffd9c8;font-family:monospace;font-size:10.5px;line-height:1.4;padding:8px 10px;border-radius:10px;z-index:999999;';
+    document.body.appendChild(box);
+  }
+  const line=document.createElement('div');
+  line.textContent=new Date().toLocaleTimeString('id-ID')+' — '+msg;
+  box.appendChild(line);
+  box.scrollTop=box.scrollHeight;
+}
+window.addEventListener('error', (e)=>{ showDebugToast('JS Error: '+e.message); });
+window.addEventListener('unhandledrejection', (e)=>{ showDebugToast('Promise Error: '+((e.reason&&e.reason.message)||e.reason)); });
+
 // ============ USER IDENTITY (device-based, no login) ============
 function getUserId(){
   try{
@@ -2140,6 +2162,7 @@ $('startLiveBtn').addEventListener('click', async () => {
   if(!name){ alert('Isi nama sesi live dulu ya!'); return; }
   liveActive=true; liveOrders=[]; liveComments=[]; liveSeconds=0;
   peerConnections={}; pendingViewerUids=new Set(); pendingVideoBlob=null; recordedChunks=[];
+  $('stopLiveBtn').disabled=false; $('stopLiveBtn').textContent='⏹ Stop Live';
   $('videoSavePrompt').style.display='none';
   $('liveSetup').style.display='none';
   $('liveView').classList.add('active');
@@ -2215,15 +2238,32 @@ async function createHostPeer(uid){
   pc.onicecandidate=(e)=>{
     if(e.candidate) window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/hostCandidates`), e.candidate.toJSON());
   };
+  pc.oniceconnectionstatechange=()=>{
+    const st=pc.iceConnectionState;
+    if(st==='failed' || st==='disconnected'){
+      showDebugToast(`Koneksi ke penonton ${uid} ${st==='failed'?'gagal':'putus'} (sinyal lemah / TURN overload).`);
+    }
+  };
+  // Kalau ada track baru ditambahkan/diganti setelah offer pertama (misal kamera
+  // dimatikan-nyalakan lagi), browser akan minta renegosiasi lewat event ini —
+  // kita kirim ulang offer biar penonton tetap dapat update video/audionya.
+  pc.onnegotiationneeded=async()=>{
+    if(pc.signalingState!=='stable') return;
+    try{
+      const offer=await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
+    }catch(e){ showDebugToast('Gagal renegosiasi ke '+uid+': '+e.message); }
+  };
   try{
     const offer=await pc.createOffer();
     await pc.setLocalDescription(offer);
     await window.rtdbSet(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/offer`),{sdp:offer.sdp,type:offer.type});
-  } catch(e){ console.error('Gagal membuat offer untuk penonton', uid, e); }
+  } catch(e){ showDebugToast('Gagal membuat offer untuk penonton '+uid+': '+e.message); }
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/answer`), async (snap) => {
     const ans=snap.val();
     if(ans && pc.signalingState==='have-local-offer'){
-      try{ await pc.setRemoteDescription(new RTCSessionDescription(ans)); } catch(e){}
+      try{ await pc.setRemoteDescription(new RTCSessionDescription(ans)); } catch(e){ showDebugToast('Gagal setRemoteDescription (host): '+e.message); }
     }
   });
   window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/signal/${uid}/viewerCandidates`), (snap) => {
@@ -2270,9 +2310,22 @@ $('toggleCamBtn').addEventListener('click', async () => {
 
 $('stopLiveBtn').addEventListener('click', async () => {
   if(!confirm('Akhiri sesi live sekarang?')) return;
-  if(mediaRecorder && mediaRecorder.state!=='inactive'){
-    await new Promise(resolve=>{ mediaRecorder.onstop=resolve; mediaRecorder.stop(); });
-  }
+  $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏳ Mengakhiri...';
+  try{
+    if(mediaRecorder && mediaRecorder.state!=='inactive'){
+      // Dulu di sini bisa nge-hang selamanya kalau event 'onstop' gak pernah nembak
+      // (misal recorder error pas sinyal lag). Sekarang dikasih fallback: kalau dalam
+      // 3 detik gak ada respon, lanjut aja proses stop-nya, jangan nge-block tombol.
+      await new Promise(resolve=>{
+        let done=false;
+        const finish=()=>{ if(!done){ done=true; resolve(); } };
+        mediaRecorder.onstop=finish;
+        mediaRecorder.onerror=(e)=>{ showDebugToast('MediaRecorder error: '+(e.error?.message||e)); finish(); };
+        try{ mediaRecorder.stop(); }catch(e){ showDebugToast('Gagal stop recorder: '+e.message); finish(); }
+        setTimeout(finish, 3000);
+      });
+    }
+  }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
@@ -2485,6 +2538,7 @@ async function joinAsViewer(sessionId){
   $('viewerScreenPh').style.display='flex';
   $('viewerVideo').style.display='none';
   $('viewerCommentsOverlay').innerHTML='';
+  if($('viewerConnStatus')) $('viewerConnStatus').textContent='Menghubungkan ke siaran...';
 
   const myViewerRef=window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/viewers/${MY_UID}`);
   await window.rtdbSet(myViewerRef, true);
@@ -2503,6 +2557,26 @@ async function joinAsViewer(sessionId){
   viewerPC.onicecandidate=(e)=>{
     if(e.candidate) window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/viewerCandidates`), e.candidate.toJSON());
   };
+  viewerPC.oniceconnectionstatechange=()=>{
+    const st=viewerPC.iceConnectionState;
+    const statusEl=$('viewerConnStatus');
+    if(!statusEl) return;
+    if(st==='checking'){ statusEl.textContent='Menyambungkan video & audio...'; }
+    else if(st==='connected' || st==='completed'){ statusEl.textContent='Tersambung, menunggu video...'; }
+    else if(st==='disconnected'){ statusEl.textContent='Koneksi sempat putus, mencoba menyambung ulang...'; }
+    else if(st==='failed'){
+      statusEl.textContent='⚠️ Gagal menyambung ke siaran. Sinyal host/jaringan kurang stabil — coba keluar & tonton ulang.';
+      showDebugToast('Viewer ICE failed utk sesi '+sessionId);
+    }
+  };
+  // Kalau dalam 12 detik video masih belum nongol, kasih tau biar gak nunggu
+  // selamanya tanpa info (biasanya tanda relay/TURN lagi penuh atau host kena sinyal lemah).
+  setTimeout(()=>{
+    if(watchingSessionId===sessionId && $('viewerVideo').style.display==='none'){
+      const statusEl=$('viewerConnStatus');
+      if(statusEl) statusEl.textContent='Masih nyambung... Kalau kelamaan, sinyal host atau jaringanmu mungkin kurang stabil.';
+    }
+  }, 12000);
   viewerOfferUnsub=window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/signal/${MY_UID}/offer`), async (snap) => {
     const offer=snap.val();
     if(offer && viewerPC.signalingState==='stable'){

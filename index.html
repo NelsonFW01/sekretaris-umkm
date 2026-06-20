@@ -2633,24 +2633,33 @@ async function joinAsViewer(sessionId){
     console.error('LiveKit viewer error:', err);
   }
 
+  window._viewerAudioMuted = true;
   $('viewerUnmuteBtn').onclick=()=>{
-    // Unmute video
     const vid=$('viewerVideo');
-    vid.muted=false;
-    vid.play().catch(()=>{});
-    // Baru buat audio element dan play saat user tap - ini yang benar sesuai browser policy
-    if(window._viewerAudioTrack){
-      let audioEl = document.getElementById('viewerAudioEl');
-      if(!audioEl){
-        audioEl = document.createElement('audio');
-        audioEl.id = 'viewerAudioEl';
-        audioEl.style.display = 'none';
-        document.body.appendChild(audioEl);
+    let audioEl=document.getElementById('viewerAudioEl');
+    if(window._viewerAudioMuted){
+      // UNMUTE
+      vid.muted=false;
+      vid.play().catch(()=>{});
+      if(window._viewerAudioTrack){
+        if(!audioEl){
+          audioEl=document.createElement('audio');
+          audioEl.id='viewerAudioEl';
+          audioEl.style.display='none';
+          document.body.appendChild(audioEl);
+        }
+        audioEl.srcObject=new MediaStream([window._viewerAudioTrack]);
+        audioEl.play().catch(()=>{});
       }
-      audioEl.srcObject = new MediaStream([window._viewerAudioTrack]);
-      audioEl.play().catch(()=>{});
+      window._viewerAudioMuted=false;
+      $('viewerUnmuteBtn').textContent='🔇 Mute';
+    } else {
+      // MUTE
+      vid.muted=true;
+      if(audioEl){ audioEl.pause(); audioEl.srcObject=null; }
+      window._viewerAudioMuted=true;
+      $('viewerUnmuteBtn').textContent='🔊 Tap untuk dengar suara';
     }
-    $('viewerUnmuteBtn').style.display='none';
   };
 
   viewerCommentsUnsub=window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/comments`), (snap) => {

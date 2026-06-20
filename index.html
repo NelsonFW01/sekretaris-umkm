@@ -19,6 +19,10 @@
   import {
     getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  import {
+    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+    onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
   // proyekmu sendiri (https://console.firebase.google.com -> Project settings -> General -> Your apps -> SDK setup and configuration).
@@ -45,9 +49,15 @@
       const app = initializeApp(firebaseConfig);
       const db = getDatabase(app);
       const storage = getStorage(app);
+      const auth = getAuth(app);
 
       window.firebaseDb = db;
       window.firebaseStorage = storage;
+      window.fbAuth = auth;
+      window.fbCreateUser = createUserWithEmailAndPassword;
+      window.fbSignIn = signInWithEmailAndPassword;
+      window.fbOnAuthStateChanged = onAuthStateChanged;
+      window.fbSignOut = signOut;
       window.rtdbRef = ref;
       window.rtdbPush = push;
       window.rtdbSet = set;
@@ -536,6 +546,20 @@
     cursor:pointer;text-decoration:underline;
   }
 
+  /* ===== AUTH OVERLAY (LOGIN/REGISTER) ===== */
+  .auth-tabs{display:flex;gap:6px;background:var(--sand);border-radius:12px;padding:4px;margin-bottom:18px;}
+  .auth-tab{flex:1;padding:9px 8px;border:none;background:transparent;border-radius:9px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;font-size:12.5px;color:var(--ink-soft);cursor:pointer;transition:all .2s ease;}
+  .auth-tab.active{background:var(--teal);color:white;}
+  .auth-error{color:var(--bad);font-size:12.5px;font-weight:600;min-height:16px;margin:-2px 0 10px;text-align:left;}
+  .auth-field-hidden{display:none;}
+  .auth-logout-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--sand);border-radius:12px;padding:10px 14px;margin-bottom:14px;}
+  .auth-logout-row .ale-email{font-size:12px;font-weight:700;color:var(--ink);word-break:break-all;}
+  .auth-logout-row button{flex-shrink:0;padding:8px 12px;border-radius:9px;border:1.5px solid var(--bad);background:transparent;color:var(--bad);font-weight:700;font-size:11.5px;cursor:pointer;}
+
+  /* ===== ADMIN DELETE BUTTONS ===== */
+  .ud-admin-del{margin-left:8px;flex-shrink:0;border:none;background:#FDEAEA;color:var(--bad);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;}
+  .gc-admin-del{background:#FDEAEA;color:var(--bad);}
+
   /* Upload progress bar */
   .upload-progress-wrap{margin-top:10px;display:none;}
   .upload-progress-wrap.show{display:block;}
@@ -921,6 +945,11 @@
         <p style="color:var(--ink-soft); font-size:13.5px;">Lihat profil pengguna lain, status online/offline, dan lokasi yang dibagikan.</p>
       </div>
 
+      <div class="auth-logout-row">
+        <span class="ale-email" id="authUserEmail">—</span>
+        <button id="authLogoutBtn" type="button">🚪 Keluar</button>
+      </div>
+
       <div class="profile-card">
         <h3>👤 Profil Saya</h3>
         <div id="profileCompleteReminder" style="display:none;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#7B5E00;margin-bottom:12px;font-weight:500;">
@@ -992,16 +1021,22 @@
   <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
 </div>
 
-<!-- ===== WELCOME / SETUP NAMA PERTAMA KALI ===== -->
-<div class="welcome-overlay hidden" id="welcomeOverlay">
+<!-- ===== LOGIN / REGISTER (WAJIB SEBELUM PAKAI APLIKASI) ===== -->
+<div class="welcome-overlay" id="authOverlay">
   <div class="welcome-box">
-    <div class="wb-icon">👋</div>
-    <h2>Halo! Selamat datang</h2>
-    <p>Supaya teman-teman UMKM lain bisa mengenalmu di Komunitas, yuk isi nama kamu dulu.</p>
-    <input type="text" id="welcomeNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off">
-    <div class="wb-hint">Bisa diganti kapan saja di tab Komunitas</div>
-    <button id="welcomeSaveBtn">Mulai Pakai Sekretaris UMKM 🚀</button>
-    <span class="skip-link" id="welcomeSkipBtn">Lewati dulu, isi nanti</span>
+    <div class="wb-icon">🔐</div>
+    <h2 id="authTitle">Masuk ke Akunmu</h2>
+    <p>Masuk atau daftar dengan email untuk mulai pakai Sekretaris UMKM dan terhubung ke Komunitas.</p>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="authTabLogin">Masuk</button>
+      <button type="button" class="auth-tab" id="authTabRegister">Daftar</button>
+    </div>
+    <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
+    <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
+    <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
+    <div class="auth-error" id="authError"></div>
+    <button id="authSubmitBtn">Masuk</button>
+    <div class="wb-hint" style="margin-top:14px;">Nama tampilan hanya bisa diisi satu kali sesuai email akunmu.</div>
   </div>
 </div>
 
@@ -1120,7 +1155,7 @@ function showDebugToast(msg){
 window.addEventListener('error', (e)=>{ showDebugToast('JS Error: '+e.message); });
 window.addEventListener('unhandledrejection', (e)=>{ showDebugToast('Promise Error: '+((e.reason&&e.reason.message)||e.reason)); });
 
-// ============ USER IDENTITY (device-based, no login) ============
+// ============ USER IDENTITY (device-based id, dipasangkan dengan akun login) ============
 function getUserId(){
   try{
     let uid = localStorage.getItem('umkm_user_id');
@@ -1130,42 +1165,129 @@ function getUserId(){
 }
 const MY_UID = getUserId();
 
-// ============ WELCOME: ISI NAMA PERTAMA KALI ============
-(function initWelcome(){
-  try{
-    const hasSeenWelcome = localStorage.getItem('umkm_welcomed');
-    const savedName = localStorage.getItem('umkm_display_name');
-    if(!hasSeenWelcome || !savedName){
-      document.getElementById('welcomeOverlay').classList.remove('hidden');
-    }
-  } catch(e){}
-})();
+// ============ AUTH GATE: LOGIN / REGISTER WAJIB ============
+const ADMIN_EMAIL = 'nagoyaflora@gmail.com';
+let isAdmin = false;
+let currentAuthEmail = '';
+let authMode = 'login';
 
-function dismissWelcome(){
-  document.getElementById('welcomeOverlay').classList.add('hidden');
-  try{ localStorage.setItem('umkm_welcomed','1'); } catch(e){}
+function $a(id){ return document.getElementById(id); }
+
+function updateAuthModeUI(){
+  $a('authError').textContent = '';
+  if(authMode==='register'){
+    $a('authTitle').textContent = 'Daftar Akun Baru';
+    $a('authNameInput').classList.remove('auth-field-hidden');
+    $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
+    $a('authTabLogin').classList.remove('active');
+    $a('authTabRegister').classList.add('active');
+  } else {
+    $a('authTitle').textContent = 'Masuk ke Akunmu';
+    $a('authNameInput').classList.add('auth-field-hidden');
+    $a('authSubmitBtn').textContent = 'Masuk';
+    $a('authTabRegister').classList.remove('active');
+    $a('authTabLogin').classList.add('active');
+  }
+}
+$a('authTabLogin').addEventListener('click', ()=>{ authMode='login'; updateAuthModeUI(); });
+$a('authTabRegister').addEventListener('click', ()=>{ authMode='register'; updateAuthModeUI(); });
+updateAuthModeUI();
+
+function translateAuthError(code){
+  const map = {
+    'auth/email-already-in-use':'Email ini sudah terdaftar, coba menu Masuk.',
+    'auth/invalid-email':'Format email tidak valid.',
+    'auth/weak-password':'Password minimal 6 karakter.',
+    'auth/wrong-password':'Email atau password salah.',
+    'auth/user-not-found':'Email belum terdaftar, coba menu Daftar.',
+    'auth/invalid-credential':'Email atau password salah.',
+    'auth/missing-password':'Password belum diisi.',
+    'auth/too-many-requests':'Terlalu banyak percobaan, coba lagi nanti.'
+  };
+  return map[code] || null;
 }
 
-document.getElementById('welcomeSaveBtn').addEventListener('click', async () => {
-  const name = document.getElementById('welcomeNameInput').value.trim();
-  if(!name){ document.getElementById('welcomeNameInput').focus(); return; }
-  try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
-  // Pre-fill profil
-  document.getElementById('profDisplayName').value = name;
-  dismissWelcome();
-  // Simpan ke Firebase jika sudah siap
-  async function saveWelcomeName(){
-    if(!window.firebaseReady) return;
-    myProfile.displayName = name;
-    try{
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {displayName:name, uid:MY_UID, updatedAt:Date.now()});
-    } catch(e){ console.error('Gagal simpan nama welcome:', e); }
+function applyNameLockUI(){
+  const inp = $a('profDisplayName');
+  if(!inp) return;
+  const locked = !!myProfile.nameLocked;
+  inp.readOnly = locked;
+  inp.style.background = locked ? 'var(--sand)' : '';
+  inp.style.cursor = locked ? 'not-allowed' : '';
+  let hint = document.getElementById('nameLockHint');
+  if(locked){
+    if(!hint){
+      hint = document.createElement('div');
+      hint.id = 'nameLockHint';
+      hint.style.cssText = 'font-size:11.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:12px;';
+      hint.textContent = '🔒 Nama sudah dikunci sesuai akun emailmu dan tidak bisa diganti lagi.';
+      inp.insertAdjacentElement('afterend', hint);
+    }
+  } else if(hint){ hint.remove(); }
+}
+
+$a('authSubmitBtn').addEventListener('click', async () => {
+  const email = $a('authEmailInput').value.trim();
+  const pass = $a('authPasswordInput').value;
+  const name = $a('authNameInput').value.trim();
+  $a('authError').textContent = '';
+  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, login tidak bisa dipakai.'; return; }
+  if(!email || !pass){ $a('authError').textContent = 'Isi email dan password dulu.'; return; }
+  if(authMode==='register' && !name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
+  $a('authSubmitBtn').disabled = true;
+  const oldLabel = $a('authSubmitBtn').textContent;
+  $a('authSubmitBtn').textContent = 'Memproses...';
+  try{
+    if(authMode==='register'){
+      await window.fbCreateUser(window.fbAuth, email, pass);
+      try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
+      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
+        displayName:name, uid:MY_UID, email:email, nameLocked:true, updatedAt:Date.now()
+      });
+    } else {
+      await window.fbSignIn(window.fbAuth, email, pass);
+    }
+    $a('authEmailInput').value=''; $a('authPasswordInput').value=''; $a('authNameInput').value='';
+  } catch(err){
+    $a('authError').textContent = translateAuthError(err.code) || ('Gagal: '+err.message);
+  } finally {
+    $a('authSubmitBtn').disabled = false;
+    $a('authSubmitBtn').textContent = oldLabel;
   }
-  if(window.firebaseReady){ saveWelcomeName(); }
-  else { document.addEventListener('firebase-ready', saveWelcomeName); }
 });
 
-document.getElementById('welcomeSkipBtn').addEventListener('click', dismissWelcome);
+$a('authLogoutBtn').addEventListener('click', async () => {
+  if(!window.firebaseReady) return;
+  if(!confirm('Keluar dari akun?')) return;
+  try{ await window.fbSignOut(window.fbAuth); } catch(e){}
+});
+
+function initAuthGate(){
+  window.fbOnAuthStateChanged(window.fbAuth, async (user) => {
+    if(user){
+      currentAuthEmail = user.email || '';
+      isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
+      $a('authOverlay').classList.add('hidden');
+      $a('authUserEmail').textContent = currentAuthEmail + (isAdmin ? ' · 👑 Admin' : '');
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {email: currentAuthEmail, uid: MY_UID});
+      } catch(e){}
+      applyNameLockUI();
+      if(typeof renderUserDirectory === 'function') renderUserDirectory();
+      if(typeof renderGalleryFromCache === 'function') renderGalleryFromCache();
+      if(typeof renderVideoGalleryFromCache === 'function') renderVideoGalleryFromCache();
+    } else {
+      currentAuthEmail=''; isAdmin=false;
+      $a('authOverlay').classList.remove('hidden');
+      $a('authUserEmail').textContent = '—';
+    }
+  });
+}
+if(window.firebaseReady){ initAuthGate(); } else { document.addEventListener('firebase-ready', initAuthGate); }
+if(window.firebaseConfigMissing){ $a('authError').textContent = 'Firebase belum dikonfigurasi — login tidak bisa dipakai sampai ini diperbaiki.'; }
+else { document.addEventListener('firebase-config-missing', ()=>{ $a('authError').textContent = 'Firebase belum dikonfigurasi — login tidak bisa dipakai sampai ini diperbaiki.'; }); }
+
+
 
 // ============ STATE ============
 // KEY DEFAULT — fallback kalau user belum isi key sendiri.
@@ -1749,6 +1871,44 @@ $('publishBtn').addEventListener('click', async () => {
   }
 });
 
+let galleryCache = null;
+function renderGalleryFromCache(){
+  const val = galleryCache;
+  if(!val){ $('galleryList').innerHTML='<div class="empty-state">Belum ada yang membagikan konten. Jadilah yang pertama!</div>'; return; }
+  const now = Date.now();
+  const docsArr = Object.keys(val).map(id=>({id,...val[id]}));
+  docsArr.sort((a,b)=>{
+    const aB=a.boostExpiresAt&&a.boostExpiresAt>now, bB=b.boostExpiresAt&&b.boostExpiresAt>now;
+    if(aB&&bB) return a.boostExpiresAt-b.boostExpiresAt;
+    if(aB) return -1; if(bB) return 1;
+    return (b.createdAt||0)-(a.createdAt||0);
+  });
+  $('galleryList').innerHTML = docsArr.map(d=>{
+    const isBoosted=d.boostExpiresAt&&d.boostExpiresAt>now;
+    const hoursLeft=isBoosted?Math.max(1,Math.round((d.boostExpiresAt-now)/3600000)):0;
+    const isOwner = d.uid===MY_UID || !d.uid;
+    const canManage = isOwner || isAdmin;
+    const editBtn = isOwner?`<button class="gc-edit-btn" data-id="${d.id}">✏️ Edit</button>`:'';
+    const delBtn = canManage?`<button class="gc-delete-btn${(!isOwner&&isAdmin)?' gc-admin-del':''}" data-id="${d.id}">🗑️ Hapus${(!isOwner&&isAdmin)?' (Admin)':''}</button>`:'';
+    const ownerActions = canManage?`<div class="gc-owner-actions">${editBtn}${delBtn}</div>`:'';
+    return `<div class="gallery-card">
+      ${d.imageBase64?`<img src="data:image/jpeg;base64,${d.imageBase64}">`:'' }
+      <div class="gc-body">
+        ${isBoosted?`<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>`:''}
+        <div class="gc-title">${escapeHtml(d.title||'')}</div>
+        <div class="gc-caption">${escapeHtml((d.caption||'').slice(0,120))}${(d.caption||'').length>120?'...':''}</div>
+        <div class="gc-meta">
+          <span>🏪 ${escapeHtml(d.storeName||'UMKM')}</span>
+          <span class="gc-lang">${d.lang==='en'?'GLOBAL':'LOKAL'}</span>
+        </div>
+        ${d.storeAddress?`<div class="gc-meta" style="margin-top:-6px;"><span>📍 ${escapeHtml(d.storeAddress)}</span></div>`:''}
+        ${!isBoosted?`<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>`:''}
+        ${ownerActions}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function startGalleryListener(){
   if(!window.firebaseReady){
     $('galleryLoading').classList.remove('show');
@@ -1758,37 +1918,8 @@ function startGalleryListener(){
   const q = window.rtdbQuery(window.rtdbRef(window.firebaseDb,'gallery'),window.rtdbOrderByChild('createdAt'),window.rtdbLimitToLast(30));
   window.rtdbOnValue(q,(snapshot)=>{
     $('galleryLoading').classList.remove('show');
-    const val = snapshot.val();
-    if(!val){ $('galleryList').innerHTML='<div class="empty-state">Belum ada yang membagikan konten. Jadilah yang pertama!</div>'; return; }
-    const now = Date.now();
-    const docsArr = Object.keys(val).map(id=>({id,...val[id]}));
-    docsArr.sort((a,b)=>{
-      const aB=a.boostExpiresAt&&a.boostExpiresAt>now, bB=b.boostExpiresAt&&b.boostExpiresAt>now;
-      if(aB&&bB) return a.boostExpiresAt-b.boostExpiresAt;
-      if(aB) return -1; if(bB) return 1;
-      return (b.createdAt||0)-(a.createdAt||0);
-    });
-    $('galleryList').innerHTML = docsArr.map(d=>{
-      const isBoosted=d.boostExpiresAt&&d.boostExpiresAt>now;
-      const hoursLeft=isBoosted?Math.max(1,Math.round((d.boostExpiresAt-now)/3600000)):0;
-      const isOwner = d.uid===MY_UID || !d.uid;
-      const ownerActions = isOwner?`<div class="gc-owner-actions"><button class="gc-edit-btn" data-id="${d.id}">✏️ Edit</button><button class="gc-delete-btn" data-id="${d.id}">🗑️ Hapus</button></div>`:'';
-      return `<div class="gallery-card">
-        ${d.imageBase64?`<img src="data:image/jpeg;base64,${d.imageBase64}">`:'' }
-        <div class="gc-body">
-          ${isBoosted?`<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>`:''}
-          <div class="gc-title">${escapeHtml(d.title||'')}</div>
-          <div class="gc-caption">${escapeHtml((d.caption||'').slice(0,120))}${(d.caption||'').length>120?'...':''}</div>
-          <div class="gc-meta">
-            <span>🏪 ${escapeHtml(d.storeName||'UMKM')}</span>
-            <span class="gc-lang">${d.lang==='en'?'GLOBAL':'LOKAL'}</span>
-          </div>
-          ${d.storeAddress?`<div class="gc-meta" style="margin-top:-6px;"><span>📍 ${escapeHtml(d.storeAddress)}</span></div>`:''}
-          ${!isBoosted?`<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>`:''}
-          ${ownerActions}
-        </div>
-      </div>`;
-    }).join('');
+    galleryCache = snapshot.val();
+    renderGalleryFromCache();
   },(err)=>{
     $('galleryLoading').classList.remove('show');
     $('galleryList').innerHTML='<div class="empty-state">Gagal memuat galeri. Cek konfigurasi Firebase.</div>';
@@ -1830,7 +1961,7 @@ document.addEventListener('click', async (e) => {
     try{
       const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'gallery/'+id));
       const d = snap.val();
-      if(!d || (d.uid && d.uid!==MY_UID)){ alert('Kamu bukan pemilik postingan ini.'); return; }
+      if(!d || (d.uid && d.uid!==MY_UID && !isAdmin)){ alert('Kamu bukan pemilik postingan ini.'); return; }
       await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'gallery/'+id));
     }catch(err){ alert('Gagal menghapus: '+err.message); }
   }
@@ -2047,7 +2178,7 @@ if(location.hash==='#admin'){
 setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 
 // ============ COMMUNITY: PRESENCE, PROFILE, LOCATION, USER DIRECTORY ============
-let myProfile = {displayName:'', storeName:'', address:''};
+let myProfile = {displayName:'', storeName:'', address:'', nameLocked:false, email:''};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
 
@@ -2082,7 +2213,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', nameLocked:!!d.nameLocked, email:d.email||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -2091,6 +2222,7 @@ async function loadMyProfile(){
       // Sync ke localStorage
       if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
       if(d.location){ myLocation = d.location; showMyLocationOnMap(d.location); }
+      if(typeof applyNameLockUI === 'function') applyNameLockUI();
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
 }
@@ -2102,12 +2234,18 @@ $('saveProfileBtn').addEventListener('click', async () => {
     $('profileSaveStatus').style.color = 'var(--bad)';
     return;
   }
+  const typedName = $('profDisplayName').value.trim();
+  // Nama hanya bisa diisi/diubah satu kali sesuai email akun — setelah terkunci, nama lama dipertahankan.
+  const finalName = myProfile.nameLocked ? myProfile.displayName : typedName;
+  const willLockNow = !myProfile.nameLocked && !!finalName;
   myProfile = {
-    displayName: $('profDisplayName').value.trim(),
+    displayName: finalName,
     storeName: $('profStoreName').value.trim(),
     address: $('profAddress').value.trim(),
     paymentId: $('profPaymentId').value.trim(),
-    paymentLink: $('profPaymentLink').value.trim()
+    paymentLink: $('profPaymentLink').value.trim(),
+    nameLocked: myProfile.nameLocked || willLockNow,
+    email: currentAuthEmail || myProfile.email || ''
   };
   // Sync nama ke localStorage untuk fallback cepat
   if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
@@ -2119,6 +2257,8 @@ $('saveProfileBtn').addEventListener('click', async () => {
     // Sembunyikan reminder setelah nama terisi
     const reminder = $('profileCompleteReminder');
     if(reminder) reminder.style.display = 'none';
+    $('profDisplayName').value = myProfile.displayName;
+    applyNameLockUI();
   } catch(err){
     $('profileSaveStatus').textContent = 'Gagal menyimpan: '+err.message;
     $('profileSaveStatus').style.color = 'var(--bad)';
@@ -2180,6 +2320,7 @@ function renderUserDirectory(){
   list.innerHTML = arr.map(u => {
     const name = u.displayName || u.storeName || '(Belum isi nama)';
     const noName = !u.displayName && !u.storeName;
+    const delBtn = isAdmin?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
     return `<div class="user-card" data-uid="${u.uid}">
       <span class="status-dot ${u.online?'on':'off'}"></span>
       <div>
@@ -2187,6 +2328,7 @@ function renderUserDirectory(){
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>
       </div>
       <div class="uc-right">${u.online?'🟢 Online':'🔴 Offline'}</div>
+      ${delBtn}
     </div>`;
   }).join('');
 }
@@ -2210,6 +2352,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
 });
 
 document.addEventListener('click', (e) => {
+  if(e.target.closest('.ud-admin-del')) return; // ditangani handler terpisah di bawah
   const card = e.target.closest('.user-card');
   if(card){
     const uid = card.dataset.uid;
@@ -2228,6 +2371,19 @@ document.addEventListener('click', (e) => {
   }
 });
 $('profileDetailClose').addEventListener('click', () => $('profileDetailModal').classList.remove('show'));
+
+// ===== ADMIN: HAPUS PENGGUNA DARI KOMUNITAS (online maupun offline) =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.ud-admin-del');
+  if(!btn) return;
+  if(!isAdmin || !window.firebaseReady) return;
+  const uid = btn.dataset.uid;
+  if(!confirm('Hapus pengguna ini dari Komunitas? Tindakan ini tidak bisa dibatalkan.')) return;
+  try{
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+uid));
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'presence/'+uid));
+  }catch(err){ alert('Gagal menghapus pengguna: '+err.message); }
+});
 
 // ============ LIVE STREAM (HOST + REAL VIEWERS VIA LIVEKIT) ============
 // LiveKit = SFU server di tengah, bukan peer-to-peer langsung.
@@ -2912,6 +3068,26 @@ function sendViewerComment(){
 }
 
 // ============ VIDEO GALLERY (saved live recordings) ============
+let videoGalleryCache = null;
+function renderVideoGalleryFromCache(){
+  const val = videoGalleryCache;
+  if(!val){ $('videoGalleryList').innerHTML='<div class="empty-state">Belum ada video live yang disimpan. Jadilah yang pertama!</div>'; return; }
+  const arr=Object.keys(val).map(id=>({id,...val[id]})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  $('videoGalleryList').innerHTML=arr.map(v=>{
+    const isOwner=v.uid===MY_UID;
+    const canManage=isOwner||isAdmin;
+    const dateStr=v.createdAt?new Date(v.createdAt).toLocaleString('id-ID'):'';
+    return `<div class="video-gallery-card">
+      <video controls preload="metadata" src="${v.url}"></video>
+      <div class="vg-body">
+        <div class="vg-title">${escapeHtml(v.sessionName||'Sesi Live')}</div>
+        <div class="vg-meta">🏪 ${escapeHtml(v.hostName||'UMKM')} · 🛒 ${v.totalOrders||0} pesanan · ${dateStr}</div>
+        ${canManage?`<button class="vg-del" data-id="${v.id}" data-path="${v.storagePath||''}">🗑️ Hapus Video${(!isOwner&&isAdmin)?' (Admin)':''}</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function startVideoGalleryListener(){
   if(!window.firebaseReady){
     $('videoGalleryList').innerHTML='<div class="empty-state">Galeri Video Live butuh Firebase aktif (lihat peringatan di atas).</div>';
@@ -2919,21 +3095,8 @@ function startVideoGalleryListener(){
   }
   const q=window.rtdbQuery(window.rtdbRef(window.firebaseDb,'liveVideos'),window.rtdbOrderByChild('createdAt'),window.rtdbLimitToLast(30));
   window.rtdbOnValue(q,(snap)=>{
-    const val=snap.val();
-    if(!val){ $('videoGalleryList').innerHTML='<div class="empty-state">Belum ada video live yang disimpan. Jadilah yang pertama!</div>'; return; }
-    const arr=Object.keys(val).map(id=>({id,...val[id]})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    $('videoGalleryList').innerHTML=arr.map(v=>{
-      const isOwner=v.uid===MY_UID;
-      const dateStr=v.createdAt?new Date(v.createdAt).toLocaleString('id-ID'):'';
-      return `<div class="video-gallery-card">
-        <video controls preload="metadata" src="${v.url}"></video>
-        <div class="vg-body">
-          <div class="vg-title">${escapeHtml(v.sessionName||'Sesi Live')}</div>
-          <div class="vg-meta">🏪 ${escapeHtml(v.hostName||'UMKM')} · 🛒 ${v.totalOrders||0} pesanan · ${dateStr}</div>
-          ${isOwner?`<button class="vg-del" data-id="${v.id}" data-path="${v.storagePath||''}">🗑️ Hapus Video</button>`:''}
-        </div>
-      </div>`;
-    }).join('');
+    videoGalleryCache=snap.val();
+    renderVideoGalleryFromCache();
   },()=>{ $('videoGalleryList').innerHTML='<div class="empty-state">Gagal memuat galeri video.</div>'; });
 }
 if(window.firebaseReady){ startVideoGalleryListener(); } else { document.addEventListener('firebase-ready', startVideoGalleryListener); }

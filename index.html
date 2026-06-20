@@ -2782,38 +2782,42 @@ $('saveVideoBtn').addEventListener('click', async () => {
   progLabel.textContent='Menyiapkan unggahan...';
 
   try{
-    const path=`liveVideos/${MY_UID}/${Date.now()}.webm`;
-    const sRef=window.storageRef(window.firebaseStorage, path);
+    // ===== UPLOAD KE CLOUDINARY (bukan Firebase Storage) =====
+    const CLOUDINARY_CLOUD_NAME = 'ddqjgwpgl';
+    const CLOUDINARY_UPLOAD_PRESET = 'liveVideos';
+    const path=`liveVideos/${MY_UID}_${Date.now()}`;
 
-    // Gunakan XMLHttpRequest supaya bisa track progress upload
-    const uploadUrl = await new Promise(async (resolve, reject) => {
-      try{
-        // Dapatkan upload URL via Firebase Storage SDK dengan progress tracking
-        const {uploadBytesResumable} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
-        const uploadTask = uploadBytesResumable(sRef, pendingVideoBlob, {contentType:'video/webm'});
+    const uploadResult = await new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', pendingVideoBlob, 'video.webm');
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('public_id', path);
 
-        uploadTask.on('state_changed',
-          (snapshot) => {
-            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-            progBar.style.width = pct+'%';
-            const transferred = (snapshot.bytesTransferred/1024/1024).toFixed(1);
-            const total = (snapshot.totalBytes/1024/1024).toFixed(1);
-            progLabel.textContent = `${transferred} MB / ${total} MB (${pct}%)`;
-            $('videoSaveStatus').textContent = `📤 Mengunggah... ${pct}%`;
-          },
-          (err) => reject(err),
-          async () => {
-            const url = await window.storageGetDownloadURL(uploadTask.snapshot.ref);
-            resolve(url);
-          }
-        );
-      } catch(e){
-        // Fallback ke uploadBytes biasa jika uploadBytesResumable tidak tersedia
-        progLabel.textContent = 'Mengunggah... (tanpa progress)';
-        await window.storageUploadBytes(sRef, pendingVideoBlob);
-        const url = await window.storageGetDownloadURL(sRef);
-        resolve(url);
-      }
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`, true);
+
+      xhr.upload.onprogress = (evt) => {
+        if(!evt.lengthComputable) return;
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        progBar.style.width = pct+'%';
+        const transferred = (evt.loaded/1024/1024).toFixed(1);
+        const total = (evt.total/1024/1024).toFixed(1);
+        progLabel.textContent = `${transferred} MB / ${total} MB (${pct}%)`;
+        $('videoSaveStatus').textContent = `📤 Mengunggah... ${pct}%`;
+      };
+
+      xhr.onload = () => {
+        if(xhr.status >= 200 && xhr.status < 300){
+          try{ resolve(JSON.parse(xhr.responseText)); }
+          catch(e){ reject(new Error('Respons Cloudinary tidak valid')); }
+        } else {
+          let msg = 'Upload gagal (status '+xhr.status+')';
+          try{ msg = JSON.parse(xhr.responseText).error.message; }catch(e){}
+          reject(new Error(msg));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Gagal terhubung ke Cloudinary. Cek koneksi internet.'));
+      xhr.send(formData);
     });
 
     progBar.style.width='100%';
@@ -2821,7 +2825,7 @@ $('saveVideoBtn').addEventListener('click', async () => {
 
     const newRef=window.rtdbPush(window.rtdbRef(window.firebaseDb,'liveVideos'));
     await window.rtdbSet(newRef,{
-      uid:MY_UID, storagePath:path, url:uploadUrl,
+      uid:MY_UID, storagePath:uploadResult.public_id, url:uploadResult.secure_url,
       sessionName:($('saveVideoBtn').dataset.sessionName||$('liveSessionName').value.trim()||'Sesi Live'),
       hostName:(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM',
       totalOrders:liveOrders.length,

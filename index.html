@@ -19,11 +19,6 @@
   import {
     getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-  import {
-    getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
-    updateProfile, sendPasswordResetEmail
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
   // proyekmu sendiri (https://console.firebase.google.com -> Project settings -> General -> Your apps -> SDK setup and configuration).
@@ -70,19 +65,6 @@
       window.storageGetDownloadURL = getDownloadURL;
       window.storageDeleteObject = deleteObject;
       window.firebaseServerTimestamp = serverTimestamp;
-
-      // ===== AUTH =====
-      const auth = getAuth(app);
-      const googleProvider = new GoogleAuthProvider();
-      window.firebaseAuth = auth;
-      window.firebaseSignOut = () => signOut(auth);
-      window.firebaseSignInEmail = (email, pass) => signInWithEmailAndPassword(auth, email, pass);
-      window.firebaseRegisterEmail = (email, pass) => createUserWithEmailAndPassword(auth, email, pass);
-      window.firebaseSignInGoogle = () => signInWithPopup(auth, googleProvider);
-      window.firebaseUpdateProfile = (u, data) => updateProfile(u, data);
-      window.firebaseSendPasswordReset = (email) => sendPasswordResetEmail(auth, email);
-      window.firebaseOnAuthStateChanged = (cb) => onAuthStateChanged(auth, cb);
-
       window.firebaseReady = true;
       document.dispatchEvent(new Event('firebase-ready'));
     } catch (err) {
@@ -560,97 +542,6 @@
   .upload-progress-bar-bg{height:8px;background:var(--sand);border-radius:10px;overflow:hidden;}
   .upload-progress-bar{height:100%;background:var(--teal);border-radius:10px;width:0%;transition:width .3s;}
   .upload-progress-label{font-size:11.5px;color:var(--ink-soft);margin-top:5px;text-align:center;}
-
-  /* ===== AUTH MODAL ===== */
-  .auth-overlay{
-    position:fixed;inset:0;background:rgba(42,38,34,0.75);z-index:9999;
-    display:flex;align-items:center;justify-content:center;padding:20px;
-    backdrop-filter:blur(6px);
-  }
-  .auth-overlay.hidden{display:none;}
-  .auth-box{
-    background:var(--bg-card);border-radius:24px;padding:30px 24px 26px;
-    max-width:400px;width:100%;box-shadow:0 24px 64px rgba(42,38,34,0.22);
-    animation:fadeUp .3s ease;
-  }
-  .auth-logo{text-align:center;margin-bottom:20px;}
-  .auth-logo .brand-mark{width:46px;height:46px;background:var(--teal);border-radius:14px;
-    display:inline-flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:20px;margin-bottom:8px;}
-  .auth-logo h2{font-size:19px;margin-bottom:3px;}
-  .auth-logo p{font-size:13px;color:var(--ink-soft);}
-  .auth-tabs{display:flex;gap:4px;background:var(--sand);border-radius:12px;padding:4px;margin-bottom:20px;}
-  .auth-tab{flex:1;padding:10px;border:none;background:transparent;border-radius:9px;
-    font-weight:700;font-size:13.5px;cursor:pointer;color:var(--ink-soft);transition:all .2s;font-family:'Plus Jakarta Sans',sans-serif;}
-  .auth-tab.active{background:var(--teal);color:white;box-shadow:0 3px 10px rgba(27,77,74,0.25);}
-  .auth-field{margin-bottom:13px;}
-  .auth-field label{font-size:12px;font-weight:700;color:var(--ink-soft);display:block;margin-bottom:5px;}
-  .auth-field input{
-    width:100%;padding:12px 14px;border-radius:11px;border:1.5px solid var(--line);
-    font-size:14px;font-family:inherit;background:var(--bg);transition:border-color .2s;
-  }
-  .auth-field input:focus{outline:none;border-color:var(--teal);}
-  .auth-btn{
-    width:100%;padding:14px;border-radius:12px;border:none;background:var(--teal);
-    color:white;font-weight:700;font-size:15px;cursor:pointer;margin-bottom:10px;
-    font-family:'Plus Jakarta Sans',sans-serif;transition:background .2s;
-  }
-  .auth-btn:hover{background:var(--teal-dark);}
-  .auth-btn:disabled{opacity:0.5;cursor:not-allowed;}
-  .auth-btn.google{
-    background:white;color:var(--ink);border:1.5px solid var(--line);
-    display:flex;align-items:center;justify-content:center;gap:9px;font-size:14px;
-  }
-  .auth-btn.google:hover{background:var(--sand);}
-  .auth-divider{text-align:center;font-size:12px;color:var(--ink-soft);margin:12px 0;
-    display:flex;align-items:center;gap:8px;}
-  .auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:var(--line);}
-  .auth-error{background:#FDEAEA;border:1px solid #F0B0B0;border-radius:9px;padding:9px 12px;
-    font-size:12.5px;color:var(--bad);margin-bottom:10px;display:none;}
-  .auth-error.show{display:block;}
-  .auth-success{background:#EDF7EF;border:1px solid #B0D9BC;border-radius:9px;padding:9px 12px;
-    font-size:12.5px;color:var(--good);margin-bottom:10px;display:none;}
-  .auth-success.show{display:block;}
-  .auth-forgot{text-align:right;margin-top:-8px;margin-bottom:12px;}
-  .auth-forgot a{font-size:12px;color:var(--teal);cursor:pointer;text-decoration:none;font-weight:600;}
-
-  /* ===== HEADER AUTH BUTTON ===== */
-  .header-auth{display:flex;align-items:center;gap:8px;margin-left:auto;}
-  .user-avatar-btn{
-    width:34px;height:34px;border-radius:50%;background:var(--teal);border:none;
-    color:white;font-weight:700;font-size:14px;cursor:pointer;display:flex;
-    align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;
-  }
-  .user-avatar-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
-  .auth-user-menu{
-    position:absolute;top:72px;right:20px;background:var(--bg-card);border:1px solid var(--line);
-    border-radius:16px;padding:8px;box-shadow:0 12px 40px rgba(42,38,34,0.15);
-    z-index:200;min-width:220px;display:none;
-  }
-  .auth-user-menu.show{display:block;}
-  .aum-header{padding:10px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;}
-  .aum-name{font-weight:700;font-size:14px;}
-  .aum-email{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
-  .aum-badge{display:inline-flex;align-items:center;gap:4px;background:#FFF3E0;color:#E65100;
-    font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;margin-top:5px;border:1px solid #FFCC80;}
-  .aum-item{width:100%;padding:10px 12px;border:none;background:transparent;text-align:left;
-    font-size:13.5px;font-family:inherit;cursor:pointer;border-radius:10px;display:block;color:var(--ink);}
-  .aum-item:hover{background:var(--sand);}
-  .aum-item.danger{color:var(--bad);}
-  .aum-divider{height:1px;background:var(--line);margin:6px 0;}
-
-  /* ===== SUPERADMIN DELETE BUTTONS ===== */
-  .sadmin-del{
-    background:#FDEAEA;border:1.5px solid var(--bad);color:var(--bad);
-    border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;
-    display:none;margin-left:auto;
-  }
-  .is-superadmin .sadmin-del{display:inline-flex;align-items:center;gap:4px;}
-  .superadmin-bar{
-    background:linear-gradient(135deg,#FF6B35,#E65100);color:white;
-    padding:10px 20px;font-size:12.5px;font-weight:700;display:none;
-    align-items:center;gap:8px;
-  }
-  .superadmin-bar.show{display:flex;}
 </style>
 </head>
 <body>
@@ -660,39 +551,9 @@
     <div class="brand">
       <div class="brand-mark">S</div>
       <div class="brand-name">Sekretaris UMKM</div>
-      <div class="header-auth">
-        <!-- Tampil saat belum login -->
-        <button id="headerLoginBtn" style="padding:8px 14px;border-radius:10px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-weight:700;font-size:12.5px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">
-          Masuk
-        </button>
-        <!-- Tampil saat sudah login -->
-        <button class="user-avatar-btn" id="headerAvatarBtn" style="display:none;" title="Akun saya">
-          <span id="headerAvatarInitial">?</span>
-        </button>
-      </div>
     </div>
     <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
   </header>
-
-  <!-- Superadmin bar -->
-  <div class="superadmin-bar" id="superadminBar">
-    👑 Mode Super Admin aktif — kamu bisa menghapus semua konten
-    <button id="sadminDeleteAllGalleryBtn" style="margin-left:auto;background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.5);color:white;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">🗑️ Hapus SEMUA Galeri</button>
-    <button id="sadminDeleteAllVideosBtn" style="background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.5);color:white;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">🗑️ Hapus SEMUA Video</button>
-    <button id="sadminDeleteAllUsersBtn" style="background:rgba(255,255,255,0.2);border:1.5px solid rgba(255,255,255,0.5);color:white;padding:6px 12px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;">🗑️ Hapus SEMUA User</button>
-  </div>
-
-  <!-- User dropdown menu -->
-  <div class="auth-user-menu" id="authUserMenu">
-    <div class="aum-header">
-      <div class="aum-name" id="aumName">-</div>
-      <div class="aum-email" id="aumEmail">-</div>
-      <div class="aum-badge" id="aumBadge" style="display:none;">👑 Super Admin</div>
-    </div>
-    <button class="aum-item" onclick="document.querySelector('.tab[data-panel=\'community\']').click();document.getElementById('authUserMenu').classList.remove('show');">👤 Edit Profil Saya</button>
-    <div class="aum-divider"></div>
-    <button class="aum-item danger" id="aumSignOutBtn">🚪 Keluar</button>
-  </div>
 
   <div class="key-banner" id="firebaseBanner" style="display:none;background:#FDEAEA;border-color:#F0B0B0;">
     ⚠️ <strong>Realtime Database belum dibuat di project Firebase kamu.</strong> Config project "sekretaris-umkm" sudah ditempel di kode, tapi <code>databaseURL</code> masih kosong karena Realtime Database belum diaktifkan — itu sebabnya muncul error.
@@ -1129,72 +990,6 @@
   </div>
 
   <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
-</div>
-
-<!-- ===== AUTH MODAL ===== -->
-<div class="auth-overlay hidden" id="authOverlay">
-  <div class="auth-box">
-    <div class="auth-logo">
-      <div class="brand-mark">S</div>
-      <h2>Sekretaris UMKM</h2>
-      <p>Masuk untuk bergabung dengan komunitas UMKM</p>
-    </div>
-
-    <div class="auth-tabs">
-      <button class="auth-tab active" id="authTabLogin">Masuk</button>
-      <button class="auth-tab" id="authTabRegister">Daftar</button>
-    </div>
-
-    <div id="authError" class="auth-error"></div>
-    <div id="authSuccessMsg" class="auth-success"></div>
-
-    <!-- Login panel -->
-    <div id="authLoginPanel">
-      <div class="auth-field">
-        <label>Email</label>
-        <input type="email" id="loginEmail" placeholder="email@kamu.com" autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label>Password</label>
-        <input type="password" id="loginPassword" placeholder="Password kamu" autocomplete="current-password">
-      </div>
-      <div class="auth-forgot"><a id="forgotPasswordLink">Lupa password?</a></div>
-      <button class="auth-btn" id="loginEmailBtn">Masuk dengan Email</button>
-      <div class="auth-divider">atau</div>
-      <button class="auth-btn google" id="loginGoogleBtn">
-        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Masuk dengan Google
-      </button>
-    </div>
-
-    <!-- Register panel -->
-    <div id="authRegisterPanel" style="display:none;">
-      <div class="auth-field">
-        <label>Nama Lengkap / Nama Toko</label>
-        <input type="text" id="registerName" placeholder="contoh: Sari atau Kripik Bu Sari" autocomplete="name">
-      </div>
-      <div class="auth-field">
-        <label>Email</label>
-        <input type="email" id="registerEmail" placeholder="email@kamu.com" autocomplete="email">
-      </div>
-      <div class="auth-field">
-        <label>Password (min. 6 karakter)</label>
-        <input type="password" id="registerPassword" placeholder="Buat password kuat" autocomplete="new-password">
-      </div>
-      <button class="auth-btn" id="registerEmailBtn">Buat Akun Baru</button>
-      <div class="auth-divider">atau</div>
-      <button class="auth-btn google" id="registerGoogleBtn">
-        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Daftar dengan Google
-      </button>
-    </div>
-
-    <div style="text-align:center;margin-top:16px;">
-      <button style="background:none;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;" id="authSkipBtn">
-        Lewati — lanjut tanpa login
-      </button>
-    </div>
-  </div>
 </div>
 
 <!-- ===== WELCOME / SETUP NAMA PERTAMA KALI ===== -->
@@ -1991,7 +1786,6 @@ function startGalleryListener(){
           ${d.storeAddress?`<div class="gc-meta" style="margin-top:-6px;"><span>📍 ${escapeHtml(d.storeAddress)}</span></div>`:''}
           ${!isBoosted?`<button class="boost-btn" data-gallery-id="${d.id}">🚀 Boost ke Atas (24 jam)</button>`:''}
           ${ownerActions}
-          <button class="sadmin-del" data-type="gallery" data-id="${d.id}">🗑️ Hapus (Admin)</button>
         </div>
       </div>`;
     }).join('');
@@ -3137,7 +2931,6 @@ function startVideoGalleryListener(){
           <div class="vg-title">${escapeHtml(v.sessionName||'Sesi Live')}</div>
           <div class="vg-meta">🏪 ${escapeHtml(v.hostName||'UMKM')} · 🛒 ${v.totalOrders||0} pesanan · ${dateStr}</div>
           ${isOwner?`<button class="vg-del" data-id="${v.id}" data-path="${v.storagePath||''}">🗑️ Hapus Video</button>`:''}
-          <button class="sadmin-del" data-type="video" data-id="${v.id}" data-path="${v.storagePath||''}">🗑️ Hapus (Admin)</button>
         </div>
       </div>`;
     }).join('');
@@ -3156,294 +2949,6 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// ============================================================
-// ===== FIREBASE AUTHENTICATION + SUPER ADMIN SYSTEM =====
-// ============================================================
-const SUPER_ADMIN_EMAIL = 'nagoyaflora@gmail.com';
-let currentUser = null;
-let isSuperAdmin = false;
-
-function showAuthError(msg){ const el=$('authError'); el.textContent=msg; el.classList.add('show'); }
-function hideAuthError(){ $('authError').classList.remove('show'); }
-function showAuthSuccess(msg){ const el=$('authSuccessMsg'); el.textContent=msg; el.classList.add('show'); }
-
-// Tab switching
-$('authTabLogin').addEventListener('click',()=>{
-  $('authTabLogin').classList.add('active'); $('authTabRegister').classList.remove('active');
-  $('authLoginPanel').style.display='block'; $('authRegisterPanel').style.display='none';
-  hideAuthError(); $('authSuccessMsg').classList.remove('show');
-});
-$('authTabRegister').addEventListener('click',()=>{
-  $('authTabRegister').classList.add('active'); $('authTabLogin').classList.remove('active');
-  $('authRegisterPanel').style.display='block'; $('authLoginPanel').style.display='none';
-  hideAuthError(); $('authSuccessMsg').classList.remove('show');
-});
-
-// Show/hide auth modal
-function openAuthModal(){ $('authOverlay').classList.remove('hidden'); }
-function closeAuthModal(){ $('authOverlay').classList.add('hidden'); }
-
-$('headerLoginBtn').addEventListener('click', openAuthModal);
-$('authSkipBtn').addEventListener('click', closeAuthModal);
-
-// Login dengan email
-$('loginEmailBtn').addEventListener('click', async () => {
-  const email=$('loginEmail').value.trim(), pass=$('loginPassword').value;
-  if(!email||!pass){ showAuthError('Isi email dan password dulu ya.'); return; }
-  $('loginEmailBtn').disabled=true; $('loginEmailBtn').textContent='Masuk...';
-  hideAuthError();
-  try{
-    await window.firebaseSignInEmail(email, pass);
-    closeAuthModal();
-  } catch(err){
-    const msgs={'auth/user-not-found':'Email tidak terdaftar.','auth/wrong-password':'Password salah.','auth/invalid-email':'Format email tidak valid.','auth/too-many-requests':'Terlalu banyak percobaan. Coba lagi nanti.'};
-    showAuthError(msgs[err.code]||'Gagal masuk: '+err.message);
-  } finally { $('loginEmailBtn').disabled=false; $('loginEmailBtn').textContent='Masuk dengan Email'; }
-});
-
-// Register dengan email
-$('registerEmailBtn').addEventListener('click', async () => {
-  const name=$('registerName').value.trim(), email=$('registerEmail').value.trim(), pass=$('registerPassword').value;
-  if(!name){ showAuthError('Isi nama dulu ya.'); return; }
-  if(!email||!pass){ showAuthError('Isi email dan password dulu ya.'); return; }
-  if(pass.length<6){ showAuthError('Password minimal 6 karakter.'); return; }
-  $('registerEmailBtn').disabled=true; $('registerEmailBtn').textContent='Mendaftarkan...';
-  hideAuthError();
-  try{
-    const cred = await window.firebaseRegisterEmail(email, pass);
-    await window.firebaseUpdateProfile(cred.user, {displayName: name});
-    // Simpan profil ke Firebase DB
-    if(window.firebaseReady){
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+cred.user.uid), {
-        displayName:name, uid:cred.user.uid, email, updatedAt:Date.now()
-      });
-    }
-    closeAuthModal();
-  } catch(err){
-    const msgs={'auth/email-already-in-use':'Email sudah terdaftar, coba masuk.','auth/invalid-email':'Format email tidak valid.','auth/weak-password':'Password terlalu lemah (min 6 karakter).'};
-    showAuthError(msgs[err.code]||'Gagal daftar: '+err.message);
-  } finally { $('registerEmailBtn').disabled=false; $('registerEmailBtn').textContent='Buat Akun Baru'; }
-});
-
-// Google sign in/up
-async function doGoogleAuth(){
-  hideAuthError();
-  try{
-    const cred = await window.firebaseSignInGoogle();
-    const user = cred.user;
-    // Simpan/update profil ke DB
-    if(window.firebaseReady){
-      const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+user.uid));
-      if(!snap.val()){
-        // User baru lewat Google
-        await window.rtdbSet(window.rtdbRef(window.firebaseDb,'users/'+user.uid), {
-          displayName: user.displayName||'', email: user.email||'',
-          uid: user.uid, updatedAt: Date.now()
-        });
-      }
-    }
-    closeAuthModal();
-  } catch(err){
-    if(err.code!=='auth/popup-closed-by-user') showAuthError('Gagal masuk dengan Google: '+err.message);
-  }
-}
-$('loginGoogleBtn').addEventListener('click', doGoogleAuth);
-$('registerGoogleBtn').addEventListener('click', doGoogleAuth);
-
-// Lupa password
-$('forgotPasswordLink').addEventListener('click', async () => {
-  const email=$('loginEmail').value.trim();
-  if(!email){ showAuthError('Isi email kamu dulu di atas, lalu klik "Lupa password?".'); return; }
-  hideAuthError();
-  try{
-    await window.firebaseSendPasswordReset(email);
-    showAuthSuccess('📧 Link reset password sudah dikirim ke '+email+'. Cek inbox kamu!');
-  } catch(err){ showAuthError('Gagal kirim email: '+err.message); }
-});
-
-// Header avatar toggle menu
-$('headerAvatarBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  $('authUserMenu').classList.toggle('show');
-});
-document.addEventListener('click', () => $('authUserMenu').classList.remove('show'));
-
-// Sign out
-$('aumSignOutBtn').addEventListener('click', async () => {
-  $('authUserMenu').classList.remove('show');
-  if(!confirm('Keluar dari akun?')) return;
-  try{ await window.firebaseSignOut(); } catch(e){}
-});
-
-// ===== Auth State Observer — jantung dari sistem login =====
-function initAuthObserver(){
-  window.firebaseOnAuthStateChanged(async (user) => {
-    currentUser = user;
-    isSuperAdmin = !!(user && user.email === SUPER_ADMIN_EMAIL);
-
-    if(user){
-      // === LOGGED IN ===
-      $('headerLoginBtn').style.display='none';
-      $('headerAvatarBtn').style.display='flex';
-
-      // Set avatar initial
-      const initial=(user.displayName||user.email||'U')[0].toUpperCase();
-      $('headerAvatarInitial').textContent=initial;
-
-      // Set dropdown info
-      $('aumName').textContent = user.displayName||'(Belum isi nama)';
-      $('aumEmail').textContent = user.email||'';
-
-      // Update MY_UID ke Firebase Auth UID (lebih aman)
-      // Note: MY_UID sudah di-declare sebagai const, kita simpan auth UID di variable terpisah
-      window.AUTH_UID = user.uid;
-
-      // Sync displayName ke profil DB
-      if(window.firebaseReady && user.displayName){
-        $('profDisplayName').value = user.displayName;
-        try{
-          await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+user.uid),{
-            displayName:user.displayName, uid:user.uid, email:user.email||'', updatedAt:Date.now()
-          });
-        } catch(e){}
-      }
-
-      // Super Admin mode
-      if(isSuperAdmin){
-        $('aumBadge').style.display='inline-flex';
-        $('superadminBar').classList.add('show');
-        document.body.classList.add('is-superadmin');
-      } else {
-        $('aumBadge').style.display='none';
-        $('superadminBar').classList.remove('show');
-        document.body.classList.remove('is-superadmin');
-      }
-
-      // Sembunyikan welcome overlay kalau sudah login
-      $('welcomeOverlay').classList.add('hidden');
-
-    } else {
-      // === LOGGED OUT ===
-      $('headerLoginBtn').style.display='block';
-      $('headerAvatarBtn').style.display='none';
-      $('superadminBar').classList.remove('show');
-      document.body.classList.remove('is-superadmin');
-      isSuperAdmin = false;
-      window.AUTH_UID = null;
-    }
-  });
-}
-
-// Jalankan observer setelah Firebase siap
-if(window.firebaseReady && window.firebaseOnAuthStateChanged){
-  initAuthObserver();
-} else {
-  document.addEventListener('firebase-ready', initAuthObserver);
-}
-
-// ===== SUPERADMIN: hapus individual item via tombol sadmin-del =====
-document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.sadmin-del');
-  if(!btn || !isSuperAdmin) return;
-  const type=btn.dataset.type, id=btn.dataset.id, path=btn.dataset.path||'';
-  if(!confirm(`[SUPER ADMIN] Hapus item ini permanen?`)) return;
-  try{
-    if(type==='gallery'){
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'gallery/'+id));
-      alert('✅ Item galeri dihapus.');
-    } else if(type==='video'){
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveVideos/'+id));
-      if(path) await window.storageDeleteObject(window.storageRef(window.firebaseStorage,path)).catch(()=>{});
-      alert('✅ Video dihapus.');
-    } else if(type==='user'){
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+id));
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'presence/'+id)).catch(()=>{});
-      alert('✅ Data user dihapus dari DB komunitas.');
-    }
-  } catch(err){ alert('Gagal hapus: '+err.message); }
-});
-
-// ===== SUPERADMIN: hapus SEMUA galeri =====
-$('sadminDeleteAllGalleryBtn').addEventListener('click', async () => {
-  if(!isSuperAdmin) return;
-  if(!confirm('⚠️ HAPUS SEMUA GALERI? Ini tidak bisa dibatalkan!')) return;
-  if(!confirm('Konfirmasi sekali lagi — HAPUS SEMUA konten galeri?')) return;
-  try{
-    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'gallery'));
-    alert('✅ Semua galeri dihapus.');
-  } catch(err){ alert('Gagal: '+err.message); }
-});
-
-// ===== SUPERADMIN: hapus SEMUA video =====
-$('sadminDeleteAllVideosBtn').addEventListener('click', async () => {
-  if(!isSuperAdmin) return;
-  if(!confirm('⚠️ HAPUS SEMUA VIDEO? Ini tidak bisa dibatalkan!')) return;
-  if(!confirm('Konfirmasi sekali lagi — HAPUS SEMUA video galeri?')) return;
-  try{
-    // Ambil dulu semua paths untuk hapus dari Storage
-    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'liveVideos'));
-    if(snap.val()){
-      const arr=Object.values(snap.val());
-      for(const v of arr){
-        if(v.storagePath) await window.storageDeleteObject(window.storageRef(window.firebaseStorage,v.storagePath)).catch(()=>{});
-      }
-    }
-    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveVideos'));
-    alert('✅ Semua video dihapus (DB + Storage).');
-  } catch(err){ alert('Gagal: '+err.message); }
-});
-
-// ===== SUPERADMIN: hapus SEMUA data user komunitas =====
-$('sadminDeleteAllUsersBtn').addEventListener('click', async () => {
-  if(!isSuperAdmin) return;
-  if(!confirm('⚠️ HAPUS SEMUA DATA USER KOMUNITAS? Ini tidak bisa dibatalkan!')) return;
-  if(!confirm('Konfirmasi: hapus semua profil dan presence di komunitas?')) return;
-  try{
-    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users'));
-    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'presence'));
-    alert('✅ Semua data user komunitas dihapus.');
-  } catch(err){ alert('Gagal: '+err.message); }
-});
-
-// ===== SUPERADMIN: tambah tombol hapus per user di direktori =====
-// Override renderUserDirectory untuk tambah tombol admin
-const _origRenderUserDirectory = renderUserDirectory;
-function renderUserDirectory(){
-  const ids = new Set([...Object.keys(allUsersCache), ...Object.keys(allPresenceCache)]);
-  ids.delete(MY_UID);
-  const list = $('userDirectory');
-  if(ids.size === 0){ list.innerHTML = '<div class="empty-state">Belum ada pengguna lain yang terdaftar.</div>'; return; }
-  const arr = [...ids].map(uid => {
-    const u = allUsersCache[uid] || {};
-    const p = allPresenceCache[uid] || {};
-    return {uid, ...u, online:!!p.online, lastSeen:p.lastSeen};
-  });
-  arr.sort((a,b) => (b.online?1:0)-(a.online?1:0));
-  list.innerHTML = arr.map(u => {
-    const name = u.displayName || u.storeName || '(Belum isi nama)';
-    const noName = !u.displayName && !u.storeName;
-    return `<div class="user-card" data-uid="${u.uid}">
-      <span class="status-dot ${u.online?'on':'off'}"></span>
-      <div style="flex:1;">
-        <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}</div>
-        <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}${u.email?' · '+escapeHtml(u.email):''}</div>
-      </div>
-      <div class="uc-right">${u.online?'🟢 Online':'🔴 Offline'}</div>
-      <button class="sadmin-del" data-type="user" data-id="${u.uid}" style="margin-left:8px;">🗑️</button>
-    </div>`;
-  }).join('');
-}
-
-// Tampilkan reminder isi profil saat tab komunitas dibuka
-document.querySelectorAll('.tab').forEach(tab=>{
-  tab.addEventListener('click',()=>{
-    if(tab.dataset.panel==='community'){
-      const hasName = ($('profDisplayName').value||'').trim();
-      const reminder = $('profileCompleteReminder');
-      if(reminder) reminder.style.display = hasName ? 'none' : 'block';
-    }
-  });
-});
 </script>
 </body>
 </html>

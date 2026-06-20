@@ -892,6 +892,14 @@
           <label>Alamat UMKM (opsional)</label>
           <input type="text" id="profAddress" placeholder="contoh: Jl. Merdeka No. 12, Bandung">
         </div>
+        <div class="field-group">
+          <label>No. Rekening / GoPay / DANA / OVO (opsional)</label>
+          <input type="text" id="profPaymentId" placeholder="contoh: BCA 1234567890 a.n. Sari">
+        </div>
+        <div class="field-group">
+          <label>Link / QR Pembayaran (opsional)</label>
+          <input type="url" id="profPaymentLink" placeholder="contoh: https://qris.id/...">
+        </div>
         <button class="generate-btn" id="saveProfileBtn" style="margin-bottom:0;">💾 Simpan Profil</button>
         <div id="profileSaveStatus" style="font-size:12px;font-weight:600;margin-top:8px;"></div>
 
@@ -921,6 +929,12 @@
       </div>
       <div id="pdAddressRow" class="profile-detail-row" style="display:none;">
         <span>📍</span><span id="pdAddress"></span>
+      </div>
+      <div id="pdPaymentRow" class="profile-detail-row" style="display:none;">
+        <span>💳</span><span id="pdPayment"></span>
+      </div>
+      <div id="pdPaymentLinkRow" class="profile-detail-row" style="display:none;">
+        <span>🔗</span><a id="pdPaymentLink" href="#" target="_blank" style="color:var(--teal);font-size:13px;"></a>
       </div>
       <div id="pdMapWrap" style="display:none;">
         <div class="profile-detail-label" style="margin-bottom:6px;">Lokasi Dibagikan</div>
@@ -1966,10 +1980,12 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
+      $('profPaymentId').value = myProfile.paymentId;
+      $('profPaymentLink').value = myProfile.paymentLink;
       if(d.location){ myLocation = d.location; showMyLocationOnMap(d.location); }
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
@@ -1985,7 +2001,9 @@ $('saveProfileBtn').addEventListener('click', async () => {
   myProfile = {
     displayName: $('profDisplayName').value.trim(),
     storeName: $('profStoreName').value.trim(),
-    address: $('profAddress').value.trim()
+    address: $('profAddress').value.trim(),
+    paymentId: $('profPaymentId').value.trim(),
+    paymentLink: $('profPaymentLink').value.trim()
   };
   $('saveProfileBtn').disabled = true;
   try{
@@ -2081,6 +2099,8 @@ document.addEventListener('click', (e) => {
       ? '<span class="status-dot on"></span>Online sekarang'
       : '<span class="status-dot off"></span>Offline'+(p.lastSeen?(' · terakhir aktif '+new Date(p.lastSeen).toLocaleString('id-ID')):'');
     if(u.storeName){ $('pdStoreRow').style.display='flex'; $('pdStore').textContent=u.storeName; } else { $('pdStoreRow').style.display='none'; }
+    if(u.paymentId){ $('pdPaymentRow').style.display='flex'; $('pdPayment').textContent=u.paymentId; } else { $('pdPaymentRow').style.display='none'; }
+    if(u.paymentLink){ $('pdPaymentLinkRow').style.display='flex'; $('pdPaymentLink').textContent=u.paymentLink; $('pdPaymentLink').href=u.paymentLink; } else { $('pdPaymentLinkRow').style.display='none'; }
     if(u.address){ $('pdAddressRow').style.display='flex'; $('pdAddress').textContent=u.address; } else { $('pdAddressRow').style.display='none'; }
     if(u.location){ $('pdMapWrap').style.display='block'; $('pdMap').src=mapEmbedUrl(u.location.lat,u.location.lng); } else { $('pdMapWrap').style.display='none'; $('pdMap').src=''; }
     $('profileDetailModal').classList.add('show');
@@ -2321,9 +2341,13 @@ $('stopLiveBtn').addEventListener('click', async () => {
     } catch(e){}
   }
   liveActive=false;
+  // Simpan nama sesi SEBELUM generateLiveSummary/reset supaya tidak hilang
+  const _savedSessionName = $('liveSessionName').value.trim() || 'Sesi Live';
   generateLiveSummary();
   if(recordedChunks.length>0){
     pendingVideoBlob=new Blob(recordedChunks,{type:recordedChunks[0].type||'video/webm'});
+    // Simpan nama sesi ke dataset supaya tetap tersedia saat upload
+    $('saveVideoBtn').dataset.sessionName = _savedSessionName;
     $('videoSaveStatus').textContent='';
     $('videoSavePrompt').style.display='block';
   }
@@ -2477,7 +2501,7 @@ $('saveVideoBtn').addEventListener('click', async () => {
     const newRef=window.rtdbPush(window.rtdbRef(window.firebaseDb,'liveVideos'));
     await window.rtdbSet(newRef,{
       uid:MY_UID, storagePath:path, url,
-      sessionName:$('liveSessionName').value.trim()||'Sesi Live',
+      sessionName:($('saveVideoBtn').dataset.sessionName||$('liveSessionName').value.trim()||'Sesi Live'),
       hostName:(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM',
       totalOrders:liveOrders.length,
       totalIncome:liveOrders.reduce((s,o)=>s+(Number(o.estimated_amount)||0),0),

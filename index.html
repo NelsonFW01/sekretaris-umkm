@@ -835,8 +835,8 @@
               <div>📡</div>
               <div id="viewerConnStatus" style="margin-top:6px; font-size:11px;">Menghubungkan ke siaran...</div>
             </div>
-            <video id="viewerVideo" style="display:none;" autoplay muted playsinline controls></video>
-            <button id="viewerUnmuteBtn" style="display:none;position:absolute;left:10px;bottom:50px;z-index:5;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;">🔇 Tap buat dengar suara</button>
+            <video id="viewerVideo" style="display:none;" playsinline></video>
+            <button id="viewerUnmuteBtn" style="display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:60px;z-index:5;background:rgba(0,0,0,0.75);color:#fff;border:2px solid rgba(255,255,255,0.4);border-radius:24px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.01em;">🔊 Tap untuk dengar suara</button>
             <div class="live-overlay">
               <div class="live-info-bar">
                 <div class="live-label"><span class="live-dot"></span> LIVE</div>
@@ -2571,10 +2571,11 @@ async function joinAsViewer(sessionId){
       if(track.kind === Track.Kind.Video){
         const vid = $('viewerVideo');
         track.attach(vid);
+        vid.muted = true;
         vid.style.display='block';
         $('viewerScreenPh').style.display='none';
-        vid.muted = true;
-        vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
+        vid.play().catch(()=>{});
+        $('viewerUnmuteBtn').style.display='block';
         if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
       } else if(track.kind === Track.Kind.Audio){
         // Attach audio track ke elemen audio tersendiri agar suara host terdengar
@@ -2621,10 +2622,11 @@ async function joinAsViewer(sessionId){
         if(publication.track && publication.track.kind === Track.Kind.Video){
           const vid = $('viewerVideo');
           publication.track.attach(vid);
+          vid.muted=true;
           vid.style.display='block';
           $('viewerScreenPh').style.display='none';
-          vid.muted=true;
-          vid.play().then(()=>{ $('viewerUnmuteBtn').style.display='block'; }).catch(()=>{});
+          vid.play().catch(()=>{});
+          $('viewerUnmuteBtn').style.display='block';
           if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
         } else if(publication.track && publication.track.kind === Track.Kind.Audio){
           // Attach audio yang sudah ada saat penonton baru join, mulai muted

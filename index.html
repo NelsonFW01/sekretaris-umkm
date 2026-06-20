@@ -2333,6 +2333,11 @@ $('stopLiveBtn').addEventListener('click', async () => {
 document.querySelectorAll('.emote-send:not(.viewer-emote)').forEach(btn=>{
   btn.addEventListener('click',()=>{
     addEmoteRainTo('emoteRain', btn.dataset.emote);
+    // Push ke Firebase supaya penonton juga lihat emote dari host
+    if(liveSessionId && window.firebaseReady){
+      const user=(myProfile && (myProfile.storeName||myProfile.displayName)) || 'Host';
+      window.rtdbPush(window.rtdbRef(window.firebaseDb,`liveSessions/${liveSessionId}/comments`), {user, text:btn.dataset.emote, time:Date.now()});
+    }
   });
 });
 

@@ -503,6 +503,45 @@
   .video-gallery-card .vg-del{margin-top:8px;width:100%;padding:8px;border-radius:9px;border:1.5px solid var(--bad);color:var(--bad);background:transparent;font-weight:700;font-size:12px;cursor:pointer;}
   .section-divider{display:flex;align-items:center;gap:10px;margin:22px 0 14px;color:var(--ink-soft);font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;}
   .section-divider::before,.section-divider::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  /* ===== WELCOME NAME MODAL ===== */
+  .welcome-overlay{
+    position:fixed;inset:0;background:rgba(42,38,34,0.7);z-index:10000;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    backdrop-filter:blur(4px);
+  }
+  .welcome-overlay.hidden{display:none;}
+  .welcome-box{
+    background:var(--bg-card);border-radius:22px;padding:28px 24px;max-width:400px;width:100%;
+    box-shadow:0 20px 60px rgba(42,38,34,0.2);text-align:center;
+  }
+  .welcome-box .wb-icon{font-size:42px;margin-bottom:12px;}
+  .welcome-box h2{font-size:20px;margin-bottom:6px;color:var(--ink);}
+  .welcome-box p{font-size:13.5px;color:var(--ink-soft);margin-bottom:22px;line-height:1.5;}
+  .welcome-box input{
+    width:100%;padding:13px 14px;border-radius:12px;border:2px solid var(--line);
+    font-size:15px;font-family:inherit;margin-bottom:10px;text-align:center;
+    transition:border-color .2s;
+  }
+  .welcome-box input:focus{outline:none;border-color:var(--teal);}
+  .welcome-box .wb-hint{font-size:12px;color:var(--ink-soft);margin-bottom:16px;}
+  .welcome-box button{
+    width:100%;padding:14px;border-radius:12px;border:none;background:var(--teal);
+    color:white;font-weight:700;font-size:15px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;
+    transition:background .2s;
+  }
+  .welcome-box button:hover{background:var(--teal-dark);}
+  .welcome-box .skip-link{
+    display:block;margin-top:12px;font-size:12.5px;color:var(--ink-soft);
+    cursor:pointer;text-decoration:underline;
+  }
+
+  /* Upload progress bar */
+  .upload-progress-wrap{margin-top:10px;display:none;}
+  .upload-progress-wrap.show{display:block;}
+  .upload-progress-bar-bg{height:8px;background:var(--sand);border-radius:10px;overflow:hidden;}
+  .upload-progress-bar{height:100%;background:var(--teal);border-radius:10px;width:0%;transition:width .3s;}
+  .upload-progress-label{font-size:11.5px;color:var(--ink-soft);margin-top:5px;text-align:center;}
 </style>
 </head>
 <body>
@@ -807,6 +846,10 @@
             <button class="discard-btn" id="discardVideoBtn">🗑️ Hapus Saja</button>
           </div>
           <div id="videoSaveStatus" style="font-size:12px;font-weight:600;margin-top:10px;"></div>
+          <div class="upload-progress-wrap" id="uploadProgressWrap">
+            <div class="upload-progress-bar-bg"><div class="upload-progress-bar" id="uploadProgressBar"></div></div>
+            <div class="upload-progress-label" id="uploadProgressLabel">Menyiapkan...</div>
+          </div>
         </div>
 
         <div id="liveSummarySection" style="display:none;">
@@ -880,6 +923,9 @@
 
       <div class="profile-card">
         <h3>👤 Profil Saya</h3>
+        <div id="profileCompleteReminder" style="display:none;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#7B5E00;margin-bottom:12px;font-weight:500;">
+          ⚠️ Nama kamu belum diisi — pengguna lain hanya melihat <em>"(Belum isi nama)"</em>. Isi <strong>Nama Tampilan</strong> lalu klik Simpan Profil.
+        </div>
         <div class="field-group">
           <label>Nama Tampilan</label>
           <input type="text" id="profDisplayName" placeholder="contoh: Sari Wijaya">
@@ -944,6 +990,19 @@
   </div>
 
   <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
+</div>
+
+<!-- ===== WELCOME / SETUP NAMA PERTAMA KALI ===== -->
+<div class="welcome-overlay hidden" id="welcomeOverlay">
+  <div class="welcome-box">
+    <div class="wb-icon">👋</div>
+    <h2>Halo! Selamat datang</h2>
+    <p>Supaya teman-teman UMKM lain bisa mengenalmu di Komunitas, yuk isi nama kamu dulu.</p>
+    <input type="text" id="welcomeNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off">
+    <div class="wb-hint">Bisa diganti kapan saja di tab Komunitas</div>
+    <button id="welcomeSaveBtn">Mulai Pakai Sekretaris UMKM 🚀</button>
+    <span class="skip-link" id="welcomeSkipBtn">Lewati dulu, isi nanti</span>
+  </div>
 </div>
 
 <!-- ===== BOOST PAYMENT MODAL ===== -->
@@ -1070,6 +1129,43 @@ function getUserId(){
   }catch(e){ return 'guest_'+Math.random().toString(36).slice(2,8); }
 }
 const MY_UID = getUserId();
+
+// ============ WELCOME: ISI NAMA PERTAMA KALI ============
+(function initWelcome(){
+  try{
+    const hasSeenWelcome = localStorage.getItem('umkm_welcomed');
+    const savedName = localStorage.getItem('umkm_display_name');
+    if(!hasSeenWelcome || !savedName){
+      document.getElementById('welcomeOverlay').classList.remove('hidden');
+    }
+  } catch(e){}
+})();
+
+function dismissWelcome(){
+  document.getElementById('welcomeOverlay').classList.add('hidden');
+  try{ localStorage.setItem('umkm_welcomed','1'); } catch(e){}
+}
+
+document.getElementById('welcomeSaveBtn').addEventListener('click', async () => {
+  const name = document.getElementById('welcomeNameInput').value.trim();
+  if(!name){ document.getElementById('welcomeNameInput').focus(); return; }
+  try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
+  // Pre-fill profil
+  document.getElementById('profDisplayName').value = name;
+  dismissWelcome();
+  // Simpan ke Firebase jika sudah siap
+  async function saveWelcomeName(){
+    if(!window.firebaseReady) return;
+    myProfile.displayName = name;
+    try{
+      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {displayName:name, uid:MY_UID, updatedAt:Date.now()});
+    } catch(e){ console.error('Gagal simpan nama welcome:', e); }
+  }
+  if(window.firebaseReady){ saveWelcomeName(); }
+  else { document.addEventListener('firebase-ready', saveWelcomeName); }
+});
+
+document.getElementById('welcomeSkipBtn').addEventListener('click', dismissWelcome);
 
 // ============ STATE ============
 // KEY DEFAULT — fallback kalau user belum isi key sendiri.
@@ -1975,6 +2071,12 @@ function setupPresence(){
 if(window.firebaseReady){ setupPresence(); } else { document.addEventListener('firebase-ready', setupPresence); }
 
 async function loadMyProfile(){
+  // Restore nama dari localStorage dulu sebagai fallback cepat
+  try{
+    const localName = localStorage.getItem('umkm_display_name');
+    if(localName) $('profDisplayName').value = localName;
+  } catch(e){}
+
   if(!window.firebaseReady) return;
   try{
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
@@ -1986,6 +2088,8 @@ async function loadMyProfile(){
       $('profAddress').value = myProfile.address;
       $('profPaymentId').value = myProfile.paymentId;
       $('profPaymentLink').value = myProfile.paymentLink;
+      // Sync ke localStorage
+      if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
       if(d.location){ myLocation = d.location; showMyLocationOnMap(d.location); }
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
@@ -2005,11 +2109,16 @@ $('saveProfileBtn').addEventListener('click', async () => {
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim()
   };
+  // Sync nama ke localStorage untuk fallback cepat
+  if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
   $('saveProfileBtn').disabled = true;
   try{
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, uid:MY_UID, updatedAt:Date.now()});
     $('profileSaveStatus').textContent = '✅ Profil tersimpan.';
     $('profileSaveStatus').style.color = 'var(--good)';
+    // Sembunyikan reminder setelah nama terisi
+    const reminder = $('profileCompleteReminder');
+    if(reminder) reminder.style.display = 'none';
   } catch(err){
     $('profileSaveStatus').textContent = 'Gagal menyimpan: '+err.message;
     $('profileSaveStatus').style.color = 'var(--bad)';
@@ -2069,11 +2178,12 @@ function renderUserDirectory(){
   });
   arr.sort((a,b) => (b.online?1:0)-(a.online?1:0));
   list.innerHTML = arr.map(u => {
-    const name = u.displayName || u.storeName || 'Pengguna UMKM';
+    const name = u.displayName || u.storeName || '(Belum isi nama)';
+    const noName = !u.displayName && !u.storeName;
     return `<div class="user-card" data-uid="${u.uid}">
       <span class="status-dot ${u.online?'on':'off'}"></span>
       <div>
-        <div class="uc-name">${escapeHtml(name)}</div>
+        <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}</div>
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>
       </div>
       <div class="uc-right">${u.online?'🟢 Online':'🔴 Offline'}</div>
@@ -2087,6 +2197,17 @@ function startUserDirectoryListeners(){
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); });
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
+
+// Tampilkan reminder isi profil saat tab komunitas dibuka
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    if(tab.dataset.panel==='community'){
+      const hasName = ($('profDisplayName').value||'').trim();
+      const reminder = $('profileCompleteReminder');
+      if(reminder) reminder.style.display = hasName ? 'none' : 'block';
+    }
+  });
+});
 
 document.addEventListener('click', (e) => {
   const card = e.target.closest('.user-card');
@@ -2492,15 +2613,59 @@ $('saveVideoBtn').addEventListener('click', async () => {
   if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi, video tidak bisa diunggah ke Galeri Global.'); return; }
   $('saveVideoBtn').disabled=true; $('discardVideoBtn').disabled=true;
   $('videoSaveStatus').style.color='var(--ink-soft)';
-  $('videoSaveStatus').textContent='Mengunggah video... mohon tunggu (tergantung ukuran video & koneksi).';
+
+  const sizeMB = (pendingVideoBlob.size / (1024*1024)).toFixed(1);
+  $('videoSaveStatus').textContent=`📤 Mengunggah video (${sizeMB} MB)...`;
+
+  // Tampilkan progress bar
+  const progWrap=$('uploadProgressWrap');
+  const progBar=$('uploadProgressBar');
+  const progLabel=$('uploadProgressLabel');
+  progWrap.classList.add('show');
+  progBar.style.width='0%';
+  progLabel.textContent='Menyiapkan unggahan...';
+
   try{
     const path=`liveVideos/${MY_UID}/${Date.now()}.webm`;
     const sRef=window.storageRef(window.firebaseStorage, path);
-    await window.storageUploadBytes(sRef, pendingVideoBlob);
-    const url=await window.storageGetDownloadURL(sRef);
+
+    // Gunakan XMLHttpRequest supaya bisa track progress upload
+    const uploadUrl = await new Promise(async (resolve, reject) => {
+      try{
+        // Dapatkan upload URL via Firebase Storage SDK dengan progress tracking
+        const {uploadBytesResumable} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+        const uploadTask = uploadBytesResumable(sRef, pendingVideoBlob, {contentType:'video/webm'});
+
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            progBar.style.width = pct+'%';
+            const transferred = (snapshot.bytesTransferred/1024/1024).toFixed(1);
+            const total = (snapshot.totalBytes/1024/1024).toFixed(1);
+            progLabel.textContent = `${transferred} MB / ${total} MB (${pct}%)`;
+            $('videoSaveStatus').textContent = `📤 Mengunggah... ${pct}%`;
+          },
+          (err) => reject(err),
+          async () => {
+            const url = await window.storageGetDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          }
+        );
+      } catch(e){
+        // Fallback ke uploadBytes biasa jika uploadBytesResumable tidak tersedia
+        progLabel.textContent = 'Mengunggah... (tanpa progress)';
+        await window.storageUploadBytes(sRef, pendingVideoBlob);
+        const url = await window.storageGetDownloadURL(sRef);
+        resolve(url);
+      }
+    });
+
+    progBar.style.width='100%';
+    progLabel.textContent='Upload selesai! Menyimpan data...';
+
     const newRef=window.rtdbPush(window.rtdbRef(window.firebaseDb,'liveVideos'));
     await window.rtdbSet(newRef,{
-      uid:MY_UID, storagePath:path, url,
+      uid:MY_UID, storagePath:path, url:uploadUrl,
       sessionName:($('saveVideoBtn').dataset.sessionName||$('liveSessionName').value.trim()||'Sesi Live'),
       hostName:(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM',
       totalOrders:liveOrders.length,
@@ -2510,10 +2675,11 @@ $('saveVideoBtn').addEventListener('click', async () => {
     $('videoSaveStatus').textContent='✅ Video tersimpan di Galeri Video Global!';
     $('videoSaveStatus').style.color='var(--good)';
     pendingVideoBlob=null;
-    setTimeout(()=>{ $('videoSavePrompt').style.display='none'; },1800);
+    setTimeout(()=>{ $('videoSavePrompt').style.display='none'; progWrap.classList.remove('show'); },2000);
   } catch(err){
     $('videoSaveStatus').textContent='Gagal mengunggah: '+err.message;
     $('videoSaveStatus').style.color='var(--bad)';
+    $('uploadProgressWrap').classList.remove('show');
   } finally {
     $('saveVideoBtn').disabled=false; $('discardVideoBtn').disabled=false;
   }
@@ -2522,6 +2688,7 @@ $('saveVideoBtn').addEventListener('click', async () => {
 $('discardVideoBtn').addEventListener('click', () => {
   pendingVideoBlob=null;
   $('videoSavePrompt').style.display='none';
+  $('uploadProgressWrap').classList.remove('show');
 });
 
 // ===== WATCH MODE: BROWSE & JOIN LIVE SESSIONS =====

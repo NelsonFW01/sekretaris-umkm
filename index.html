@@ -2578,18 +2578,9 @@ async function joinAsViewer(sessionId){
         $('viewerUnmuteBtn').style.display='block';
         if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
       } else if(track.kind === Track.Kind.Audio){
-        // Attach audio track ke elemen audio tersendiri agar suara host terdengar
-        let audioEl = document.getElementById('viewerAudioEl');
-        if(!audioEl){
-          audioEl = document.createElement('audio');
-          audioEl.id = 'viewerAudioEl';
-          audioEl.muted = true;
-          audioEl.style.display = 'none';
-          document.body.appendChild(audioEl);
-        }
-        audioEl.muted = true;
-        track.attach(audioEl);
-        audioEl.play().catch(()=>{});
+        // JANGAN pakai track.attach() - LiveKit akan auto-play bypass muted.
+        // Simpan raw MediaStreamTrack, baru diplay manual saat user tap tombol.
+        window._viewerAudioTrack = track.mediaStreamTrack;
         $('viewerUnmuteBtn').style.display='block';
         if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
       }
@@ -2629,18 +2620,8 @@ async function joinAsViewer(sessionId){
           $('viewerUnmuteBtn').style.display='block';
           if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
         } else if(publication.track && publication.track.kind === Track.Kind.Audio){
-          // Attach audio yang sudah ada saat penonton baru join, mulai muted
-          let audioEl = document.getElementById('viewerAudioEl');
-          if(!audioEl){
-            audioEl = document.createElement('audio');
-            audioEl.id = 'viewerAudioEl';
-            audioEl.muted = true;
-            audioEl.style.display = 'none';
-            document.body.appendChild(audioEl);
-          }
-          audioEl.muted = true;
-          publication.track.attach(audioEl);
-          audioEl.play().catch(()=>{});
+          // Simpan raw track, jangan attach - biar user kontrol kapan dengar
+          window._viewerAudioTrack = publication.track.mediaStreamTrack;
           $('viewerUnmuteBtn').style.display='block';
         }
       });
@@ -2653,11 +2634,22 @@ async function joinAsViewer(sessionId){
   }
 
   $('viewerUnmuteBtn').onclick=()=>{
+    // Unmute video
     const vid=$('viewerVideo');
     vid.muted=false;
     vid.play().catch(()=>{});
-    const audioEl=document.getElementById('viewerAudioEl');
-    if(audioEl){ audioEl.muted=false; audioEl.play().catch(()=>{}); }
+    // Baru buat audio element dan play saat user tap - ini yang benar sesuai browser policy
+    if(window._viewerAudioTrack){
+      let audioEl = document.getElementById('viewerAudioEl');
+      if(!audioEl){
+        audioEl = document.createElement('audio');
+        audioEl.id = 'viewerAudioEl';
+        audioEl.style.display = 'none';
+        document.body.appendChild(audioEl);
+      }
+      audioEl.srcObject = new MediaStream([window._viewerAudioTrack]);
+      audioEl.play().catch(()=>{});
+    }
     $('viewerUnmuteBtn').style.display='none';
   };
 
@@ -2682,9 +2674,10 @@ function stopWatchingSession(){
   const vid=$('viewerVideo');
   if(vid){ vid.srcObject=null; vid.style.display='none'; }
   $('viewerUnmuteBtn').style.display='none';
-  // Bersihkan elemen audio penonton
+  // Bersihkan elemen audio penonton dan reset audio track
   const audioEl = document.getElementById('viewerAudioEl');
   if(audioEl) audioEl.remove();
+  window._viewerAudioTrack = null;
 }
 
 $('backToSessionListBtn').addEventListener('click', () => {

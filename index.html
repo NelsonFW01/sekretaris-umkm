@@ -2832,7 +2832,8 @@ let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
 
 function mapEmbedUrl(lat, lng){
-  const d = 0.01;
+  // Pakai OpenStreetMap embed biasa (iframe), tapi naikkan zoom ke 17 untuk detail lebih
+  const d = 0.004;
   const bbox = (lng-d)+','+(lat-d)+','+(lng+d)+','+(lat+d);
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${lat},${lng}&layer=mapnik`;
 }
@@ -2901,7 +2902,7 @@ function initCommunityMap(centerLat, centerLng){
   let lat = centerLat, lng = centerLng;
   if(!lat && myLocation){ lat = myLocation.lat; lng = myLocation.lng; }
   if(!lat){ lat = -6.2088; lng = 106.8456; }
-  communityMap = L.map('leafletMap', {zoomControl: true}).setView([lat, lng], 14);
+  communityMap = L.map('leafletMap', {zoomControl: true}).setView([lat, lng], 17);
   // CartoDB Voyager — detail, colorful, clean
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -2932,8 +2933,12 @@ const storeGeoCache = {};
 async function geocodeAddress(uid, address){
   if(storeGeoCache[uid]) return storeGeoCache[uid];
   try{
+    // Tambahkan 'Bandung, Jawa Barat' sebagai konteks kalau alamat tidak menyebut kota
+    // supaya kawasan seperti TKI (Taman Kopo Indah) lebih akurat
+    const hasCity = /bandung|jakarta|surabaya|medan|makassar|semarang|yogya|depok|bekasi|tangerang|bogor/i.test(address);
+    const q = hasCity ? address : address + ', Bandung, Jawa Barat, Indonesia';
     const resp = await fetch(
-      'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(address+', Indonesia')+'&format=json&limit=1',
+      'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=1&addressdetails=1',
       {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
     );
     const data = await resp.json();
@@ -3083,7 +3088,7 @@ document.getElementById('refreshMapBtn').addEventListener('click', async () => {
   await renderCommunityMap();
   // Kalau ada lokasi user sendiri, fly ke sana setelah render
   if(communityMap && myLocation && myLocation.lat){
-    setTimeout(() => communityMap.setView([myLocation.lat, myLocation.lng], 14), 400);
+    setTimeout(() => communityMap.setView([myLocation.lat, myLocation.lng], 17), 400);
   }
 });
 
@@ -3119,7 +3124,7 @@ async function doMapSearch(){
     resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
     try{
       const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q+', Indonesia')+'&format=json&limit=5',
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q+', Indonesia')+'&format=json&limit=5&addressdetails=1&countrycodes=id',
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -3214,7 +3219,7 @@ document.addEventListener('click', async (e) => {
   // Init peta kalau belum ada, lalu fly
   if(!communityMap){ initCommunityMap(lat, lng); await renderCommunityMap(); }
   else { communityMap.invalidateSize(); }
-  communityMap.flyTo([lat, lng], 17, {duration:1});
+  communityMap.flyTo([lat, lng], 18, {duration:1});
 
   // Coba buka popup marker yang sudah ada di peta
   setTimeout(() => {
@@ -3536,9 +3541,12 @@ document.addEventListener('click', (e) => {
         // Destroy existing map if any
         if(mapEl._leaflet_id) { try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){} }
         mapEl.innerHTML = '';
-        const pMap = L.map(mapEl).setView([u.location.lat, u.location.lng], 16);
+        const pMap = L.map(mapEl).setView([u.location.lat, u.location.lng], 18);
         mapEl._leaflet_map = pMap;
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:19}).addTo(pMap);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+          attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+          subdomains:'abcd', maxZoom:20
+        }).addTo(pMap);
         const icon = makeUserIcon(false);
         L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
           .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();

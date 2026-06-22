@@ -1177,7 +1177,42 @@
           <button class="share-on" id="shareLocBtn">📍 Bagikan Lokasi Saya</button>
           <button class="share-off" id="stopShareLocBtn" style="display:none;">🚫 Berhenti Bagikan</button>
         </div>
+        <!-- Badge visibilitas lokasi aktif -->
+        <div id="locVisibilityBadge" style="display:none;margin-top:8px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:20px;display:none;align-items:center;gap:5px;"></div>
         <iframe class="map-embed" id="myMapEmbed" style="display:none;"></iframe>
+
+        <!-- Modal pilih visibilitas lokasi -->
+        <div id="locVisibilityModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:flex-end;justify-content:center;">
+          <div style="background:var(--bg-card);border-radius:22px 22px 0 0;padding:24px 20px 32px;width:100%;max-width:560px;animation:fadeUp .3s ease;">
+            <div style="font-size:16px;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:6px;">📍 Bagikan Lokasi</div>
+            <div style="font-size:13px;color:var(--ink-soft);margin-bottom:18px;">Pilih siapa yang bisa melihat lokasimu di peta.</div>
+            <!-- Opsi Publik -->
+            <div id="locOptPublic" class="loc-vis-opt" style="cursor:pointer;border:2px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:13px;transition:border-color .2s,background .2s;">
+              <div style="font-size:26px;">🌍</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Publik</div>
+                <div style="font-size:12px;color:var(--ink-soft);">Semua pengguna yang login bisa lihat lokasimu di Peta Komunitas</div>
+              </div>
+            </div>
+            <!-- Opsi Privat -->
+            <div id="locOptPrivate" class="loc-vis-opt" style="cursor:pointer;border:2px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:13px;transition:border-color .2s,background .2s;">
+              <div style="font-size:26px;">🔒</div>
+              <div>
+                <div style="font-size:14px;font-weight:700;margin-bottom:2px;">Privat — Pilih siapa yang bisa lihat</div>
+                <div style="font-size:12px;color:var(--ink-soft);">Hanya user yang kamu pilih yang bisa melihat lokasimu</div>
+              </div>
+            </div>
+            <!-- Daftar user untuk privat (hidden by default) -->
+            <div id="locPrivateUserList" style="display:none;margin-bottom:14px;">
+              <div style="font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.04em;">Pilih pengguna yang bisa lihat:</div>
+              <div id="locPrivateUsers" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;"></div>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button id="locVisibilityCancelBtn" style="flex:1;padding:13px;border-radius:13px;border:1.5px solid var(--line);background:transparent;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink-soft);">Batal</button>
+              <button id="locVisibilityConfirmBtn" style="flex:2;padding:13px;border-radius:13px;border:none;background:var(--teal);color:white;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">📍 Bagikan Sekarang</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- PETA INTERAKTIF SEMUA USER & TOKO -->
@@ -2821,11 +2856,17 @@ async function renderCommunityMap(){
   const usersData = allUsersCache || {};
   const points = [];
   Object.entries(usersData).forEach(([uid, u]) => {
-    if(u.location && u.location.lat && u.location.lng){
-      points.push({lat: u.location.lat, lng: u.location.lng, uid,
-        name: u.displayName || u.storeName || 'Pengguna',
-        storeName: u.storeName, type: 'user', isMe: uid===MY_UID, updatedAt: u.location.updatedAt});
+    if(!u.location || !u.location.lat || !u.location.lng) return;
+    const loc = u.location;
+    const isMe = uid === MY_UID;
+    // Filter lokasi privat: tampilkan hanya kalau saya yang share, atau saya ada di allowedUIDs
+    if(!isMe && loc.visibility === 'private'){
+      if(!loc.allowedUIDs || !loc.allowedUIDs[MY_UID]) return; // saya tidak diizinkan
     }
+    points.push({lat: loc.lat, lng: loc.lng, uid,
+      name: u.displayName || u.storeName || 'Pengguna',
+      storeName: u.storeName, type: 'user', isMe,
+      updatedAt: loc.updatedAt, visibility: loc.visibility || 'public'});
   });
   const storeGeocodeQueue = Object.entries(usersData).filter(([uid, u]) => u.address && (!u.location));
   if(!communityMap){
@@ -2836,10 +2877,18 @@ async function renderCommunityMap(){
   Object.values(communityMapMarkers).forEach(m => { try{ communityMap.removeLayer(m); }catch(e){} });
   communityMapMarkers = {};
   points.forEach(p => {
+    const visBadge = p.isMe
+      ? (p.visibility==='private'
+          ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
+          : '<div style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🌍 Publik</div>')
+      : (p.visibility==='private'
+          ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Dibagikan khusus ke kamu</div>'
+          : '');
     const popupHtml = '<div style="min-width:160px;font-family:inherit;">'
-      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+(p.isMe?'<span style="color:#1B4D4A;">Saya</span> &#8212; ':'')+escapeHtml(p.name)+'</div>'
-      +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">&#x1F3EA; '+escapeHtml(p.storeName)+'</div>':'')
-      +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:3px;">'+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:2px;">'+(p.isMe?'<span style="color:#1B4D4A;">Saya</span> — ':'')+escapeHtml(p.name)+'</div>'
+      +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">🏪 '+escapeHtml(p.storeName)+'</div>':'')
+      +visBadge
+      +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
       +'</div>';
     const marker = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popupHtml);
     communityMapMarkers['user_'+p.uid] = marker;
@@ -2919,7 +2968,12 @@ async function loadMyProfile(){
       $('profPaymentLink').value = myProfile.paymentLink;
       // Sync ke localStorage
       if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
-      if(d.location){ myLocation = d.location; showMyLocationOnMap(d.location); }
+      if(d.location){
+        myLocation = d.location;
+        if(d.location.visibility) locVisibilityMode = d.location.visibility;
+        if(d.location.allowedUIDs) locPrivateAllowedUIDs = new Set(Object.keys(d.location.allowedUIDs));
+        showMyLocationOnMap(d.location, d.location.visibility || 'public');
+      }
       if(typeof applyNameLockUI === 'function') applyNameLockUI();
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
@@ -2967,26 +3021,103 @@ $('saveProfileBtn').addEventListener('click', async () => {
   }
 });
 
-function showMyLocationOnMap(loc){
-  $('myMapEmbed').src = mapEmbedUrl(loc.lat, loc.lng);
-  $('myMapEmbed').style.display = 'none'; // digantikan peta interaktif di bawah
-  $('locStatus').innerHTML = '📍 Lokasi dibagikan · diperbarui '+new Date(loc.updatedAt||Date.now()).toLocaleString('id-ID');
+// ===== VISIBILITY LOCATION SYSTEM =====
+let locVisibilityMode = 'public'; // 'public' | 'private'
+let locPrivateAllowedUIDs = new Set();
+
+function showMyLocationOnMap(loc, visibility){
+  $('myMapEmbed').style.display = 'none';
+  const badge = $('locVisibilityBadge');
+  const isPublic = (visibility || locVisibilityMode) === 'public';
+  $('locStatus').innerHTML = '📍 Lokasi dibagikan · '+new Date(loc.updatedAt||Date.now()).toLocaleTimeString('id-ID');
+  badge.style.display = 'inline-flex';
+  if(isPublic){
+    badge.style.background = '#E8F5E9'; badge.style.color = '#2D7A4F';
+    badge.innerHTML = '✅ Publik — semua user bisa lihat';
+  } else {
+    badge.style.background = '#FFF3CD'; badge.style.color = '#7B5E00';
+    badge.innerHTML = '🔒 Privat — hanya user pilihan';
+  }
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
-  // Refresh peta komunitas
   setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 300);
 }
+
+// Populate daftar user di modal privat
+function populateLocPrivateUsers(){
+  const wrap = $('locPrivateUsers');
+  if(!wrap) return;
+  const others = Object.entries(allUsersCache).filter(([uid]) => uid !== MY_UID);
+  if(others.length === 0){
+    wrap.innerHTML = '<div style="font-size:12.5px;color:var(--ink-soft);padding:8px;">Belum ada pengguna lain terdaftar.</div>';
+    return;
+  }
+  wrap.innerHTML = others.map(([uid, u]) => {
+    const name = u.displayName || u.storeName || '(Belum isi nama)';
+    const checked = locPrivateAllowedUIDs.has(uid) ? 'checked' : '';
+    return '<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);cursor:pointer;">'+
+      '<input type="checkbox" data-uid="'+uid+'" '+checked+' style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;">'+
+      '<div><div style="font-size:13px;font-weight:600;">'+escapeHtml(name)+'</div>'+
+      (u.storeName ? '<div style="font-size:11px;color:var(--ink-soft);">🏪 '+escapeHtml(u.storeName)+'</div>' : '')+
+      '</div></label>';
+  }).join('');
+}
+
+// Opsi pilihan di modal
+let _selectedLocOpt = 'public';
+function selectLocOpt(opt){
+  _selectedLocOpt = opt;
+  const pubEl = $('locOptPublic'), privEl = $('locOptPrivate');
+  if(opt==='public'){
+    pubEl.style.borderColor='var(--teal)'; pubEl.style.background='rgba(27,77,74,0.06)';
+    privEl.style.borderColor='var(--line)'; privEl.style.background='transparent';
+    $('locPrivateUserList').style.display='none';
+  } else {
+    privEl.style.borderColor='var(--teal)'; privEl.style.background='rgba(27,77,74,0.06)';
+    pubEl.style.borderColor='var(--line)'; pubEl.style.background='transparent';
+    $('locPrivateUserList').style.display='block';
+    populateLocPrivateUsers();
+  }
+}
+
+$('locOptPublic').addEventListener('click', () => selectLocOpt('public'));
+$('locOptPrivate').addEventListener('click', () => selectLocOpt('private'));
+$('locVisibilityCancelBtn').addEventListener('click', () => {
+  $('locVisibilityModal').style.display='none';
+  $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
+});
 
 $('shareLocBtn').addEventListener('click', () => {
   if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi, lokasi tidak bisa dibagikan online.'); return; }
   if(!navigator.geolocation){ alert('Browser kamu tidak mendukung fitur lokasi.'); return; }
+  // Reset dan tampilkan modal
+  selectLocOpt('public');
+  $('locVisibilityModal').style.display='flex';
+});
+
+$('locVisibilityConfirmBtn').addEventListener('click', () => {
+  if(!window.firebaseReady) return;
+  // Kumpulkan UID privat yang dipilih
+  locPrivateAllowedUIDs = new Set();
+  if(_selectedLocOpt==='private'){
+    $('locPrivateUsers').querySelectorAll('input[type=checkbox]:checked').forEach(cb => {
+      locPrivateAllowedUIDs.add(cb.dataset.uid);
+    });
+    if(locPrivateAllowedUIDs.size === 0){ alert('Pilih minimal 1 pengguna untuk mode privat.'); return; }
+  }
+  locVisibilityMode = _selectedLocOpt;
+  $('locVisibilityModal').style.display='none';
   $('shareLocBtn').disabled = true; $('shareLocBtn').textContent = 'Mencari lokasi...';
   navigator.geolocation.getCurrentPosition(async (pos) => {
-    const loc = {lat:pos.coords.latitude, lng:pos.coords.longitude, updatedAt:Date.now()};
+    const loc = {
+      lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAt: Date.now(),
+      visibility: locVisibilityMode,
+      allowedUIDs: locVisibilityMode==='private' ? Object.fromEntries([...locPrivateAllowedUIDs].map(u=>[u,true])) : null
+    };
     myLocation = loc;
     try{
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {location:loc, uid:MY_UID});
-      showMyLocationOnMap(loc);
+      showMyLocationOnMap(loc, locVisibilityMode);
     } catch(err){ alert('Gagal menyimpan lokasi: '+err.message); }
     finally{ $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya'; }
   }, (err) => {
@@ -3000,10 +3131,14 @@ $('stopShareLocBtn').addEventListener('click', async () => {
   try{
     await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/location'));
     myLocation = null;
+    locVisibilityMode = 'public';
+    locPrivateAllowedUIDs = new Set();
     $('myMapEmbed').style.display = 'none';
     $('locStatus').textContent = '📍 Lokasi belum dibagikan';
+    $('locVisibilityBadge').style.display = 'none';
     $('shareLocBtn').style.display = 'block';
     $('stopShareLocBtn').style.display = 'none';
+    if(typeof renderCommunityMap==='function') renderCommunityMap();
   } catch(err){ alert('Gagal berhenti membagikan lokasi: '+err.message); }
 });
 

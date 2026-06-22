@@ -994,6 +994,12 @@
           <button id="toggleMicBtn" style="border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);">🎙️ Matikan Mic</button>
           <button class="stop-btn" id="stopLiveBtn">⏹ Stop Live</button>
         </div>
+        <div id="stopProgressWrap" style="display:none;margin-top:10px;background:var(--sand);border-radius:10px;padding:10px 14px;">
+          <div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;" id="stopStatusText">Mengakhiri sesi...</div>
+          <div style="background:var(--line);border-radius:6px;height:6px;overflow:hidden;">
+            <div id="stopProgressBar" style="height:100%;background:var(--coral);border-radius:6px;width:0%;transition:width .4s ease;"></div>
+          </div>
+        </div>
 
         <div style="background:var(--sand);border-radius:12px;padding:12px;margin:10px 0;">
           <div style="font-size:13px;font-weight:700;margin-bottom:8px;">👥 Collab Live — ajak penjual lain gabung siaran ini</div>
@@ -3418,12 +3424,18 @@ $('toggleMicBtn').addEventListener('click', () => {
 
 $('stopLiveBtn').addEventListener('click', async () => {
   if(!confirm('Akhiri sesi live sekarang?')) return;
-  $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏳ Mengakhiri...';
+  $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏹ Stop Live';
+
+  // Helper: update progress bar + status text
+  const setStopProgress = (pct, msg) => {
+    $('stopProgressWrap').style.display = 'block';
+    $('stopProgressBar').style.width = pct + '%';
+    $('stopStatusText').textContent = msg;
+  };
+
+  setStopProgress(5, '⏹ Menghentikan rekaman...');
   try{
     if(mediaRecorder && mediaRecorder.state!=='inactive'){
-      // Dulu di sini bisa nge-hang selamanya kalau event 'onstop' gak pernah nembak
-      // (misal recorder error pas sinyal lag). Sekarang dikasih fallback: kalau dalam
-      // 3 detik gak ada respon, lanjut aja proses stop-nya, jangan nge-block tombol.
       await new Promise(resolve=>{
         let done=false;
         const finish=()=>{ if(!done){ done=true; resolve(); } };
@@ -3434,9 +3446,12 @@ $('stopLiveBtn').addEventListener('click', async () => {
       });
     }
   }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
+
+  setStopProgress(25, '📷 Melepas kamera & mikrofon...');
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
-  // Disconnect from LiveKit — diberi timeout 2 detik supaya tidak hang
+
+  setStopProgress(45, '🌐 Memutus koneksi LiveKit...');
   if(livekitRoom){
     try{
       await Promise.race([
@@ -3446,28 +3461,32 @@ $('stopLiveBtn').addEventListener('click', async () => {
     } catch(e){}
     livekitRoom=null;
   }
+
+  setStopProgress(60, '🧹 Membersihkan sesi & koneksi...');
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
   if(hostViewersUnsub){ hostViewersUnsub(); hostViewersUnsub=null; }
   if(hostCommentsUnsub){ hostCommentsUnsub(); hostCommentsUnsub=null; }
   if(cohostListUnsub){ cohostListUnsub(); cohostListUnsub=null; }
+
   if(window.firebaseReady && liveSessionId){
+    setStopProgress(78, '☁️ Menghapus data sesi dari server...');
     try{
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});
-      // Dulu cuma 'viewers' yang dihapus, sisanya (comments, signal WebRTC, dll) numpuk
-      // terus di database meskipun sesinya udah gak bisa ditonton lagi. Sekarang seluruh
-      // node sesi ini dihapus total — aman, karena data pesanan/ringkasan sudah tersimpan
-      // di sisi host (liveOrders), gak bergantung ke data Firebase ini.
       await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId));
     } catch(e){}
   }
+
+  setStopProgress(90, '📊 Membuat ringkasan sesi...');
   liveActive=false;
-  // Simpan nama sesi SEBELUM generateLiveSummary/reset supaya tidak hilang
   const _savedSessionName = $('liveSessionName').value.trim() || 'Sesi Live';
   generateLiveSummary();
+
+  setStopProgress(100, '✅ Sesi live selesai!');
+  setTimeout(()=>{ $('stopProgressWrap').style.display='none'; }, 1500);
+
   if(recordedChunks.length>0){
     pendingVideoBlob=new Blob(recordedChunks,{type:recordedChunks[0].type||'video/webm'});
-    // Simpan nama sesi ke dataset supaya tetap tersedia saat upload
     $('saveVideoBtn').dataset.sessionName = _savedSessionName;
     $('videoSaveStatus').textContent='';
     $('videoSavePrompt').style.display='block';

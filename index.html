@@ -580,6 +580,7 @@
     backdrop-filter:blur(4px);
   }
   .welcome-overlay.hidden{display:none;}
+  .welcome-overlay.splash-pending{display:none;}
   .welcome-box{
     background:var(--bg-card);border-radius:22px;padding:28px 24px;max-width:400px;width:100%;
     box-shadow:0 20px 60px rgba(42,38,34,0.2);text-align:center;
@@ -1421,7 +1422,7 @@
 </div>
 
 
-<div class="welcome-overlay" id="authOverlay">
+<div class="welcome-overlay splash-pending" id="authOverlay">
   <div class="welcome-box">
     <div class="wb-icon">🔐</div>
     <h2 id="authTitle">Masuk ke Akunmu</h2>
@@ -4127,6 +4128,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   if(seenSplash){
     const el = document.getElementById('splashOverlay');
     if(el) el.classList.add('hidden');
+    // Langsung tampilkan authOverlay (tidak perlu tunggu splash)
+    const auth = document.getElementById('authOverlay');
+    if(auth) auth.classList.remove('splash-pending');
     return;
   }
 
@@ -4159,6 +4163,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     try{ localStorage.setItem('umkm_seen_splash','1'); }catch(e){}
     const el = document.getElementById('splashOverlay');
     if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.classList.add('hidden'),300); }
+    // Baru tampilkan authOverlay setelah splash selesai
+    const auth = document.getElementById('authOverlay');
+    if(auth) auth.classList.remove('splash-pending');
   }
 
   document.getElementById('splashNextBtn').addEventListener('click',()=>{

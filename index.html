@@ -2843,14 +2843,39 @@ let communityMap = null;
 let communityMapMarkers = {};
 
 let activeRoute = null;
+let activeRouteCoords = null;  // Titik-titik garis rute (untuk kamera "ikuti jalur" ala Google Maps)
 let locWatchId = null;         // ID dari watchPosition (live tracking GPS)
 let myMarkerLive = null;       // Marker "Saya" yang bergerak di peta
 let lastFirebaseUpdate = 0;    // Throttle update ke Firebase (max 1x per 5 detik)
 
 function clearActiveRoute(){
   if(activeRoute){ try{ communityMap.removeControl(activeRoute); }catch(e){} activeRoute=null; }
+  activeRouteCoords = null;
   const bar = document.getElementById('routeInfoBar');
   if(bar) bar.remove();
+}
+
+// Cari titik di sepanjang garis rute, sejauh `aheadMeters` di depan posisi user saat ini.
+// Dipakai supaya kamera peta "melihat ke depan" mengikuti jalur garis, bukan cuma diam di titik user.
+function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
+  if(!routeCoords || routeCoords.length < 2) return userLatLng;
+  let minDist = Infinity, minIdx = 0;
+  for(let i=0; i<routeCoords.length; i++){
+    const d = userLatLng.distanceTo(routeCoords[i]);
+    if(d < minDist){ minDist = d; minIdx = i; }
+  }
+  let dist = 0;
+  for(let i=minIdx; i<routeCoords.length-1; i++){
+    const segDist = routeCoords[i].distanceTo(routeCoords[i+1]);
+    if(dist + segDist >= aheadMeters){
+      const ratio = segDist === 0 ? 0 : (aheadMeters - dist) / segDist;
+      const lat = routeCoords[i].lat + (routeCoords[i+1].lat - routeCoords[i].lat) * ratio;
+      const lng = routeCoords[i].lng + (routeCoords[i+1].lng - routeCoords[i].lng) * ratio;
+      return L.latLng(lat, lng);
+    }
+    dist += segDist;
+  }
+  return routeCoords[routeCoords.length-1];
 }
 
 function routeToCoords(destLat, destLng, destName){
@@ -2892,6 +2917,7 @@ function routeToCoords(destLat, destLng, destName){
 
   activeRoute.on('routesfound', function(e){
     const r = e.routes[0];
+    activeRouteCoords = r.coordinates;  // simpan garis rute untuk kamera "ikuti jalur"
     const km = (r.summary.totalDistance/1000).toFixed(1);
     const mins = Math.round(r.summary.totalTime/60);
 
@@ -3482,9 +3508,18 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
         }
       }
 
-      // Kalau sedang ada rute aktif, pan peta ke posisi user supaya terlihat
+      // Kalau sedang ada rute aktif, kamera "ikuti jalur" ala Google Maps:
+      // arahkan pandangan agak ke depan di sepanjang garis rute, bukan cuma pas di titik user.
       if(activeRoute){
-        communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:1});
+        if(activeRouteCoords && activeRouteCoords.length >= 2){
+          const userLL = L.latLng(loc.lat, loc.lng);
+          const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 70);
+          const centerLat = (loc.lat + lookAhead.lat) / 2;
+          const centerLng = (loc.lng + lookAhead.lng) / 2;
+          communityMap.setView([centerLat, centerLng], 18, {animate:true, duration:1});
+        } else {
+          communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:1});
+        }
       } else if(firstFix){
         // Pertama kali dapat fix & tidak ada rute → fly ke posisi user
         communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});

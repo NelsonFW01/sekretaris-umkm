@@ -3217,7 +3217,45 @@ async function acceptCollabInvite(sessionId, inv){
   $('liveModeWatchBtn')?.click();
   $('sessionListWrap').style.display = 'none';
   $('viewerScreenWrap').style.display = 'block';
+  $('viewerScreenPh').style.display = 'flex';
+  $('viewerVideo').style.display = 'none';
+  $('viewerVideo').muted = true;
+  $('viewerUnmuteBtn').style.display = 'none';
+  $('viewerCommentsOverlay').innerHTML = '';
+  if($('viewerConnStatus')) $('viewerConnStatus').textContent = 'Menghubungkan ke siaran...';
   watchingSessionId = sessionId;
+
+  // Identity LiveKit milik HOST UTAMA siaran ini (beda dengan identity co-host yang baru join).
+  // Dipakai buat mutuskan: video ini ditaruh di layar besar (host utama) atau di grid kecil (co-host lain).
+  const mainHostIdentity = 'host-' + inv.hostUid;
+
+  // Daftar juga sebagai "viewer" supaya hitungan penonton akurat & co-host ikut tahu kalau live diakhiri host
+  const myViewerRef = window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/viewers/${MY_UID}`);
+  try{
+    await window.rtdbSet(myViewerRef, true);
+    window.rtdbOnDisconnect(myViewerRef).remove();
+  } catch(e){}
+  viewerViewersUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/viewers`), (snap) => {
+    const v = snap.val(); $('viewerScreenCount').textContent = v ? Object.keys(v).length : 0;
+  });
+  viewerActiveUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/active`), (snap) => {
+    const val = snap.val();
+    if((val === false || val === null) && watchingSessionId === sessionId){
+      stopWatchingSession();
+      $('viewerScreenWrap').style.display = 'none';
+      $('sessionListWrap').style.display = 'block';
+      alert('Live sudah diakhiri oleh penjual. Terima kasih sudah Live bareng! 🙌');
+    }
+  });
+  // Dengarkan komentar & emote — tanpa listener ini, emote yang dikirim host TIDAK PERNAH muncul di sisi co-host
+  viewerCommentsUnsub = window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/comments`), (snap) => {
+    const c = snap.val(); if(!c) return;
+    const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
+    if(isEmote) addEmoteRainTo('viewerEmoteRain', c.text.trim());
+    addCommentTo('viewerCommentsOverlay', c.user, c.text);
+  });
+  setupViewerUnmuteHandler();
+
   try{
     cohostStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:true});
     const identity = 'host-' + MY_UID;
@@ -3227,11 +3265,46 @@ async function acceptCollabInvite(sessionId, inv){
     cohostRoom = room;
     window._viewerLivekitRoom = room; // supaya stopWatchingSession lama tetap bisa disconnect
 
+    // Helper: pasang track dari HOST UTAMA ke layar besar (#viewerVideo), track peserta lain ke grid kecil
+    function routeIncomingTrack(track, participant){
+      if(participant.identity === mainHostIdentity){
+        if(track.kind === 'video'){
+          const vid = $('viewerVideo');
+          track.attach(vid);
+          vid.muted = true;
+          vid.style.display = 'block';
+          $('viewerScreenPh').style.display = 'none';
+          vid.play().catch(()=>{});
+          if($('viewerConnStatus')) $('viewerConnStatus').textContent = '📡 Video tersambung!';
+        } else if(track.kind === 'audio'){
+          window._viewerAudioTrack = track.mediaStreamTrack;
+          $('viewerUnmuteBtn').style.display = 'block';
+        }
+        return;
+      }
+      attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
+    }
+
     room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       if(participant.identity === identity) return;
-      attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
+      routeIncomingTrack(track, participant);
     });
-    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => { if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity); });
+    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+      if(participant.identity === mainHostIdentity){
+        if(track.kind === 'video'){
+          track.detach();
+          $('viewerVideo').style.display = 'none';
+          $('viewerScreenPh').style.display = 'flex';
+          $('viewerUnmuteBtn').style.display = 'none';
+        } else {
+          track.detach();
+          const audioEl = document.getElementById('viewerAudioEl');
+          if(audioEl) audioEl.remove();
+        }
+        return;
+      }
+      if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity);
+    });
     room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
 
     await room.connect(url, token);
@@ -3259,10 +3332,10 @@ async function acceptCollabInvite(sessionId, inv){
     $('viewerCohostGrid').appendChild(selfWrap);
     selfTile.srcObject = cohostStream;
 
-    // Pasang track yang sudah ada dari partisipan lain (host utama / co-host lain)
+    // Pasang track yang sudah ada dari partisipan lain (host utama / co-host lain) — pakai routing yang sama
     room.remoteParticipants.forEach(p => {
       if(p.identity === identity) return;
-      p.trackPublications.forEach(pub => { if(pub.track) attachRemoteTrackToGrid(pub.track, p.identity, 'viewerCohostGrid'); });
+      p.trackPublications.forEach(pub => { if(pub.track) routeIncomingTrack(pub.track, p); });
     });
 
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/cohosts/${MY_UID}`), {
@@ -3619,6 +3692,39 @@ document.addEventListener('click', (e) => {
   if(e.target.classList.contains('watch-session-btn')){ joinAsViewer(e.target.dataset.id); }
 });
 
+// Dipakai bersama oleh penonton biasa (joinAsViewer) dan co-host (acceptCollabInvite)
+// supaya tombol unmute selalu berfungsi di kedua jalur.
+function setupViewerUnmuteHandler(){
+  window._viewerAudioMuted = true;
+  $('viewerUnmuteBtn').onclick=()=>{
+    const vid=$('viewerVideo');
+    let audioEl=document.getElementById('viewerAudioEl');
+    if(window._viewerAudioMuted){
+      // UNMUTE
+      vid.muted=false;
+      vid.play().catch(()=>{});
+      if(window._viewerAudioTrack){
+        if(!audioEl){
+          audioEl=document.createElement('audio');
+          audioEl.id='viewerAudioEl';
+          audioEl.style.display='none';
+          document.body.appendChild(audioEl);
+        }
+        audioEl.srcObject=new MediaStream([window._viewerAudioTrack]);
+        audioEl.play().catch(()=>{});
+      }
+      window._viewerAudioMuted=false;
+      $('viewerUnmuteBtn').textContent='🔇 Mute';
+    } else {
+      // MUTE
+      vid.muted=true;
+      if(audioEl){ audioEl.pause(); audioEl.srcObject=null; }
+      window._viewerAudioMuted=true;
+      $('viewerUnmuteBtn').textContent='🔊 Tap untuk dengar suara';
+    }
+  };
+}
+
 async function joinAsViewer(sessionId){
   if(!window.firebaseReady) return;
   watchingSessionId=sessionId;
@@ -3740,34 +3846,7 @@ async function joinAsViewer(sessionId){
     console.error('LiveKit viewer error:', err);
   }
 
-  window._viewerAudioMuted = true;
-  $('viewerUnmuteBtn').onclick=()=>{
-    const vid=$('viewerVideo');
-    let audioEl=document.getElementById('viewerAudioEl');
-    if(window._viewerAudioMuted){
-      // UNMUTE
-      vid.muted=false;
-      vid.play().catch(()=>{});
-      if(window._viewerAudioTrack){
-        if(!audioEl){
-          audioEl=document.createElement('audio');
-          audioEl.id='viewerAudioEl';
-          audioEl.style.display='none';
-          document.body.appendChild(audioEl);
-        }
-        audioEl.srcObject=new MediaStream([window._viewerAudioTrack]);
-        audioEl.play().catch(()=>{});
-      }
-      window._viewerAudioMuted=false;
-      $('viewerUnmuteBtn').textContent='🔇 Mute';
-    } else {
-      // MUTE
-      vid.muted=true;
-      if(audioEl){ audioEl.pause(); audioEl.srcObject=null; }
-      window._viewerAudioMuted=true;
-      $('viewerUnmuteBtn').textContent='🔊 Tap untuk dengar suara';
-    }
-  };
+  setupViewerUnmuteHandler();
 
   viewerCommentsUnsub=window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/comments`), (snap) => {
     const c=snap.val(); if(!c) return;

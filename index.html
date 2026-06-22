@@ -3672,7 +3672,9 @@ $('saveVideoBtn').addEventListener('click', async () => {
     $('videoSaveStatus').textContent='✅ Video tersimpan di Galeri Video Global!';
     $('videoSaveStatus').style.color='var(--good)';
     pendingVideoBlob=null;
-    setTimeout(()=>{ $('videoSavePrompt').style.display='none'; progWrap.classList.remove('show'); },2000);
+    // Biarkan pesan sukses kelihatan 2 detik dulu, baru reset bersih ke layar "Mulai Sesi Live"
+    // (sebelumnya cuma nutup kartu prompt-nya, layar live lama tetap nyangkut).
+    setTimeout(()=>{ progWrap.classList.remove('show'); resetToLiveSetup(); },2000);
   } catch(err){
     $('videoSaveStatus').textContent='Gagal mengunggah: '+err.message;
     $('videoSaveStatus').style.color='var(--bad)';
@@ -3684,8 +3686,11 @@ $('saveVideoBtn').addEventListener('click', async () => {
 
 $('discardVideoBtn').addEventListener('click', () => {
   pendingVideoBlob=null;
-  $('videoSavePrompt').style.display='none';
   $('uploadProgressWrap').classList.remove('show');
+  // Sebelumnya cuma nutup kartu videoSavePrompt-nya doang — liveSummarySection &
+  // liveView (kamera, grid co-host, daftar pesanan) tetap nyangkut sampai user
+  // klik "Live Baru" manual atau refresh. Sekarang langsung reset bersih sekalian.
+  resetToLiveSetup();
 });
 
 // ===== WATCH MODE: BROWSE & JOIN LIVE SESSIONS =====

@@ -3436,8 +3436,16 @@ $('stopLiveBtn').addEventListener('click', async () => {
   }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
   hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
-  // Disconnect from LiveKit
-  if(livekitRoom){ try{ await livekitRoom.disconnect(); } catch(e){} livekitRoom=null; }
+  // Disconnect from LiveKit — diberi timeout 2 detik supaya tidak hang
+  if(livekitRoom){
+    try{
+      await Promise.race([
+        livekitRoom.disconnect(),
+        new Promise(r=>setTimeout(r, 2000))
+      ]);
+    } catch(e){}
+    livekitRoom=null;
+  }
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
   if(hostViewersUnsub){ hostViewersUnsub(); hostViewersUnsub=null; }
@@ -3672,9 +3680,9 @@ $('saveVideoBtn').addEventListener('click', async () => {
     $('videoSaveStatus').textContent='✅ Video tersimpan di Galeri Video Global!';
     $('videoSaveStatus').style.color='var(--good)';
     pendingVideoBlob=null;
-    // Biarkan pesan sukses kelihatan 2 detik dulu, baru reset bersih ke layar "Mulai Sesi Live"
-    // (sebelumnya cuma nutup kartu prompt-nya, layar live lama tetap nyangkut).
-    setTimeout(()=>{ progWrap.classList.remove('show'); resetToLiveSetup(); },2000);
+    // Sembunyikan progress bar setelah 2 detik; videoSavePrompt tetap tampil
+    // supaya user bisa lihat pesan sukses & tombol Simpan — sama seperti old v1.
+    setTimeout(()=>{ progWrap.classList.remove('show'); },2000);
   } catch(err){
     $('videoSaveStatus').textContent='Gagal mengunggah: '+err.message;
     $('videoSaveStatus').style.color='var(--bad)';

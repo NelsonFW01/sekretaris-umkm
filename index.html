@@ -3564,7 +3564,10 @@ document.addEventListener('click', (e) => {
         const mapEl = $('pdLeafletMap');
         if(!mapEl) return;
         // Destroy existing map if any
-        if(mapEl._leaflet_id) { try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){} }
+        if(mapEl._leaflet_id) {
+          try{ if(mapEl._leaflet_route) mapEl._leaflet_map && mapEl._leaflet_map.removeControl(mapEl._leaflet_route); }catch(e){}
+          try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){}
+        }
         mapEl.innerHTML = '';
         const pMap = L.map(mapEl).setView([u.location.lat, u.location.lng], 18);
         mapEl._leaflet_map = pMap;
@@ -3573,25 +3576,61 @@ document.addEventListener('click', (e) => {
           subdomains:'abcd', maxZoom:20
         }).addTo(pMap);
         const icon = makeUserIcon(false);
-        L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
-          .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
-        // Google Maps link
+        // Google Maps link (fallback, buka app eksternal)
         const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+u.location.lat+','+u.location.lng;
         $('pdOpenMapsBtn').href = gmUrl;
         $('pdOpenMapsBtn').style.display = 'block';
-        // Jika kita punya lokasi sendiri, tampilkan info jarak kasar
         const routeDiv = $('pdRouteInfo');
+
         if(myLocation && myLocation.lat){
-          const R = 6371;
-          const dLat = (u.location.lat - myLocation.lat)*Math.PI/180;
-          const dLng = (u.location.lng - myLocation.lng)*Math.PI/180;
-          const a = Math.sin(dLat/2)**2 + Math.cos(myLocation.lat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
-          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+'km';
+          // Kita punya lokasi sendiri -> gambar JALUR rute langsung di mini map (seperti Google Maps)
           routeDiv.style.display = 'block';
-          routeDiv.innerHTML = '📏 Jarak dari lokasimu: <b>'+distStr+'</b> &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Lihat rute →</a>';
+          routeDiv.innerHTML = '⏳ Menghitung rute ke <b>'+(u.displayName||u.storeName||'lokasi ini')+'</b>...';
+
+          const pdRoute = L.Routing.control({
+            waypoints: [L.latLng(myLocation.lat, myLocation.lng), L.latLng(u.location.lat, u.location.lng)],
+            router: L.Routing.osrmv1({
+              serviceUrl: 'https://router.project-osrm.org/route/v1',
+              language: 'id'
+            }),
+            lineOptions: { styles: [{ color: '#1B4D4A', weight: 5, opacity: 0.85 }] },
+            show: false,
+            fitSelectedRoutes: true,
+            showAlternatives: false,
+            addWaypoints: false,
+            draggableWaypoints: false,
+            createMarker: function(i, wp){
+              return L.marker(wp.latLng, { icon: i===0 ? makeUserIcon(true) : icon })
+                .bindPopup(i===0 ? 'Lokasi kamu' : '<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>');
+            }
+          }).addTo(pMap);
+          mapEl._leaflet_route = pdRoute;
+
+          pdRoute.on('routesfound', function(e){
+            const r = e.routes[0];
+            const km = (r.summary.totalDistance/1000).toFixed(1);
+            const mins = Math.round(r.summary.totalTime/60);
+            routeDiv.innerHTML = '🚗 <b>'+km+' km</b> &nbsp;·&nbsp; ⏱ '+mins+' mnt &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+          });
+          pdRoute.on('routingerror', function(e){
+            console.error('Routing error (profile):', e);
+            // Fallback: tampilkan jarak garis lurus kalau OSRM gagal
+            const R = 6371;
+            const dLat = (u.location.lat - myLocation.lat)*Math.PI/180;
+            const dLng = (u.location.lng - myLocation.lng)*Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(myLocation.lat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+            const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+'km';
+            routeDiv.innerHTML = '⚠️ Gagal memuat rute jalan (≈'+distStr+' garis lurus). <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+            L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
+              .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+          });
         } else {
-          routeDiv.style.display = 'none';
+          // Belum bagikan lokasi -> cuma tampilkan marker tujuan saja
+          L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
+            .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+          routeDiv.style.display = 'block';
+          routeDiv.innerHTML = '📍 Aktifkan "Bagikan Lokasi Saya" di peta komunitas dulu supaya jalur rute ke sini bisa ditampilkan.';
         }
       }, 120);
     } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }

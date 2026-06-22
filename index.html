@@ -21,7 +21,7 @@
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    onAuthStateChanged, signOut
+    onAuthStateChanged, signOut, sendPasswordResetEmail
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
@@ -58,6 +58,7 @@
       window.fbSignIn = signInWithEmailAndPassword;
       window.fbOnAuthStateChanged = onAuthStateChanged;
       window.fbSignOut = signOut;
+      window.fbSendPasswordReset = sendPasswordResetEmail;
       window.rtdbRef = ref;
       window.rtdbPush = push;
       window.rtdbSet = set;
@@ -1212,7 +1213,8 @@
     <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
     <div class="auth-error" id="authError"></div>
     <button id="authSubmitBtn">Masuk</button>
-    <div class="wb-hint" style="margin-top:14px;">Nama tampilan hanya bisa diisi satu kali sesuai email akunmu.</div>
+    <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
+    <div class="wb-hint" style="margin-top:14px;">Kamu bisa mengganti nama tampilan kapan saja lewat halaman Profil.</div>
   </div>
 </div>
 
@@ -1350,12 +1352,14 @@ function updateAuthModeUI(){
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     $a('authTabLogin').classList.remove('active');
     $a('authTabRegister').classList.add('active');
+    $a('forgotPasswordBtn').style.display = 'none';
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
     $a('authSubmitBtn').textContent = 'Masuk';
     $a('authTabRegister').classList.remove('active');
     $a('authTabLogin').classList.add('active');
+    $a('forgotPasswordBtn').style.display = 'inline-block';
   }
 }
 $a('authTabLogin').addEventListener('click', ()=>{ authMode='login'; updateAuthModeUI(); });
@@ -1431,6 +1435,27 @@ $a('authLogoutBtn').addEventListener('click', async () => {
   if(!window.firebaseReady) return;
   if(!confirm('Keluar dari akun?')) return;
   try{ await window.fbSignOut(window.fbAuth); } catch(e){}
+});
+
+$a('forgotPasswordBtn').addEventListener('click', async () => {
+  $a('authError').textContent = '';
+  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, reset password tidak bisa dipakai.'; return; }
+  const email = $a('authEmailInput').value.trim();
+  if(!email){ $a('authError').textContent = 'Isi dulu email kamu di kotak email di atas, baru klik "Lupa password?".'; return; }
+  const oldLabel = $a('forgotPasswordBtn').textContent;
+  $a('forgotPasswordBtn').disabled = true;
+  $a('forgotPasswordBtn').textContent = 'Mengirim email...';
+  try{
+    await window.fbSendPasswordReset(window.fbAuth, email);
+    $a('authError').style.color = 'var(--good)';
+    $a('authError').textContent = `✅ Link reset password sudah dikirim ke ${email}. Cek inbox (atau folder spam) lalu ikuti link-nya untuk buat password baru.`;
+  } catch(err){
+    $a('authError').style.color = '';
+    $a('authError').textContent = translateAuthError(err.code) || ('Gagal mengirim email reset: ' + err.message);
+  } finally {
+    $a('forgotPasswordBtn').disabled = false;
+    $a('forgotPasswordBtn').textContent = oldLabel;
+  }
 });
 
 function initAuthGate(){

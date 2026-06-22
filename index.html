@@ -10,6 +10,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
@@ -1176,6 +1178,21 @@
           <button class="share-off" id="stopShareLocBtn" style="display:none;">🚫 Berhenti Bagikan</button>
         </div>
         <iframe class="map-embed" id="myMapEmbed" style="display:none;"></iframe>
+      </div>
+
+      <!-- PETA INTERAKTIF SEMUA USER & TOKO -->
+      <div style="margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:14px;font-weight:700;">Peta Komunitas</div>
+          <button id="refreshMapBtn" style="background:var(--teal);color:white;border:none;border-radius:9px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;">Perbarui</button>
+        </div>
+        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:320px;background:var(--sand);display:flex;align-items:center;justify-content:center;">
+          <div style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
+            <div style="font-size:28px;margin-bottom:8px;">&#x1F5FA;</div>
+            <div>Peta akan tampil setelah ada user yang bagikan lokasi atau daftarkan toko.</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:center;">Penanda biru = user yang share lokasi &middot; Penanda oranye = toko terdaftar</div>
       </div>
 
       <div class="section-divider">Status Saya di Komunitas</div>
@@ -2764,6 +2781,111 @@ function mapEmbedUrl(lat, lng){
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${lat},${lng}&layer=mapnik`;
 }
 
+// ===== PETA INTERAKTIF KOMUNITAS (Leaflet) =====
+let communityMap = null;
+let communityMapMarkers = {};
+
+function initCommunityMap(centerLat, centerLng){
+  const container = document.getElementById('communityMapContainer');
+  if(!container) return;
+  container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;"></div>';
+  if(communityMap){ try{ communityMap.remove(); }catch(e){} communityMap=null; }
+  communityMapMarkers = {};
+  const lat = centerLat || -6.2088;
+  const lng = centerLng || 106.8456;
+  communityMap = L.map('leafletMap').setView([lat, lng], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap',
+    maxZoom: 19
+  }).addTo(communityMap);
+}
+
+function makeUserIcon(isMe){
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:34px;height:34px;border-radius:50%;background:'+(isMe?'#1B4D4A':'#2563EB')+';border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">'+(isMe?'&#x1F60A;':'&#x1F464;')+'</div>',
+    iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-18]
+  });
+}
+
+function makeStoreIcon(){
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:34px;height:34px;border-radius:8px;background:#E8633F;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">&#x1F3EA;</div>',
+    iconSize: [34,34], iconAnchor: [17,34], popupAnchor: [0,-36]
+  });
+}
+
+async function renderCommunityMap(){
+  if(typeof L === 'undefined') return;
+  const usersData = allUsersCache || {};
+  const points = [];
+  Object.entries(usersData).forEach(([uid, u]) => {
+    if(u.location && u.location.lat && u.location.lng){
+      points.push({lat: u.location.lat, lng: u.location.lng, uid,
+        name: u.displayName || u.storeName || 'Pengguna',
+        storeName: u.storeName, type: 'user', isMe: uid===MY_UID, updatedAt: u.location.updatedAt});
+    }
+  });
+  const storeGeocodeQueue = Object.entries(usersData).filter(([uid, u]) => u.address && (!u.location));
+  if(!communityMap){
+    const firstPoint = points[0];
+    initCommunityMap(firstPoint ? firstPoint.lat : -6.2088, firstPoint ? firstPoint.lng : 106.8456);
+  }
+  if(!communityMap) return;
+  Object.values(communityMapMarkers).forEach(m => { try{ communityMap.removeLayer(m); }catch(e){} });
+  communityMapMarkers = {};
+  points.forEach(p => {
+    const popupHtml = '<div style="min-width:160px;font-family:inherit;">'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">'+(p.isMe?'<span style="color:#1B4D4A;">Saya</span> &#8212; ':'')+escapeHtml(p.name)+'</div>'
+      +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">&#x1F3EA; '+escapeHtml(p.storeName)+'</div>':'')
+      +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:3px;">'+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
+      +'</div>';
+    const marker = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popupHtml);
+    communityMapMarkers['user_'+p.uid] = marker;
+  });
+  const toGeocode = storeGeocodeQueue.slice(0, 5);
+  for(const [uid, u] of toGeocode){
+    try{
+      const resp = await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(u.address)+'&format=json&limit=1', {headers:{'Accept-Language':'id'}});
+      const data = await resp.json();
+      if(data && data[0]){
+        const glat = parseFloat(data[0].lat), glng = parseFloat(data[0].lon);
+        const popupHtml = '<div style="min-width:160px;font-family:inherit;">'
+          +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">&#x1F3EA; '+escapeHtml(u.storeName||u.displayName||'Toko')+'</div>'
+          +'<div style="font-size:11.5px;color:#6B645A;">'+escapeHtml(u.address)+'</div>'
+          +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:3px;">'+escapeHtml(u.paymentId)+'</div>':'')
+          +'</div>';
+        const marker = L.marker([glat, glng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popupHtml);
+        communityMapMarkers['store_'+uid] = marker;
+      }
+    } catch(e){}
+  }
+  const allMarkers = Object.values(communityMapMarkers);
+  if(allMarkers.length > 0){
+    try{
+      const group = L.featureGroup(allMarkers);
+      communityMap.fitBounds(group.getBounds().pad(0.3));
+    } catch(e){}
+  }
+}
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if(tab.dataset.panel === 'community'){
+      setTimeout(() => {
+        if(typeof L !== 'undefined'){
+          if(!communityMap) initCommunityMap();
+          else communityMap.invalidateSize();
+          renderCommunityMap();
+        }
+      }, 200);
+    }
+  });
+});
+
+document.getElementById('refreshMapBtn').addEventListener('click', renderCommunityMap);
+
 function setupPresence(){
   if(!window.firebaseReady) return;
   const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
@@ -2847,10 +2969,12 @@ $('saveProfileBtn').addEventListener('click', async () => {
 
 function showMyLocationOnMap(loc){
   $('myMapEmbed').src = mapEmbedUrl(loc.lat, loc.lng);
-  $('myMapEmbed').style.display = 'block';
+  $('myMapEmbed').style.display = 'none'; // digantikan peta interaktif di bawah
   $('locStatus').innerHTML = '📍 Lokasi dibagikan · diperbarui '+new Date(loc.updatedAt||Date.now()).toLocaleString('id-ID');
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
+  // Refresh peta komunitas
+  setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 300);
 }
 
 $('shareLocBtn').addEventListener('click', () => {
@@ -2932,7 +3056,7 @@ function renderUserDirectory(){
 
 function startUserDirectoryListeners(){
   if(!window.firebaseReady){ $('userDirectory').innerHTML = '<div class="empty-state">Direktori pengguna butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); });
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(communityMap) renderCommunityMap(); });
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); });
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
@@ -3786,9 +3910,11 @@ $('saveVideoBtn').addEventListener('click', async () => {
     $('videoSaveStatus').textContent='✅ Video tersimpan di Galeri Video Global!';
     $('videoSaveStatus').style.color='var(--good)';
     pendingVideoBlob=null;
-    // Sembunyikan progress bar setelah 2 detik; videoSavePrompt tetap tampil
-    // supaya user bisa lihat pesan sukses & tombol Simpan — sama seperti old v1.
-    setTimeout(()=>{ progWrap.classList.remove('show'); },2000);
+    // Sembunyikan progress bar & otomatis kembali ke setup live setelah 2 detik
+    setTimeout(()=>{
+      progWrap.classList.remove('show');
+      resetToLiveSetup();
+    }, 2000);
   } catch(err){
     $('videoSaveStatus').textContent='Gagal mengunggah: '+err.message;
     $('videoSaveStatus').style.color='var(--bad)';

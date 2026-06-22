@@ -991,6 +991,10 @@
             </div>
           </div>
           <div id="viewerCohostGrid" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+          <div id="cohostControls" style="display:none;gap:8px;margin-top:8px;">
+            <button id="cohostToggleCamBtn" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-weight:700;font-size:13px;cursor:pointer;">📷 Matikan Kamera</button>
+            <button id="cohostToggleMicBtn" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-weight:700;font-size:13px;cursor:pointer;">🎙️ Matikan Mic</button>
+          </div>
           <div class="emote-row">
             <button class="emote-send viewer-emote" data-emote="🔥">🔥</button>
             <button class="emote-send viewer-emote" data-emote="❤️">❤️</button>
@@ -2976,6 +2980,7 @@ async function acceptCollabInvite(sessionId, inv){
       name: (myProfile && (myProfile.storeName||myProfile.displayName)) || 'Co-host', status:'accepted', joinedAt: Date.now()
     });
 
+    $('cohostControls').style.display='flex';
     alert('Kamu sekarang Live bareng sebagai co-host! 🎉 Kamera & mikmu sudah aktif untuk penonton.');
   } catch(err){
     alert('Gagal join sebagai co-host: ' + err.message);
@@ -3492,7 +3497,11 @@ function stopWatchingSession(){
   // Bersihkan kamera/mic co-host kalau sebelumnya join sebagai collab
   if(cohostStream){ try{ cohostStream.getTracks().forEach(t=>t.stop()); }catch(e){} cohostStream=null; }
   cohostRoom = null;
+  cohostCamOn = true; cohostMicOn = true;
   const grid = $('viewerCohostGrid'); if(grid) grid.innerHTML='';
+  const cc = $('cohostControls'); if(cc) cc.style.display='none';
+  $('cohostToggleCamBtn').textContent='📷 Matikan Kamera';
+  $('cohostToggleMicBtn').textContent='🎙️ Matikan Mic';
   const vid=$('viewerVideo');
   if(vid){ vid.srcObject=null; vid.style.display='none'; }
   $('viewerUnmuteBtn').style.display='none';
@@ -3523,6 +3532,57 @@ document.querySelectorAll('.viewer-emote').forEach(btn=>{
 });
 
 $('viewerSendCommentBtn').addEventListener('click', sendViewerComment);
+// ===== CO-HOST: TOGGLE KAMERA & MIC =====
+let cohostCamOn = true, cohostMicOn = true;
+
+$('cohostToggleCamBtn').addEventListener('click', async () => {
+  if(!cohostRoom || !cohostStream) return;
+  const btn = $('cohostToggleCamBtn');
+  const selfTile = document.querySelector('video[data-identity="self"]');
+  if(cohostCamOn){
+    // Matikan kamera: stop video track dan unpublish
+    cohostStream.getVideoTracks().forEach(t => t.stop());
+    try{
+      const pubs = cohostRoom.localParticipant.trackPublications;
+      for(const pub of pubs.values()){
+        if(pub.track && pub.source === 'camera') await cohostRoom.localParticipant.unpublishTrack(pub.track);
+      }
+    } catch(e){}
+    if(selfTile) selfTile.style.opacity = '0.3';
+    btn.textContent = '📷 Hidupkan Kamera';
+    cohostCamOn = false;
+  } else {
+    // Hidupkan kamera lagi: minta akses baru dan publish ulang
+    try{
+      const newStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
+      const vt = newStream.getVideoTracks()[0];
+      // Ganti track di cohostStream
+      cohostStream.getVideoTracks().forEach(t => cohostStream.removeTrack(t));
+      cohostStream.addTrack(vt);
+      if(selfTile){ selfTile.srcObject = cohostStream; selfTile.style.opacity = '1'; }
+      const {LocalVideoTrack, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
+      await cohostRoom.localParticipant.publishTrack(new LocalVideoTrack(vt), {source: Track.Source.Camera});
+      btn.textContent = '📷 Matikan Kamera';
+      cohostCamOn = true;
+    } catch(err){ alert('Gagal menghidupkan kamera: ' + err.message); }
+  }
+});
+
+$('cohostToggleMicBtn').addEventListener('click', async () => {
+  if(!cohostRoom || !cohostStream) return;
+  const btn = $('cohostToggleMicBtn');
+  if(cohostMicOn){
+    // Mute: disable audio track (tidak stop, supaya bisa unmute lagi)
+    cohostStream.getAudioTracks().forEach(t => { t.enabled = false; });
+    btn.textContent = '🎙️ Hidupkan Mic';
+    cohostMicOn = false;
+  } else {
+    // Unmute: enable kembali
+    cohostStream.getAudioTracks().forEach(t => { t.enabled = true; });
+    btn.textContent = '🎙️ Matikan Mic';
+    cohostMicOn = true;
+  }
+});
 $('viewerCommentInput').addEventListener('keydown', (e) => { if(e.key==='Enter') sendViewerComment(); });
 function sendViewerComment(){
   const txt=$('viewerCommentInput').value.trim();

@@ -2859,6 +2859,17 @@ function routeToCoords(destLat, destLng, destName){
     alert('Aktifkan lokasi kamu dulu lewat tombol "📍 Bagikan Lokasi Saya" di atas.');
     return;
   }
+
+  // Tampilkan bar loading dulu sebelum rute dihitung
+  let bar = document.getElementById('routeInfoBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'routeInfoBar';
+    bar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;';
+    document.getElementById('leafletMap').appendChild(bar);
+  }
+  bar.innerHTML = '⏳ Menghitung rute ke <span style="color:#1B4D4A;">'+destName+'</span>...';
+
   activeRoute = L.Routing.control({
     waypoints: [L.latLng(fromLat, fromLng), L.latLng(destLat, destLng)],
     router: L.Routing.osrmv1({
@@ -2867,28 +2878,39 @@ function routeToCoords(destLat, destLng, destName){
     }),
     lineOptions: { styles: [{ color: '#1B4D4A', weight: 5, opacity: 0.85 }] },
     show: false,
-    fitSelectedRoutes: true,
+    fitSelectedRoutes: false,  // dimatikan — kita fit manual agar animasinya lebih smooth
     showAlternatives: false,
+    addWaypoints: false,
+    draggableWaypoints: false,
     createMarker: function(i, wp){
       return L.marker(wp.latLng, { icon: i===0 ? makeUserIcon(true) : makeStoreIcon() });
     }
   }).addTo(communityMap);
+
   activeRoute.on('routesfound', function(e){
     const r = e.routes[0];
     const km = (r.summary.totalDistance/1000).toFixed(1);
     const mins = Math.round(r.summary.totalTime/60);
-    let bar = document.getElementById('routeInfoBar');
-    if(!bar){
-      bar = document.createElement('div');
-      bar.id = 'routeInfoBar';
-      bar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;';
-      document.getElementById('leafletMap').appendChild(bar);
+
+    // Fit peta agar dari-titik A ke titik B keduanya terlihat, dengan padding yang cukup
+    const bounds = L.latLngBounds(
+      [fromLat, fromLng],
+      [destLat, destLng]
+    );
+    communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+
+    // Update info bar
+    const barEl = document.getElementById('routeInfoBar');
+    if(barEl){
+      barEl.innerHTML = '🗺️ <span style="color:#1B4D4A;">'+destName+'</span> &nbsp;·&nbsp; 🚗 '+km+' km &nbsp;·&nbsp; ⏱ '+mins+' mnt'
+        +'&nbsp;&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕ Hapus Rute</button>';
     }
-    bar.innerHTML = '🗺️ <span style="color:#1B4D4A;">'+destName+'</span> &nbsp;·&nbsp; 🚗 '+km+' km &nbsp;·&nbsp; ⏱ '+mins+' mnt'
-      +'&nbsp;&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕</button>';
   });
-  activeRoute.on('routingerror', function(){
-    alert('Gagal menghitung rute. Cek koneksi internet.');
+
+  activeRoute.on('routingerror', function(e){
+    const barEl = document.getElementById('routeInfoBar');
+    if(barEl) barEl.innerHTML = '❌ Gagal menghitung rute. <button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">Tutup</button>';
+    console.error('Routing error:', e);
   });
 }
 
@@ -3215,6 +3237,9 @@ document.addEventListener('click', async (e) => {
   searchInput.value = '';
 
   if(isNaN(lat) || isNaN(lng)) return;
+
+  // Kalau ada rute aktif sebelumnya, hapus dulu supaya tidak tumpang tindih
+  clearActiveRoute();
 
   // Init peta kalau belum ada, lalu fly
   if(!communityMap){ initCommunityMap(lat, lng); await renderCommunityMap(); }

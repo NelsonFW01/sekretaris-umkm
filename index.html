@@ -1218,16 +1218,22 @@
       <!-- PETA INTERAKTIF SEMUA USER & TOKO -->
       <div style="margin-bottom:18px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:700;">Peta Komunitas</div>
-          <button id="refreshMapBtn" style="background:var(--teal);color:white;border:none;border-radius:9px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;">Perbarui</button>
+          <div style="font-size:14px;font-weight:700;">🗺️ Peta Komunitas</div>
+          <button id="refreshMapBtn" style="background:var(--teal);color:white;border:none;border-radius:9px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;">🔄 Perbarui</button>
         </div>
-        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:320px;background:var(--sand);display:flex;align-items:center;justify-content:center;">
+        <!-- Search bar -->
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="mapSearchInput" type="text" placeholder="Cari nama toko atau alamat..." style="flex:1;padding:10px 13px;border-radius:11px;border:1.5px solid var(--line);font-size:13px;font-family:inherit;background:var(--bg);">
+          <button id="mapSearchBtn" style="flex-shrink:0;padding:10px 15px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:600;font-size:13px;cursor:pointer;">🔍</button>
+        </div>
+        <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
+        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;">
           <div style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
             <div style="font-size:28px;margin-bottom:8px;">&#x1F5FA;</div>
             <div>Peta akan tampil setelah ada user yang bagikan lokasi atau daftarkan toko.</div>
           </div>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:center;">Penanda biru = user yang share lokasi &middot; Penanda oranye = toko terdaftar</div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:center;">👤 Biru = lokasi user &nbsp;·&nbsp; 🏪 Oranye = toko terdaftar</div>
       </div>
 
       <div class="section-divider">Status Saya di Komunitas</div>
@@ -1337,8 +1343,10 @@
         <span>🔗</span><a id="pdPaymentLink" href="#" target="_blank" style="color:var(--teal);font-size:13px;"></a>
       </div>
       <div id="pdMapWrap" style="display:none;">
-        <div class="profile-detail-label" style="margin-bottom:6px;">Lokasi Dibagikan</div>
-        <iframe class="map-embed" id="pdMap"></iframe>
+        <div class="profile-detail-label" style="margin-bottom:6px;">📍 Lokasi Dibagikan</div>
+        <div id="pdLeafletMap" style="height:200px;border-radius:12px;overflow:hidden;border:1px solid var(--line);"></div>
+        <div id="pdRouteInfo" style="display:none;margin-top:8px;font-size:12px;color:var(--ink-soft);padding:8px 10px;background:var(--sand);border-radius:8px;"></div>
+        <a id="pdOpenMapsBtn" href="#" target="_blank" style="display:none;margin-top:8px;padding:9px 14px;background:var(--teal);color:white;border-radius:10px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;display:none;">🗺️ Buka di Google Maps</a>
       </div>
     </div>
   </div>
@@ -2826,11 +2834,13 @@ function initCommunityMap(centerLat, centerLng){
   container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;"></div>';
   if(communityMap){ try{ communityMap.remove(); }catch(e){} communityMap=null; }
   communityMapMarkers = {};
-  const lat = centerLat || -6.2088;
-  const lng = centerLng || 106.8456;
-  communityMap = L.map('leafletMap').setView([lat, lng], 13);
+  // Prioritas center: (1) koordinat yang diberikan, (2) GPS user sendiri, (3) fallback Jakarta
+  let lat = centerLat, lng = centerLng;
+  if(!lat && myLocation){ lat = myLocation.lat; lng = myLocation.lng; }
+  if(!lat){ lat = -6.2088; lng = 106.8456; }
+  communityMap = L.map('leafletMap').setView([lat, lng], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap',
+    attribution: '© OpenStreetMap',
     maxZoom: 19
   }).addTo(communityMap);
 }
@@ -2934,6 +2944,111 @@ document.querySelectorAll('.tab').forEach(tab => {
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', renderCommunityMap);
+
+// ===== PETA KOMUNITAS: SEARCH =====
+let mapSearchDebounce = null;
+async function doMapSearch(){
+  const q = (document.getElementById('mapSearchInput').value || '').trim().toLowerCase();
+  const resultsDiv = document.getElementById('mapSearchResults');
+  if(q.length < 2){ resultsDiv.style.display='none'; return; }
+
+  const hits = [];
+
+  // 1) Cari di user/toko yang sudah ada di cache (instant)
+  Object.entries(allUsersCache).forEach(([uid, u]) => {
+    const name = (u.displayName||'').toLowerCase();
+    const store = (u.storeName||'').toLowerCase();
+    const addr = (u.address||'').toLowerCase();
+    if(name.includes(q) || store.includes(q) || addr.includes(q)){
+      hits.push({
+        uid, label: u.storeName || u.displayName || '(Belum isi nama)',
+        sub: u.address || (u.storeName ? u.displayName : ''),
+        lat: u.location?.lat, lng: u.location?.lng,
+        address: u.address
+      });
+    }
+  });
+
+  resultsDiv.innerHTML = '';
+  resultsDiv.style.display = 'block';
+
+  if(hits.length === 0 && q.length >= 3){
+    // Geocode query via Nominatim kalau tidak ada hasil lokal
+    resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
+    try{
+      const resp = await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=5&countrycodes=id', {headers:{'Accept-Language':'id'}});
+      const data = await resp.json();
+      if(data && data.length){
+        resultsDiv.innerHTML = data.map((d,i) => `<div class="map-search-result" data-lat="${d.lat}" data-lng="${d.lon}" data-label="${escapeHtml(d.display_name)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
+          <span style="flex-shrink:0;margin-top:1px;">📍</span>
+          <span style="line-height:1.4;">${escapeHtml(d.display_name.split(',').slice(0,3).join(', '))}</span>
+        </div>`).join('');
+      } else {
+        resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Tidak ditemukan.</div>';
+      }
+    } catch(e){
+      resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Gagal mencari, cek koneksi.</div>';
+    }
+    return;
+  }
+
+  if(hits.length === 0){
+    resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Tidak ditemukan di komunitas.</div>';
+    return;
+  }
+
+  resultsDiv.innerHTML = hits.map((h,i) => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
+    <span style="flex-shrink:0;margin-top:2px;">${h.lat ? '👤' : '🏪'}</span>
+    <div>
+      <div style="font-weight:600;">${escapeHtml(h.label)}</div>
+      ${h.sub ? '<div style="font-size:11.5px;color:var(--ink-soft);">'+escapeHtml(h.sub)+'</div>' : ''}
+    </div>
+  </div>`).join('');
+}
+
+document.getElementById('mapSearchInput').addEventListener('input', () => {
+  clearTimeout(mapSearchDebounce);
+  mapSearchDebounce = setTimeout(doMapSearch, 350);
+});
+document.getElementById('mapSearchBtn').addEventListener('click', doMapSearch);
+document.getElementById('mapSearchInput').addEventListener('keydown', (e) => { if(e.key==='Enter') doMapSearch(); });
+
+// Klik hasil search → fly ke lokasi di peta
+document.addEventListener('click', async (e) => {
+  const row = e.target.closest('.map-search-result');
+  if(!row) return;
+  document.getElementById('mapSearchResults').style.display='none';
+  document.getElementById('mapSearchInput').value = '';
+
+  let lat = parseFloat(row.dataset.lat), lng = parseFloat(row.dataset.lng);
+
+  // Kalau koordinat kosong (toko yang hanya punya alamat), geocode dulu
+  if((!lat || !lng) && row.dataset.address){
+    try{
+      const resp = await fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(row.dataset.address)+'&format=json&limit=1&countrycodes=id', {headers:{'Accept-Language':'id'}});
+      const data = await resp.json();
+      if(data && data[0]){ lat=parseFloat(data[0].lat); lng=parseFloat(data[0].lon); }
+    } catch(e){}
+  }
+
+  if(!lat || !lng) return;
+
+  if(!communityMap) initCommunityMap(lat, lng);
+  else { communityMap.invalidateSize(); communityMap.flyTo([lat, lng], 17, {duration:1.2}); }
+
+  // Buka popup marker kalau ada, atau tambah marker sementara
+  let found = false;
+  if(row.dataset.uid){
+    const mk = communityMapMarkers['user_'+row.dataset.uid] || communityMapMarkers['store_'+row.dataset.uid];
+    if(mk){ mk.openPopup(); found = true; }
+  }
+  if(!found){
+    // Marker sementara untuk hasil geocode (hilang setelah 5 detik)
+    const tempLabel = row.querySelector('div')?.textContent || 'Lokasi';
+    const tmpMk = L.marker([lat,lng]).addTo(communityMap).bindPopup('<b>'+escapeHtml(tempLabel)+'</b>').openPopup();
+    setTimeout(() => { try{ communityMap.removeLayer(tmpMk); }catch(e){} }, 5000);
+  }
+});
 
 function setupPresence(){
   if(!window.firebaseReady) return;
@@ -3151,7 +3266,7 @@ function renderUserDirectory(){
   const mySelfDiv = document.getElementById('mySelfCard');
   if(mySelfDiv){
     const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
-    mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);">
+    mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:default;" data-self="true">
       <span class="status-dot on"></span>
       <div>
         <div class="uc-name">${escapeHtml(myName)}${adminBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
@@ -3211,7 +3326,9 @@ document.addEventListener('click', (e) => {
   if(e.target.closest('.ud-admin-del')) return; // ditangani handler terpisah di bawah
   const card = e.target.closest('.user-card');
   if(card){
+    if(card.dataset.self) return; // ini card diri sendiri, jangan buka popup
     const uid = card.dataset.uid;
+    if(!uid) return; // tidak ada uid, skip
     const u = allUsersCache[uid] || {};
     const p = allPresenceCache[uid] || {};
     $('pdName').textContent = u.displayName || u.storeName || 'Pengguna UMKM';
@@ -3222,7 +3339,41 @@ document.addEventListener('click', (e) => {
     if(u.paymentId){ $('pdPaymentRow').style.display='flex'; $('pdPayment').textContent=u.paymentId; } else { $('pdPaymentRow').style.display='none'; }
     if(u.paymentLink){ $('pdPaymentLinkRow').style.display='flex'; $('pdPaymentLink').textContent=u.paymentLink; $('pdPaymentLink').href=u.paymentLink; } else { $('pdPaymentLinkRow').style.display='none'; }
     if(u.address){ $('pdAddressRow').style.display='flex'; $('pdAddress').textContent=u.address; } else { $('pdAddressRow').style.display='none'; }
-    if(u.location){ $('pdMapWrap').style.display='block'; $('pdMap').src=mapEmbedUrl(u.location.lat,u.location.lng); } else { $('pdMapWrap').style.display='none'; $('pdMap').src=''; }
+    if(u.location){
+      $('pdMapWrap').style.display='block';
+      // Render mini Leaflet map in profile detail
+      setTimeout(()=>{
+        const mapEl = $('pdLeafletMap');
+        if(!mapEl) return;
+        // Destroy existing map if any
+        if(mapEl._leaflet_id) { try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){} }
+        mapEl.innerHTML = '';
+        const pMap = L.map(mapEl).setView([u.location.lat, u.location.lng], 16);
+        mapEl._leaflet_map = pMap;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM',maxZoom:19}).addTo(pMap);
+        const icon = makeUserIcon(false);
+        L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
+          .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+        // Google Maps link
+        const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+u.location.lat+','+u.location.lng;
+        $('pdOpenMapsBtn').href = gmUrl;
+        $('pdOpenMapsBtn').style.display = 'block';
+        // Jika kita punya lokasi sendiri, tampilkan info jarak kasar
+        const routeDiv = $('pdRouteInfo');
+        if(myLocation && myLocation.lat){
+          const R = 6371;
+          const dLat = (u.location.lat - myLocation.lat)*Math.PI/180;
+          const dLng = (u.location.lng - myLocation.lng)*Math.PI/180;
+          const a = Math.sin(dLat/2)**2 + Math.cos(myLocation.lat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+'km';
+          routeDiv.style.display = 'block';
+          routeDiv.innerHTML = '📏 Jarak dari lokasimu: <b>'+distStr+'</b> &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Lihat rute →</a>';
+        } else {
+          routeDiv.style.display = 'none';
+        }
+      }, 120);
+    } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }
     $('profileDetailModal').classList.add('show');
   }
 });

@@ -3129,10 +3129,14 @@ async function doMapSearch(){
     const store = (u.storeName||'').toLowerCase();
     const addr = (u.address||'').toLowerCase();
     if(name.includes(q) || store.includes(q) || addr.includes(q)){
+      // Kalau ada alamat teks (lokasi toko), jangan pakai koordinat GPS live user.
+      // Biarkan lat/lng kosong supaya click handler geocode alamat toko yang benar.
+      const hasAddress = !!(u.address && u.address.trim());
       hits.push({
         uid, label: u.storeName || u.displayName || '(Belum isi nama)',
         sub: u.address || (u.storeName ? u.displayName : ''),
-        lat: u.location?.lat, lng: u.location?.lng,
+        lat: hasAddress ? null : u.location?.lat,
+        lng: hasAddress ? null : u.location?.lng,
         address: u.address
       });
     }
@@ -3246,15 +3250,22 @@ document.addEventListener('click', async (e) => {
   else { communityMap.invalidateSize(); }
   communityMap.flyTo([lat, lng], 18, {duration:1});
 
-  // Coba buka popup marker yang sudah ada di peta
+  // Buka popup marker yang tepat di peta.
+  // Kalau koordinat berasal dari geocode alamat teks (bukan GPS live), selalu buat
+  // marker toko baru di titik geocode — jangan buka marker GPS live user di kota lain.
+  const geocodedFromAddress = !!(row.dataset.address && row.dataset.address.trim() &&
+    (isNaN(parseFloat(row.dataset.lat)) || parseFloat(row.dataset.lat) === 0 || row.dataset.lat === ''));
   setTimeout(() => {
     let found = false;
-    if(row.dataset.uid){
-      const mk = communityMapMarkers['user_'+row.dataset.uid] || communityMapMarkers['store_'+row.dataset.uid];
+    if(!geocodedFromAddress && row.dataset.uid){
+      // Koordinat dari GPS toko (bukan geocode) — buka marker store yang sudah ada
+      const mk = communityMapMarkers['store_'+row.dataset.uid];
       if(mk){ mk.openPopup(); found = true; }
     }
     if(!found){
-      // Tambah marker toko sementara dengan icon toko
+      // Hapus marker sementara sebelumnya
+      communityMapMarkers['tmp_search'] && (() => { try{ communityMap.removeLayer(communityMapMarkers['tmp_search']); }catch(e){} })();
+      // Tambah marker toko sementara di koordinat yang benar (hasil geocode alamat)
       const tmpIcon = makeStoreIcon();
       const _tLabel = escapeHtml(tempLabel);
       const tmpMk = L.marker([lat, lng], {icon: tmpIcon}).addTo(communityMap)
@@ -3262,7 +3273,6 @@ document.addEventListener('click', async (e) => {
           +(row.dataset.address ? '<div style="font-size:11.5px;color:#6B645A;margin-top:3px;">'+escapeHtml(row.dataset.address)+'</div>' : '')
           +'<button class="map-route-btn" data-lat="'+lat+'" data-lng="'+lng+'" data-name="'+_tLabel+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button></div>', {maxWidth:220})
         .openPopup();
-      communityMapMarkers['tmp_search'] && (() => { try{ communityMap.removeLayer(communityMapMarkers['tmp_search']); }catch(e){} })();
       communityMapMarkers['tmp_search'] = tmpMk;
     }
   }, 1100);

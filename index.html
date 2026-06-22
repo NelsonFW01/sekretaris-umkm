@@ -21,7 +21,7 @@
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    onAuthStateChanged, signOut, sendPasswordResetEmail
+    onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
@@ -58,7 +58,6 @@
       window.fbSignIn = signInWithEmailAndPassword;
       window.fbOnAuthStateChanged = onAuthStateChanged;
       window.fbSignOut = signOut;
-      window.fbSendPasswordReset = sendPasswordResetEmail;
       window.rtdbRef = ref;
       window.rtdbPush = push;
       window.rtdbSet = set;
@@ -104,63 +103,6 @@
     --radius: 18px;
     --shadow: 0 4px 24px rgba(42,38,34,0.06);
   }
-  body.dark-mode {
-    --bg: #1A1A1A;
-    --bg-card: #242424;
-    --sand: #2E2E2E;
-    --ink: #F0EDE8;
-    --ink-soft: #A09A90;
-    --line: #3A3A3A;
-    --shadow: 0 4px 24px rgba(0,0,0,0.3);
-  }
-  /* ===== FULLSCREEN IMAGE VIEWER ===== */
-  #imgFullscreenOverlay {
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
-    z-index:9999; align-items:center; justify-content:center; flex-direction:column;
-    cursor:zoom-out;
-  }
-  #imgFullscreenOverlay.show { display:flex; }
-  #imgFullscreenOverlay img { max-width:95vw; max-height:90vh; border-radius:10px; object-fit:contain; }
-  #imgFullscreenOverlay .fs-close {
-    position:absolute; top:14px; right:18px; background:rgba(255,255,255,0.15); border:none;
-    color:white; font-size:22px; cursor:pointer; border-radius:50%; width:38px; height:38px;
-    display:flex; align-items:center; justify-content:center;
-  }
-  /* ===== NOTIFICATIONS ===== */
-  .notif-dot {
-    display:none; position:absolute; top:-3px; right:-3px; width:10px; height:10px;
-    background:var(--coral); border-radius:50%; border:2px solid var(--bg);
-  }
-  .notif-dot.show { display:block; }
-  /* ===== SETTINGS PANEL ===== */
-  .settings-section { margin-bottom:18px; }
-  .settings-section h4 { font-size:13px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:10px; }
-  .setting-row {
-    background:var(--bg-card); border:1px solid var(--line); border-radius:12px; padding:13px 16px;
-    display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;
-  }
-  .setting-row .sr-label { font-size:14px; font-weight:500; }
-  .setting-row .sr-sub { font-size:12px; color:var(--ink-soft); margin-top:2px; }
-  .toggle-switch {
-    position:relative; width:46px; height:26px; cursor:pointer;
-  }
-  .toggle-switch input { opacity:0; width:0; height:0; position:absolute; }
-  .toggle-switch .slider {
-    position:absolute; inset:0; background:var(--sand); border-radius:26px;
-    transition:.3s; border:1px solid var(--line);
-  }
-  .toggle-switch input:checked + .slider { background:var(--teal); border-color:var(--teal); }
-  .toggle-switch .slider:before {
-    content:''; position:absolute; height:20px; width:20px; left:2px; bottom:2px;
-    background:white; border-radius:50%; transition:.3s;
-  }
-  .toggle-switch input:checked + .slider:before { transform:translateX(20px); }
-  /* ===== TRANSLATE INDICATOR ===== */
-  .translate-hint {
-    display:none; padding:6px 12px; background:#E8F5E9; border-radius:8px; font-size:12px;
-    color:#2D7A4F; font-weight:600; margin-top:6px; align-items:center; gap:6px;
-  }
-  .translate-hint.show { display:flex; }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
   body{
@@ -223,7 +165,6 @@
   .record-zone{
     background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 28px 22px; text-align:center; border: 1px solid var(--line); margin-bottom: 18px;
-    overflow: hidden; box-sizing: border-box; width: 100%;
   }
   .record-zone h2{ font-size:18px; margin-bottom:4px; }
   .record-zone p.hint{ color:var(--ink-soft); font-size:13.5px; margin-bottom:22px; }
@@ -245,15 +186,15 @@
   .mic-status{ font-size: 13px; color: var(--ink-soft); font-weight:500; min-height:18px; }
   .mic-status.live{ color: var(--coral); font-weight:600; }
 
-  .text-fallback{ display:flex; gap:8px; margin-top:18px; width:100%; box-sizing:border-box; }
+  .text-fallback{ display:flex; gap:8px; margin-top:18px; }
   .text-fallback input{
-    flex:1; min-width:0; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
-    font-size: 14px; font-family: inherit; background: var(--bg); box-sizing:border-box;
+    flex:1; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+    font-size: 14px; font-family: inherit; background: var(--bg);
   }
   .text-fallback input:focus{ outline:none; border-color: var(--teal); }
   .text-fallback button{
-    flex-shrink:0; padding: 12px 18px; border-radius: 12px; border:none; background: var(--teal);
-    color:white; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap;
+    padding: 12px 18px; border-radius: 12px; border:none; background: var(--teal);
+    color:white; font-weight:600; font-size:14px; cursor:pointer;
   }
   .text-fallback button:disabled{ opacity:0.5; cursor:not-allowed; }
 
@@ -625,105 +566,6 @@
   .upload-progress-bar-bg{height:8px;background:var(--sand);border-radius:10px;overflow:hidden;}
   .upload-progress-bar{height:100%;background:var(--teal);border-radius:10px;width:0%;transition:width .3s;}
   .upload-progress-label{font-size:11.5px;color:var(--ink-soft);margin-top:5px;text-align:center;}
-
-  /* ===== SPLASH / ONBOARDING SCREEN ===== */
-  .splash-overlay{
-    position:fixed;inset:0;z-index:10001;
-    background:linear-gradient(160deg,#1B4D4A 0%,#103230 60%,#0D2826 100%);
-    display:flex;flex-direction:column;align-items:center;overflow-y:auto;
-    padding:0 0 32px;
-  }
-  .splash-overlay.hidden{display:none;}
-  .splash-hero{
-    width:100%;padding:48px 28px 32px;text-align:center;
-    background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%);
-    border-bottom:1px solid rgba(255,255,255,0.08);
-  }
-  .splash-logo{
-    width:68px;height:68px;background:rgba(255,255,255,0.12);border-radius:20px;
-    display:flex;align-items:center;justify-content:center;font-size:32px;
-    margin:0 auto 18px;border:2px solid rgba(255,255,255,0.18);
-  }
-  .splash-hero h1{
-    font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;
-    color:#fff;letter-spacing:-0.02em;margin-bottom:8px;line-height:1.2;
-  }
-  .splash-hero p{
-    color:rgba(255,255,255,0.65);font-size:14px;line-height:1.6;max-width:320px;margin:0 auto;
-  }
-  .splash-slides{
-    width:100%;max-width:440px;padding:0 20px;margin-top:28px;
-  }
-  .splash-slide{
-    display:none;animation:fadeUp .35s ease;
-  }
-  .splash-slide.active{display:block;}
-  .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
-  .feature-card{
-    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
-    border-radius:14px;padding:14px 12px;text-align:center;
-  }
-  .feature-card .fc-icon{font-size:26px;margin-bottom:6px;}
-  .feature-card .fc-title{font-size:12.5px;font-weight:700;color:#fff;margin-bottom:3px;}
-  .feature-card .fc-desc{font-size:11px;color:rgba(255,255,255,0.55);line-height:1.4;}
-  .splash-section-title{
-    font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:700;
-    color:rgba(255,255,255,0.9);margin-bottom:14px;text-align:center;letter-spacing:-0.01em;
-  }
-  .setup-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
-  .setup-step{
-    display:flex;align-items:flex-start;gap:12px;
-    background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);
-    border-radius:13px;padding:13px 14px;
-  }
-  .setup-step .ss-num{
-    width:26px;height:26px;border-radius:50%;background:var(--coral);color:white;
-    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;
-    margin-top:1px;
-  }
-  .setup-step .ss-body{}
-  .setup-step .ss-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;}
-  .setup-step .ss-desc{font-size:11.5px;color:rgba(255,255,255,0.55);line-height:1.45;}
-  .boost-promo-card{
-    background:linear-gradient(135deg,rgba(232,99,63,0.22),rgba(200,79,47,0.14));
-    border:1.5px solid rgba(232,99,63,0.4);border-radius:16px;padding:18px;text-align:center;
-    margin-bottom:20px;
-  }
-  .boost-promo-card .bp-icon{font-size:32px;margin-bottom:8px;}
-  .boost-promo-card h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;font-family:'Plus Jakarta Sans',sans-serif;}
-  .boost-promo-card p{font-size:12.5px;color:rgba(255,255,255,0.7);line-height:1.5;margin-bottom:12px;}
-  .boost-promo-card .bp-price{
-    display:inline-block;background:var(--coral);color:white;font-weight:800;font-size:14px;
-    padding:6px 18px;border-radius:20px;
-  }
-  .splash-dots{
-    display:flex;justify-content:center;gap:6px;margin-bottom:22px;
-  }
-  .splash-dot{
-    width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.25);
-    transition:all .25s ease;cursor:pointer;
-  }
-  .splash-dot.active{background:#fff;width:22px;border-radius:4px;}
-  .splash-nav{
-    display:flex;gap:10px;padding:0 20px;width:100%;max-width:440px;
-  }
-  .splash-nav .sn-skip{
-    flex:0;padding:13px 18px;border-radius:13px;border:1.5px solid rgba(255,255,255,0.2);
-    background:transparent;color:rgba(255,255,255,0.6);font-size:13px;font-weight:600;cursor:pointer;
-    white-space:nowrap;
-  }
-  .splash-nav .sn-next{
-    flex:1;padding:13px;border-radius:13px;border:none;
-    background:white;color:var(--teal);font-size:14px;font-weight:800;cursor:pointer;
-    font-family:'Plus Jakarta Sans',sans-serif;transition:opacity .15s;
-  }
-  .splash-nav .sn-next:active{opacity:0.85;}
-  .splash-nav .sn-start{
-    flex:1;padding:13px;border-radius:13px;border:none;
-    background:var(--coral);color:white;font-size:14px;font-weight:800;cursor:pointer;
-    font-family:'Plus Jakarta Sans',sans-serif;transition:opacity .15s;
-  }
-  .splash-nav .sn-start:active{opacity:0.85;}
 </style>
 </head>
 <body>
@@ -733,12 +575,6 @@
     <div class="brand">
       <div class="brand-mark">S</div>
       <div class="brand-name">Sekretaris UMKM</div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-        <button id="notifBtn" style="position:relative;background:none;border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:15px;" title="Notifikasi">
-          🔔<span class="notif-dot" id="notifDot"></span>
-        </button>
-        <button id="darkModeBtn" style="background:none;border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:15px;" title="Dark/Light Mode">🌙</button>
-      </div>
     </div>
     <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
   </header>
@@ -755,8 +591,22 @@
     <br>6. Simpan, upload ulang ke GitHub Pages.
   </div>
 
-  <!-- API key sekarang diatur lewat tab ⚙️ Pengaturan (lihat panel-settings) -->
-  <div id="keyBanner" style="display:none;"></div>
+  <div class="key-banner" id="keyBanner">
+    <div id="keyStatusSummary" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleKeyBannerDetails()">
+      <div id="keyStatus" style="font-weight:600;font-size:13px;"></div>
+      <span id="keyBannerToggleLabel" style="font-size:11.5px;color:var(--coral);font-weight:700;white-space:nowrap;margin-left:10px;">⚙️ Ganti Key</span>
+    </div>
+    <div id="keyBannerDetails" style="display:none;margin-top:10px;">
+      <div style="margin-bottom:8px;font-size:12px;color:#8A5A1F;line-height:1.5;">
+        Pakai key kamu sendiri supaya tidak bagi kuota dengan pengguna lain. Tersimpan otomatis di browser ini.
+        <br><strong>1. Groq (utama, gratis)</strong> — <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
+      </div>
+      <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key (opsional, ada key default)">
+      <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:#8A5A1F;"><strong>2. OpenRouter (cadangan)</strong> — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></div>
+      <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key (opsional)">
+      <div style="margin-top:8px;font-size:11.5px;color:#8A5A1F;">Kosongkan untuk pakai key bawaan (kuota bisa habis di jam sibuk).</div>
+    </div>
+  </div>
 
   <div class="tabs">
     <button class="tab active" data-panel="finance">💰 Catat Uang</button>
@@ -766,7 +616,6 @@
     <button class="tab" data-panel="live">📺 LIVE</button>
     <button class="tab" data-panel="videos">🎥 Video</button>
     <button class="tab" data-panel="community">👥 Komunitas</button>
-    <button class="tab" data-panel="settings">⚙️ Setting</button>
   </div>
 
   <main>
@@ -784,7 +633,6 @@
           <input type="text" id="textInput" placeholder="atau ketik di sini...">
           <button id="submitText">Catat</button>
         </div>
-        <div class="translate-hint" id="financeTranslateHint" onclick="applyAutoTranslate(this)">🌐</div>
       </div>
 
       <div class="loading-dots" id="financeLoading">
@@ -867,10 +715,7 @@
 
       <div class="field-group">
         <label>Nama produk (opsional, bantu AI lebih akurat)</label>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="productName" placeholder="contoh: Keripik singkong balado" style="flex:1;">
-          <button type="button" id="productNameTranslateBtn" title="Terjemahkan ID ↔ EN" style="flex-shrink:0;padding:0 14px;border-radius:11px;border:1.5px solid var(--line);background:var(--bg-card);font-size:16px;cursor:pointer;">🌐</button>
-        </div>
+        <input type="text" id="productName" placeholder="contoh: Keripik singkong balado">
       </div>
       <div class="field-group">
         <label>Nama toko/UMKM kamu (muncul di galeri publik)</label>
@@ -902,13 +747,11 @@
           <div class="rc-label">Judul Produk</div>
           <div class="rc-text" id="resTitle"></div>
           <button class="copy-btn" data-target="resTitle">Salin teks</button>
-          <button class="copy-btn" id="resTitleTranslateBtn" data-target="resTitle" style="margin-left:8px;">🌐 Terjemahkan</button>
         </div>
         <div class="result-card">
           <div class="rc-label">Caption & Deskripsi</div>
           <div class="rc-text" id="resCaption"></div>
           <button class="copy-btn" data-target="resCaption">Salin teks</button>
-          <button class="copy-btn" id="resCaptionTranslateBtn" data-target="resCaption" style="margin-left:8px;">🌐 Terjemahkan</button>
         </div>
         <div class="result-card">
           <div class="rc-label">Estimasi Harga Jual</div>
@@ -987,29 +830,9 @@
           </div>
         </div>
 
-        <div id="liveCohostGrid" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
-
         <div class="live-cam-row">
           <button class="cam-btn" id="toggleCamBtn">📷 Aktifkan Kamera</button>
-          <button id="toggleMicBtn" style="border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);">🎙️ Matikan Mic</button>
           <button class="stop-btn" id="stopLiveBtn">⏹ Stop Live</button>
-        </div>
-        <div id="stopProgressWrap" style="display:none;margin-top:10px;background:var(--sand);border-radius:10px;padding:10px 14px;">
-          <div style="font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;" id="stopStatusText">Mengakhiri sesi...</div>
-          <div style="background:var(--line);border-radius:6px;height:6px;overflow:hidden;">
-            <div id="stopProgressBar" style="height:100%;background:var(--coral);border-radius:6px;width:0%;transition:width .4s ease;"></div>
-          </div>
-        </div>
-
-        <div style="background:var(--sand);border-radius:12px;padding:12px;margin:10px 0;">
-          <div style="font-size:13px;font-weight:700;margin-bottom:8px;">👥 Collab Live — ajak penjual lain gabung siaran ini</div>
-          <div style="display:flex;gap:6px;">
-            <select id="collabInviteSelect" style="flex:1;padding:9px 10px;border-radius:10px;border:1.5px solid var(--line);font-size:13px;">
-              <option value="">Pilih pengguna online...</option>
-            </select>
-            <button class="generate-btn outline" id="collabInviteBtn" style="margin-bottom:0;padding:9px 14px;font-size:13px;">➕ Undang</button>
-          </div>
-          <div id="collabCohostList" style="margin-top:8px;font-size:12px;color:var(--ink-soft);"></div>
         </div>
 
         <div class="coach-panel">
@@ -1067,13 +890,6 @@
 
       <!-- ===== WATCH MODE ===== -->
       <div id="liveWatchMode" style="display:none;">
-        <div id="collabInviteBanner" style="display:none;background:#FFF3CD;border:1.5px solid #E8B339;border-radius:12px;padding:12px;margin-bottom:12px;">
-          <div id="collabInviteText" style="font-size:13px;font-weight:600;margin-bottom:8px;"></div>
-          <div style="display:flex;gap:8px;">
-            <button class="generate-btn" id="collabAcceptBtn" style="margin-bottom:0;padding:9px 14px;font-size:13px;">✅ Gabung Live</button>
-            <button class="generate-btn outline" id="collabDeclineBtn" style="margin-bottom:0;padding:9px 14px;font-size:13px;">✕ Tolak</button>
-          </div>
-        </div>
         <div id="sessionListWrap">
           <h3 style="font-size:14px;margin-bottom:10px;">🔴 Sedang Live Sekarang</h3>
           <div id="sessionList"><div class="empty-state">Memuat daftar sesi live...</div></div>
@@ -1096,11 +912,6 @@
               <div class="emote-rain" id="viewerEmoteRain"></div>
               <div class="live-comments-overlay" id="viewerCommentsOverlay"></div>
             </div>
-          </div>
-          <div id="viewerCohostGrid" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
-          <div id="cohostControls" style="display:none;gap:8px;margin-top:8px;">
-            <button id="cohostToggleCamBtn" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-weight:700;font-size:13px;cursor:pointer;">📷 Matikan Kamera</button>
-            <button id="cohostToggleMicBtn" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-weight:700;font-size:13px;cursor:pointer;">🎙️ Matikan Mic</button>
           </div>
           <div class="emote-row">
             <button class="emote-send viewer-emote" data-emote="🔥">🔥</button>
@@ -1175,90 +986,9 @@
         <iframe class="map-embed" id="myMapEmbed" style="display:none;"></iframe>
       </div>
 
-      <div class="section-divider">Status Saya di Komunitas</div>
-      <div id="mySelfCard" style="margin-bottom:12px;"></div>
       <div class="section-divider">Pengguna Lain</div>
       <div class="user-directory" id="userDirectory">
         <div class="empty-state">Memuat daftar pengguna...</div>
-      </div>
-    </section>
-    <!-- ===== SETTINGS PANEL ===== -->
-    <section class="panel" id="panel-settings">
-      <h2 style="font-size:18px;margin-bottom:16px;">⚙️ Pengaturan</h2>
-
-      <div class="settings-section">
-        <h4>Tampilan</h4>
-        <div class="setting-row">
-          <div>
-            <div class="sr-label">Mode Gelap (Dark Mode)</div>
-            <div class="sr-sub">Lebih nyaman di kondisi cahaya redup</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="settingDarkMode">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h4>Bahasa & Terjemahan</h4>
-        <div class="setting-row">
-          <div>
-            <div class="sr-label">Terjemahan Otomatis</div>
-            <div class="sr-sub">Teks Indonesia ↔ Inggris otomatis terdeteksi saat input</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="settingAutoTranslate" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div style="background:var(--sand);border-radius:12px;padding:14px;margin-top:8px;">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px;">🌐 Terjemahan Manual</div>
-          <textarea id="translateInput" rows="3" placeholder="Ketik teks untuk diterjemahkan..." style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;resize:vertical;"></textarea>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="generate-btn outline" id="translateToEnBtn" style="margin-bottom:0;padding:10px;font-size:13px;">🇬🇧 ID → EN</button>
-            <button class="generate-btn outline" id="translateToIdBtn" style="margin-bottom:0;padding:10px;font-size:13px;">🇮🇩 EN → ID</button>
-          </div>
-          <div id="translateResult" style="display:none;margin-top:10px;padding:12px 14px;background:var(--bg-card);border-radius:10px;border:1px solid var(--line);font-size:13.5px;line-height:1.6;white-space:pre-wrap;"></div>
-          <button id="translateCopyBtn" style="display:none;margin-top:8px;font-size:12px;font-weight:600;color:var(--teal);background:none;border:none;cursor:pointer;">📋 Salin hasil terjemahan</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h4>Notifikasi</h4>
-        <div class="setting-row">
-          <div>
-            <div class="sr-label">Notifikasi Pesan Baru</div>
-            <div class="sr-sub">Tampilkan tanda merah saat ada aktivitas baru</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="settingNotif" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="settings-section">
-        <h4>🔑 API Key AI</h4>
-        <div id="keyStatus" style="font-weight:600;font-size:13px;margin-bottom:10px;"></div>
-        <div style="margin-bottom:8px;font-size:12px;color:var(--ink-soft);line-height:1.5;">
-          Pakai key kamu sendiri supaya tidak bagi kuota dengan pengguna lain. Tersimpan otomatis di browser ini.
-          <br><strong>1. Groq (utama, gratis)</strong> — <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
-        </div>
-        <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key (opsional, ada key default)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;">
-        <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:var(--ink-soft);"><strong>2. OpenRouter (cadangan)</strong> — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></div>
-        <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key (opsional)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;">
-        <div style="margin-top:8px;font-size:11.5px;color:var(--ink-soft);">Kosongkan untuk pakai key bawaan (kuota bisa habis di jam sibuk).</div>
-      </div>
-
-      <div class="settings-section">
-        <h4>Tentang Aplikasi</h4>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
-          <div class="sr-label">Sekretaris UMKM</div>
-          <div class="sr-sub">Versi 2.0 · Dibuat untuk IDCamp Developer Challenge</div>
-          <div class="sr-sub">Ditenagai Groq &amp; OpenRouter AI + Firebase</div>
-        </div>
-        <button class="generate-btn outline" id="clearDataBtn" style="margin-top:8px;border-color:var(--bad);color:var(--bad);">🗑️ Hapus Semua Data Lokal (Reset)</button>
       </div>
     </section>
   </main>
@@ -1291,144 +1021,8 @@
   <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
 </div>
 
-<!-- ===== FULLSCREEN IMAGE VIEWER ===== -->
-<div id="imgFullscreenOverlay" onclick="closeImgFullscreen()">
-  <button class="fs-close" onclick="closeImgFullscreen()">✕</button>
-  <img id="imgFullscreenImg" src="" alt="Gambar Produk">
-</div>
-
-<!-- ===== NOTIFIKASI MODAL ===== -->
-<div class="modal-overlay" id="notifModal">
-  <div class="modal-box">
-    <button class="modal-close" id="notifModalClose">✕</button>
-    <h3>🔔 Notifikasi</h3>
-    <div id="notifList" style="margin-top:12px;">
-      <div class="empty-state">Tidak ada notifikasi baru.</div>
-    </div>
-    <button class="generate-btn outline" id="clearNotifBtn" style="margin-top:12px;padding:10px;">🗑️ Bersihkan Semua</button>
-  </div>
-</div>
-
 <!-- ===== LOGIN / REGISTER (WAJIB SEBELUM PAKAI APLIKASI) ===== -->
-<!-- ===== SPLASH / ONBOARDING SCREEN ===== -->
-<div class="splash-overlay" id="splashOverlay">
-  <div class="splash-hero">
-    <div class="splash-logo">🤝</div>
-    <h1>Sekretaris UMKM</h1>
-    <p>Asisten AI serba bisa untuk usaha kecil & menengah Indonesia</p>
-  </div>
-
-  <div class="splash-slides" style="width:100%;max-width:440px;padding:0 20px;margin-top:28px;">
-
-    <!-- Slide 1: Fitur-fitur -->
-    <div class="splash-slide active" id="splashSlide1">
-      <div class="splash-section-title">✨ Semua yang kamu butuhkan</div>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="fc-icon">💰</div>
-          <div class="fc-title">Catat Keuangan</div>
-          <div class="fc-desc">Cukup ngomong atau ketik, AI langsung catat otomatis</div>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📸</div>
-          <div class="fc-title">Bikin Konten</div>
-          <div class="fc-desc">Caption & foto produk siap posting ke medsos</div>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📺</div>
-          <div class="fc-title">Live Streaming</div>
-          <div class="fc-desc">Siaran langsung + catat pesanan otomatis saat live</div>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">🌍</div>
-          <div class="fc-title">Galeri Publik</div>
-          <div class="fc-desc">Pamerkan produk ke sesama pedagang UMKM</div>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">📊</div>
-          <div class="fc-title">Dashboard</div>
-          <div class="fc-desc">Grafik pemasukan & pengeluaran real-time</div>
-        </div>
-        <div class="feature-card">
-          <div class="fc-icon">👥</div>
-          <div class="fc-title">Komunitas</div>
-          <div class="fc-desc">Terhubung & kolaborasi live bareng UMKM lain</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Slide 2: Setup API -->
-    <div class="splash-slide" id="splashSlide2">
-      <div class="splash-section-title">⚙️ Setup awal (2 menit)</div>
-      <div class="setup-steps">
-        <div class="setup-step">
-          <div class="ss-num">1</div>
-          <div class="ss-body">
-            <div class="ss-title">Daftar & masuk akun</div>
-            <div class="ss-desc">Buat akun gratis dengan email — akun ini terhubung ke komunitas UMKM se-Indonesia</div>
-          </div>
-        </div>
-        <div class="setup-step">
-          <div class="ss-num">2</div>
-          <div class="ss-body">
-            <div class="ss-title">Ambil API Key AI</div>
-            <div class="ss-desc">Buka <strong style="color:rgba(255,255,255,0.9);">gemini.google.com/app</strong> atau OpenAI, salin API key-mu (gratis tersedia)</div>
-          </div>
-        </div>
-        <div class="setup-step">
-          <div class="ss-num">3</div>
-          <div class="ss-body">
-            <div class="ss-title">Tempel di tab ⚙️ Setting</div>
-            <div class="ss-desc">Masuk ke tab Setting → tempel API key → semua fitur AI langsung aktif</div>
-          </div>
-        </div>
-        <div class="setup-step">
-          <div class="ss-num">4</div>
-          <div class="ss-body">
-            <div class="ss-title">Lengkapi profil toko</div>
-            <div class="ss-desc">Isi nama toko & info pembayaran di tab 👥 Komunitas supaya pembeli mudah menghubungimu</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Slide 3: Boost promo -->
-    <div class="splash-slide" id="splashSlide3">
-      <div class="splash-section-title">🚀 Mau produkmu makin dilihat?</div>
-      <div class="boost-promo-card">
-        <div class="bp-icon">🚀</div>
-        <h3>Fitur Boost Produk</h3>
-        <p>Tampilkan produkmu di urutan <strong style="color:#fff;">paling atas</strong> Galeri Publik selama 24 jam penuh. Dilihat oleh semua pengguna Sekretaris UMKM!</p>
-        <div class="bp-price">Hanya Rp 10.000 / 24 jam</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">🎥 Collab Live Streaming</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Undang UMKM lain untuk live bareng dalam satu siaran. Kalian bisa tampil bersama, berbagi penonton, dan saling promosi — gratis!</div>
-      </div>
-      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:8px;">
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">📹 Galeri Video Live</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Rekaman sesi live tersimpan otomatis dan bisa ditonton siapa saja di tab Video — bangun kepercayaan pembeli lewat konten nyata.</div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Dots indicator -->
-  <div class="splash-dots" style="margin-top:20px;">
-    <div class="splash-dot active" data-slide="1"></div>
-    <div class="splash-dot" data-slide="2"></div>
-    <div class="splash-dot" data-slide="3"></div>
-  </div>
-
-  <!-- Nav buttons -->
-  <div class="splash-nav">
-    <button class="sn-skip" id="splashSkipBtn">Lewati</button>
-    <button class="sn-next" id="splashNextBtn">Lanjut →</button>
-  </div>
-</div>
-
-
-<div class="welcome-overlay hidden" id="authOverlay" style="display:none!important;">
+<div class="welcome-overlay" id="authOverlay">
   <div class="welcome-box">
     <div class="wb-icon">🔐</div>
     <h2 id="authTitle">Masuk ke Akunmu</h2>
@@ -1442,8 +1036,7 @@
     <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
     <div class="auth-error" id="authError"></div>
     <button id="authSubmitBtn">Masuk</button>
-    <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
-    <div class="wb-hint" style="margin-top:14px;">Kamu bisa mengganti nama tampilan kapan saja lewat halaman Profil.</div>
+    <div class="wb-hint" style="margin-top:14px;">Nama tampilan hanya bisa diisi satu kali sesuai email akunmu.</div>
   </div>
 </div>
 
@@ -1562,8 +1155,15 @@ function showDebugToast(msg){
 window.addEventListener('error', (e)=>{ showDebugToast('JS Error: '+e.message); });
 window.addEventListener('unhandledrejection', (e)=>{ showDebugToast('Promise Error: '+((e.reason&&e.reason.message)||e.reason)); });
 
-// ============ USER IDENTITY (pakai Firebase Auth UID, sama di semua device) ============
-let MY_UID = null; // diisi saat login berhasil (onAuthStateChanged), bukan dari device lagi
+// ============ USER IDENTITY (device-based id, dipasangkan dengan akun login) ============
+function getUserId(){
+  try{
+    let uid = localStorage.getItem('umkm_user_id');
+    if(!uid){ uid = 'u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8); localStorage.setItem('umkm_user_id', uid); }
+    return uid;
+  }catch(e){ return 'guest_'+Math.random().toString(36).slice(2,8); }
+}
+const MY_UID = getUserId();
 
 // ============ AUTH GATE: LOGIN / REGISTER WAJIB ============
 const ADMIN_EMAIL = 'nagoyaflora@gmail.com';
@@ -1581,14 +1181,12 @@ function updateAuthModeUI(){
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     $a('authTabLogin').classList.remove('active');
     $a('authTabRegister').classList.add('active');
-    $a('forgotPasswordBtn').style.display = 'none';
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
     $a('authSubmitBtn').textContent = 'Masuk';
     $a('authTabRegister').classList.remove('active');
     $a('authTabLogin').classList.add('active');
-    $a('forgotPasswordBtn').style.display = 'inline-block';
   }
 }
 $a('authTabLogin').addEventListener('click', ()=>{ authMode='login'; updateAuthModeUI(); });
@@ -1610,23 +1208,22 @@ function translateAuthError(code){
 }
 
 function applyNameLockUI(){
-  // Nama TIDAK dikunci lagi — user/admin bebas rename kapan saja.
   const inp = $a('profDisplayName');
   if(!inp) return;
-  inp.readOnly = false;
-  inp.style.background = '';
-  inp.style.cursor = '';
+  const locked = !!myProfile.nameLocked;
+  inp.readOnly = locked;
+  inp.style.background = locked ? 'var(--sand)' : '';
+  inp.style.cursor = locked ? 'not-allowed' : '';
   let hint = document.getElementById('nameLockHint');
-  if(hint){
-    hint.textContent = '✏️ Kamu bisa mengganti nama kapan saja.';
-    hint.style.color = 'var(--ink-soft)';
-  } else {
-    hint = document.createElement('div');
-    hint.id = 'nameLockHint';
-    hint.style.cssText = 'font-size:11.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:12px;';
-    hint.textContent = '✏️ Kamu bisa mengganti nama kapan saja.';
-    inp.insertAdjacentElement('afterend', hint);
-  }
+  if(locked){
+    if(!hint){
+      hint = document.createElement('div');
+      hint.id = 'nameLockHint';
+      hint.style.cssText = 'font-size:11.5px;color:var(--ink-soft);margin-top:-8px;margin-bottom:12px;';
+      hint.textContent = '🔒 Nama sudah dikunci sesuai akun emailmu dan tidak bisa diganti lagi.';
+      inp.insertAdjacentElement('afterend', hint);
+    }
+  } else if(hint){ hint.remove(); }
 }
 
 $a('authSubmitBtn').addEventListener('click', async () => {
@@ -1642,11 +1239,10 @@ $a('authSubmitBtn').addEventListener('click', async () => {
   $a('authSubmitBtn').textContent = 'Memproses...';
   try{
     if(authMode==='register'){
-      const cred = await window.fbCreateUser(window.fbAuth, email, pass);
-      MY_UID = cred.user.uid;
+      await window.fbCreateUser(window.fbAuth, email, pass);
       try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
-        displayName:name, uid:MY_UID, email:email, updatedAt:Date.now()
+        displayName:name, uid:MY_UID, email:email, nameLocked:true, updatedAt:Date.now()
       });
     } else {
       await window.fbSignIn(window.fbAuth, email, pass);
@@ -1666,54 +1262,9 @@ $a('authLogoutBtn').addEventListener('click', async () => {
   try{ await window.fbSignOut(window.fbAuth); } catch(e){}
 });
 
-$a('forgotPasswordBtn').addEventListener('click', async () => {
-  $a('authError').textContent = '';
-  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, reset password tidak bisa dipakai.'; return; }
-  const email = $a('authEmailInput').value.trim();
-  if(!email){ $a('authError').textContent = 'Isi dulu email kamu di kotak email di atas, baru klik "Lupa password?".'; return; }
-  const oldLabel = $a('forgotPasswordBtn').textContent;
-  $a('forgotPasswordBtn').disabled = true;
-  $a('forgotPasswordBtn').textContent = 'Mengirim email...';
-  try{
-    await window.fbSendPasswordReset(window.fbAuth, email);
-    $a('authError').style.color = 'var(--good)';
-    $a('authError').textContent = `✅ Link reset password sudah dikirim ke ${email}. Cek inbox (atau folder spam) lalu ikuti link-nya untuk buat password baru.`;
-  } catch(err){
-    $a('authError').style.color = '';
-    $a('authError').textContent = translateAuthError(err.code) || ('Gagal mengirim email reset: ' + err.message);
-  } finally {
-    $a('forgotPasswordBtn').disabled = false;
-    $a('forgotPasswordBtn').textContent = oldLabel;
-  }
-});
-
-// Disebut oleh initAuthGate (user belum login) DAN oleh closeSplash / seenSplash path.
-// Hanya menampilkan authOverlay jika splash sudah selesai.
-let _splashDone = false;
-let _authWantsShow = false;
-function unlockAuthOverlay(){
-  _authWantsShow = true;
-  if(_splashDone){
-    const a = document.getElementById('authOverlay');
-    if(a){ a.style.removeProperty('display'); a.classList.remove('hidden'); }
-  }
-}
-function splashDone(){
-  _splashDone = true;
-  if(_authWantsShow){
-    const a = document.getElementById('authOverlay');
-    if(a){ a.style.removeProperty('display'); a.classList.remove('hidden'); }
-  } else {
-    // user sudah login, cukup hapus inline style saja (authOverlay tetap hidden)
-    const a = document.getElementById('authOverlay');
-    if(a) a.style.removeProperty('display');
-  }
-}
-
 function initAuthGate(){
   window.fbOnAuthStateChanged(window.fbAuth, async (user) => {
     if(user){
-      MY_UID = user.uid; // Firebase Auth UID — sama persis di semua device untuk akun yang sama
       currentAuthEmail = user.email || '';
       isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
       $a('authOverlay').classList.add('hidden');
@@ -1721,17 +1272,13 @@ function initAuthGate(){
       try{
         await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {email: currentAuthEmail, uid: MY_UID});
       } catch(e){}
-      if(typeof setupPresence === 'function') setupPresence();
-      if(typeof loadMyProfile === 'function') await loadMyProfile();
-      if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
       applyNameLockUI();
       if(typeof renderUserDirectory === 'function') renderUserDirectory();
       if(typeof renderGalleryFromCache === 'function') renderGalleryFromCache();
       if(typeof renderVideoGalleryFromCache === 'function') renderVideoGalleryFromCache();
     } else {
-      MY_UID = null;
       currentAuthEmail=''; isAdmin=false;
-      unlockAuthOverlay(); // Tampilkan login hanya setelah splash selesai
+      $a('authOverlay').classList.remove('hidden');
       $a('authUserEmail').textContent = '—';
     }
   });
@@ -1765,6 +1312,18 @@ function hasAnyKey(){ return !!(groqKey || openrouterKey || DEFAULT_GROQ_KEY || 
 function activeGroqKey(){ return groqKey || DEFAULT_GROQ_KEY; }
 function activeOpenRouterKey(){ return openrouterKey || DEFAULT_OPENROUTER_KEY; }
 
+function toggleKeyBannerDetails(){
+  const d = $('keyBannerDetails');
+  const label = $('keyBannerToggleLabel');
+  if(d.style.display === 'none'){
+    d.style.display = 'block';
+    label.textContent = '✕ Tutup';
+  } else {
+    d.style.display = 'none';
+    label.textContent = '⚙️ Ganti Key';
+  }
+}
+
 // ============ API KEY ============
 function loadSavedKeys(){
   try{
@@ -1779,7 +1338,6 @@ function loadSavedKeys(){
 function updateKeyStatus(){
   $('generateBtn').disabled = !(hasAnyKey() && uploadedImageBase64);
   const status = $('keyStatus');
-  if(!status) return;
   const usingOwnKey = !!(groqKey || openrouterKey);
   const hasDefault = !!(DEFAULT_GROQ_KEY || DEFAULT_OPENROUTER_KEY);
 
@@ -1789,12 +1347,18 @@ function updateKeyStatus(){
       ? '✅ Key kamu sendiri aktif (Groq + OpenRouter)'
       : '✅ Key kamu sendiri aktif — tambah satu lagi supaya makin stabil';
     status.style.color = '#2D7A4F';
+    $('keyBanner').style.opacity = '0.85';
   } else if(hasDefault){
-    status.textContent = '🟡 Pakai key bawaan — bisa lambat di jam sibuk. Isi key sendiri di bawah ini.';
+    status.textContent = '🟡 Pakai key bawaan — bisa lambat di jam sibuk. Klik untuk isi key sendiri.';
     status.style.color = '#8A5A1F';
+    $('keyBanner').style.opacity = '1';
   } else {
-    status.textContent = '⚠️ Belum ada API key — isi key kamu sendiri di bawah ini (gratis)';
+    status.textContent = '⚠️ Belum ada API key — klik untuk isi key kamu sendiri (gratis)';
     status.style.color = '#C84F2F';
+    $('keyBanner').style.opacity = '1';
+    // Auto-buka form key kalau belum ada key sama sekali
+    $('keyBannerDetails').style.display = 'block';
+    $('keyBannerToggleLabel').textContent = '✕ Tutup';
   }
 }
 
@@ -1958,18 +1522,13 @@ function extractJson(text){
 let pendingReviews = [];
 let reportFinalized = false;
 
-function goToSettingsForKey(){
-  try{
-    document.querySelector('.tab[data-panel="settings"]')?.click();
-    document.getElementById('groqKeyInput')?.scrollIntoView({behavior:'smooth', block:'center'});
-  }catch(e){}
-}
-
 async function processTransaction(transcript){
   if(!transcript || transcript.length < 3) return;
   if(!hasAnyKey()){
-    goToSettingsForKey();
-    alert('Belum ada API key. Isi key gratis kamu di tab ⚙️ Pengaturan ya (cuma 1 menit).');
+    $('keyBannerDetails').style.display = 'block';
+    $('keyBannerToggleLabel').textContent = '✕ Tutup';
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    alert('Belum ada API key. Isi key kamu di kotak kuning atas ya (gratis, cuma 1 menit).');
     return;
   }
   $('financeLoading').classList.add('show');
@@ -1992,13 +1551,17 @@ Jika tidak ada transaksi jelas, balas [].`;
   } catch(err){
     let msg = err.message;
     if(msg === 'NO_KEY'){
-      msg = 'API key belum ada. Isi key gratis kamu di tab ⚙️ Pengaturan.';
-      goToSettingsForKey();
+      msg = 'API key belum ada. Klik banner kuning di atas untuk isi key gratis kamu.';
+      $('keyBannerDetails').style.display = 'block';
+      $('keyBannerToggleLabel').textContent = '✕ Tutup';
+      window.scrollTo({top: 0, behavior: 'smooth'});
     } else if(msg.includes('401') || msg.toLowerCase().includes('invalid api key') || msg.toLowerCase().includes('api key')){
-      msg = 'API key tidak valid atau sudah tidak aktif. Cek kembali key kamu di tab ⚙️ Pengaturan.';
-      goToSettingsForKey();
+      msg = 'API key tidak valid atau sudah tidak aktif. Cek kembali key kamu di banner kuning atas.';
+      $('keyBannerDetails').style.display = 'block';
+      $('keyBannerToggleLabel').textContent = '✕ Tutup';
+      window.scrollTo({top: 0, behavior: 'smooth'});
     } else if(msg.includes('429') || msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('quota')){
-      msg = 'Kuota AI habis sementara. Coba lagi sebentar, atau isi key sendiri di tab ⚙️ Pengaturan.';
+      msg = 'Kuota AI habis sementara. Coba lagi sebentar, atau isi key sendiri di banner kuning atas.';
     }
     alert('Gagal memproses: ' + msg);
   } finally {
@@ -2152,84 +1715,28 @@ function escapeHtml(str){
   const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
 }
 
-// ============ EXCEL EXPORT (Enhanced with Cover + Charts) ============
+// ============ EXCEL EXPORT ============
 function exportToExcel(){
   if(typeof XLSX==='undefined'){ alert('Library Excel (XLSX) gagal dimuat. Cek koneksi internet kamu lalu refresh halaman ini.'); return; }
   if(transactions.length===0){ alert('Belum ada transaksi untuk diexport.'); return; }
   const totalIn = transactions.filter(t=>t.type==='in').reduce((s,t)=>s+Number(t.amount),0);
   const totalOut = transactions.filter(t=>t.type==='out').reduce((s,t)=>s+Number(t.amount),0);
-  const net = totalIn - totalOut;
-  const now = new Date().toLocaleString('id-ID');
-  const storeName = (myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM Saya';
-
-  const wb = XLSX.utils.book_new();
-
-  // ===== SHEET 1: COVER / HALAMAN DEPAN =====
-  const coverData = [
-    [''],
-    ['', '╔══════════════════════════════════════╗'],
-    ['', '║      LAPORAN KEUANGAN UMKM            ║'],
-    ['', '╚══════════════════════════════════════╝'],
-    [''],
-    ['', '🏪 Nama UMKM', storeName],
-    ['', '📅 Tanggal Laporan', now],
-    ['', '👤 Email Akun', currentAuthEmail || '-'],
-    [''],
-    ['', '━━━━━━━━ RINGKASAN EKSEKUTIF ━━━━━━━━'],
-    [''],
-    ['', '💰 Total Pemasukan', `Rp ${totalIn.toLocaleString('id-ID')}`],
-    ['', '📤 Total Pengeluaran', `Rp ${totalOut.toLocaleString('id-ID')}`],
-    ['', `${net>=0?'📈':'📉'} Untung/Rugi Bersih`, `Rp ${net.toLocaleString('id-ID')}`],
-    ['', '🔢 Jumlah Transaksi', transactions.length],
-    [''],
-    ['', '💡 Saran AI'],
-    ['', $('aiNote').textContent || '-'],
-    [''],
-    ['', '━━━━━━━━ DISTRIBUSI PER KATEGORI ━━━━━━━━'],
-    [''],
-    ['', 'Kategori', 'Pemasukan (Rp)', 'Pengeluaran (Rp)', 'Selisih (Rp)'],
-  ];
-  const catMap2 = {};
-  transactions.forEach(t=>{
-    const c = t.category||'Lainnya';
-    if(!catMap2[c]) catMap2[c]={in:0,out:0};
-    catMap2[c][t.type==='in'?'in':'out']+=Number(t.amount)||0;
-  });
-  Object.keys(catMap2).forEach(c=>{
-    const {in:i,out:o}=catMap2[c];
-    coverData.push(['', c, i, o, i-o]);
-  });
-  const wsCover = XLSX.utils.aoa_to_sheet(coverData);
-  wsCover['!cols']=[{wch:4},{wch:32},{wch:22},{wch:22},{wch:18}];
-  XLSX.utils.book_append_sheet(wb,wsCover,'Ringkasan');
-
-  // ===== SHEET 2: DATA TRANSAKSI =====
   const rows = transactions.map((tx,i)=>({
-    'No':i+1,
-    'Waktu':tx.time?new Date(tx.time).toLocaleString('id-ID'):'',
-    'Jenis':tx.type==='in'?'✅ Pemasukan':'🔴 Pengeluaran',
-    'Deskripsi':tx.desc||'',
-    'Kategori':tx.category||'',
-    'Jumlah (Rp)':Number(tx.amount)||0
+    'No':i+1,'Waktu':tx.time?new Date(tx.time).toLocaleString('id-ID'):'',
+    'Jenis':tx.type==='in'?'Pemasukan':'Pengeluaran','Deskripsi':tx.desc||'',
+    'Kategori':tx.category||'','Jumlah (Rp)':Number(tx.amount)||0
   }));
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols']=[{wch:5},{wch:22},{wch:16},{wch:32},{wch:18},{wch:18}];
-  XLSX.utils.book_append_sheet(wb,ws,'Data Transaksi');
-
-  // ===== SHEET 3: ANALISIS KATEGORI =====
-  const catRows2 = [['Kategori','Total Pemasukan','Total Pengeluaran','Selisih']];
-  Object.keys(catMap2).forEach(c=>{
-    const {in:i,out:o}=catMap2[c];
-    catRows2.push([c,i,o,i-o]);
-  });
-  catRows2.push(['','','','']);
-  catRows2.push(['TOTAL',totalIn,totalOut,net]);
-  const wsCat = XLSX.utils.aoa_to_sheet(catRows2);
-  wsCat['!cols']=[{wch:24},{wch:20},{wch:20},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,wsCat,'Analisis Kategori');
-
-  XLSX.writeFile(wb,`Laporan_Keuangan_${storeName.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
-  addNotif('Laporan Excel berhasil diunduh 📊', '📊');
+  const summaryRows = [{},{},{'No':'Ringkasan'},
+    {'No':'','Deskripsi':'Total Pemasukan','Jumlah (Rp)':totalIn},
+    {'No':'','Deskripsi':'Total Pengeluaran','Jumlah (Rp)':totalOut},
+    {'No':'','Deskripsi':'Untung/Rugi Bersih','Jumlah (Rp)':totalIn-totalOut},
+    {'No':'','Deskripsi':'Saran AI','Jumlah (Rp)':$('aiNote').textContent}
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet([...rows,...summaryRows]);
+  ws['!cols']=[{wch:6},{wch:20},{wch:14},{wch:28},{wch:18},{wch:16}];
+  XLSX.utils.book_append_sheet(wb,ws,'Laporan Keuangan');
+  XLSX.writeFile(wb,`Laporan_Keuangan_UMKM_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 $('exportExcelBtn').addEventListener('click', exportToExcel);
 $('exportExcelBtn2').addEventListener('click', exportToExcel);
@@ -2385,7 +1892,7 @@ function renderGalleryFromCache(){
     const delBtn = canManage?`<button class="gc-delete-btn${(!isOwner&&isAdmin)?' gc-admin-del':''}" data-id="${d.id}">🗑️ Hapus${(!isOwner&&isAdmin)?' (Admin)':''}</button>`:'';
     const ownerActions = canManage?`<div class="gc-owner-actions">${editBtn}${delBtn}</div>`:'';
     return `<div class="gallery-card">
-      ${d.imageBase64?`<img src="data:image/jpeg;base64,${d.imageBase64}" onclick="openImgFullscreen(this.src)" style="cursor:zoom-in;" title="Klik untuk lihat penuh">`:'' }
+      ${d.imageBase64?`<img src="data:image/jpeg;base64,${d.imageBase64}">`:'' }
       <div class="gc-body">
         ${isBoosted?`<div class="boost-badge">🔥 Teratas · ${hoursLeft} jam lagi</div>`:''}
         <div class="gc-title">${escapeHtml(d.title||'')}</div>
@@ -2400,8 +1907,6 @@ function renderGalleryFromCache(){
       </div>
     </div>`;
   }).join('');
-  // trigger notification patch saat ada postingan baru
-  if(typeof window._galleryNotifPatch === 'function') window._galleryNotifPatch();
 }
 
 function startGalleryListener(){
@@ -2673,7 +2178,7 @@ if(location.hash==='#admin'){
 setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 
 // ============ COMMUNITY: PRESENCE, PROFILE, LOCATION, USER DIRECTORY ============
-let myProfile = {displayName:'', storeName:'', address:'', email:''};
+let myProfile = {displayName:'', storeName:'', address:'', nameLocked:false, email:''};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
 
@@ -2694,7 +2199,7 @@ function setupPresence(){
     }
   });
 }
-// setupPresence() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
+if(window.firebaseReady){ setupPresence(); } else { document.addEventListener('firebase-ready', setupPresence); }
 
 async function loadMyProfile(){
   // Restore nama dari localStorage dulu sebagai fallback cepat
@@ -2708,7 +2213,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', nameLocked:!!d.nameLocked, email:d.email||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -2721,7 +2226,7 @@ async function loadMyProfile(){
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
 }
-// loadMyProfile() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
+if(window.firebaseReady){ loadMyProfile(); } else { document.addEventListener('firebase-ready', loadMyProfile); }
 
 $('saveProfileBtn').addEventListener('click', async () => {
   if(!window.firebaseReady){
@@ -2730,17 +2235,16 @@ $('saveProfileBtn').addEventListener('click', async () => {
     return;
   }
   const typedName = $('profDisplayName').value.trim();
-  if(!typedName){ alert('Nama tidak boleh kosong.'); return; }
-  // Konfirmasi kalau nama diubah dari sebelumnya
-  if(myProfile.displayName && typedName !== myProfile.displayName){
-    if(!confirm(`Ganti nama dari "${myProfile.displayName}" jadi "${typedName}"?`)) return;
-  }
+  // Nama hanya bisa diisi/diubah satu kali sesuai email akun — setelah terkunci, nama lama dipertahankan.
+  const finalName = myProfile.nameLocked ? myProfile.displayName : typedName;
+  const willLockNow = !myProfile.nameLocked && !!finalName;
   myProfile = {
-    displayName: typedName,
+    displayName: finalName,
     storeName: $('profStoreName').value.trim(),
     address: $('profAddress').value.trim(),
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim(),
+    nameLocked: myProfile.nameLocked || willLockNow,
     email: currentAuthEmail || myProfile.email || ''
   };
   // Sync nama ke localStorage untuk fallback cepat
@@ -2803,27 +2307,8 @@ $('stopShareLocBtn').addEventListener('click', async () => {
 });
 
 function renderUserDirectory(){
-  if(typeof populateCollabInviteSelect === 'function') populateCollabInviteSelect();
-  // ===== TAMPILKAN STATUS DIRI SENDIRI DI ATAS =====
-  const myU = allUsersCache[MY_UID] || {};
-  const myP = allPresenceCache[MY_UID] || {};
-  const myName = myU.displayName || myU.storeName || '(Belum isi nama)';
-  const mySelfDiv = document.getElementById('mySelfCard');
-  if(mySelfDiv){
-    const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
-    mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);">
-      <span class="status-dot on"></span>
-      <div>
-        <div class="uc-name">${escapeHtml(myName)}${adminBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
-        <div class="uc-sub">${myU.storeName?('🏪 '+escapeHtml(myU.storeName)):'UMKM'}</div>
-      </div>
-      <div class="uc-right">🟢 Online</div>
-    </div>`;
-  }
-
-  // ===== PENGGUNA LAIN (exclude diri sendiri) =====
   const ids = new Set([...Object.keys(allUsersCache), ...Object.keys(allPresenceCache)]);
-  ids.delete(MY_UID); // selalu exclude diri sendiri dari daftar "Pengguna Lain"
+  ids.delete(MY_UID);
   const list = $('userDirectory');
   if(ids.size === 0){ list.innerHTML = '<div class="empty-state">Belum ada pengguna lain yang terdaftar.</div>'; return; }
   const arr = [...ids].map(uid => {
@@ -2835,8 +2320,7 @@ function renderUserDirectory(){
   list.innerHTML = arr.map(u => {
     const name = u.displayName || u.storeName || '(Belum isi nama)';
     const noName = !u.displayName && !u.storeName;
-    // Admin hanya bisa hapus user LAIN, tidak bisa hapus dirinya sendiri
-    const delBtn = (isAdmin && u.uid !== MY_UID)?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
+    const delBtn = isAdmin?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
     return `<div class="user-card" data-uid="${u.uid}">
       <span class="status-dot ${u.online?'on':'off'}"></span>
       <div>
@@ -2908,7 +2392,7 @@ const LIVEKIT_TOKEN_URL = 'https://snowy-paper-f1d3.nagoyaflora.workers.dev/toke
 
 let liveActive=false, liveOrders=[], liveComments=[], liveCoachInterval=null;
 let liveDurationTimer=null, liveSeconds=0, camStream=null;
-let liveSessionId=null, hostViewersUnsub=null, hostCommentsUnsub=null, cohostListUnsub=null;
+let liveSessionId=null, hostViewersUnsub=null, hostCommentsUnsub=null;
 let peerConnections={}, pendingViewerUids=new Set();
 let mediaRecorder=null, recordedChunks=[], pendingVideoBlob=null;
 
@@ -2938,19 +2422,12 @@ function pickSupportedMime(){
 $('liveModeHostBtn').addEventListener('click', () => {
   $('liveModeHostBtn').classList.add('active'); $('liveModeWatchBtn').classList.remove('active');
   $('liveHostMode').style.display='block'; $('liveWatchMode').style.display='none';
-  // Jangan putuskan collab jika user sedang aktif sebagai co-host
-  if(!cohostRoom) stopWatchingSession();
+  stopWatchingSession();
 });
 $('liveModeWatchBtn').addEventListener('click', () => {
   $('liveModeWatchBtn').classList.add('active'); $('liveModeHostBtn').classList.remove('active');
   $('liveHostMode').style.display='none'; $('liveWatchMode').style.display='block';
-  // Jika sedang aktif collab, langsung tampilkan layar viewer (jangan reset)
-  if(cohostRoom && watchingSessionId){
-    $('sessionListWrap').style.display='none';
-    $('viewerScreenWrap').style.display='block';
-  } else {
-    startSessionListListener();
-  }
+  startSessionListListener();
 });
 
 // ===== HOST: START SESSION =====
@@ -2989,11 +2466,7 @@ $('startLiveBtn').addEventListener('click', async () => {
         $('viewerCount').textContent=uids.length;
       });
       hostCommentsUnsub = window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/comments'), (snap) => {
-        const c=snap.val(); if(!c) return;
-        // Jika teks adalah emote murni, tampilkan sebagai emote rain di layar host juga
-        const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
-        if(isEmote) addEmoteRainTo('emoteRain', c.text.trim());
-        processIncomingComment(c.user, c.text, 'liveCommentsOverlay');
+        const c=snap.val(); if(c) processIncomingComment(c.user, c.text, 'liveCommentsOverlay');
       });
     } catch(err){ console.error('Gagal membuat sesi live di server:', err); liveSessionId=null; }
   } else {
@@ -3001,8 +2474,6 @@ $('startLiveBtn').addEventListener('click', async () => {
     $('liveNoFirebaseNote').style.display='block';
   }
   startCoach(); startLiveTimer();
-  populateCollabInviteSelect();
-  renderCohostList();
 });
 
 function startLiveTimer(){
@@ -3044,12 +2515,6 @@ async function connectHostToLiveKit(){
     const {token, url} = await getLivekitToken(liveSessionId, identity, true);
     const {Room, RoomEvent, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
     livekitRoom = new Room();
-    livekitRoom.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-      if(participant.identity === identity) return;
-      attachRemoteTrackToGrid(track, participant.identity, 'liveCohostGrid');
-    });
-    livekitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => { if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity); });
-    livekitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
     await livekitRoom.connect(url, token);
     // Publish existing camStream tracks
     if(camStream){
@@ -3073,291 +2538,6 @@ async function connectHostToLiveKit(){
   }
 }
 
-// ===== COLLAB LIVE: ajak >1 host gabung siaran yang sama (multi-publisher via LiveKit) =====
-function populateCollabInviteSelect(){
-  const sel = $('collabInviteSelect');
-  if(!sel) return;
-  const ids = new Set([...Object.keys(allUsersCache), ...Object.keys(allPresenceCache)]);
-  ids.delete(MY_UID);
-  const opts = ['<option value="">Pilih pengguna online...</option>'];
-  ids.forEach(uid => {
-    const u = allUsersCache[uid] || {};
-    const p = allPresenceCache[uid] || {};
-    if(!p.online) return; // hanya tawarkan yang online
-    const name = u.displayName || u.storeName || uid;
-    opts.push(`<option value="${escapeAttr(uid)}">${escapeHtml(name)}</option>`);
-  });
-  sel.innerHTML = opts.join('');
-}
-
-$('collabInviteBtn').addEventListener('click', async () => {
-  const targetUid = $('collabInviteSelect').value;
-  if(!targetUid){ alert('Pilih pengguna yang mau diundang dulu.'); return; }
-  if(!liveSessionId){ alert('Mulai sesi live dulu sebelum mengundang co-host.'); return; }
-  try{
-    const hostName=(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM';
-    await window.rtdbSet(window.rtdbRef(window.firebaseDb, `collabInvites/${targetUid}/${liveSessionId}`), {
-      sessionId: liveSessionId, hostUid: MY_UID, hostName, invitedAt: Date.now()
-    });
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `liveSessions/${liveSessionId}/cohosts/${targetUid}`), {
-      name: (allUsersCache[targetUid]?.displayName)||'Co-host', status:'invited', invitedAt: Date.now()
-    });
-    renderCohostList();
-    alert('Undangan terkirim! Menunggu mereka menerima.');
-  } catch(err){ alert('Gagal mengundang: ' + err.message); }
-});
-
-function renderCohostList(){
-  const box = $('collabCohostList');
-  if(!box || !liveSessionId) return;
-  // Sebelumnya pakai rtdbGet (ambil sekali) jadi status "Menunggu konfirmasi" gak pernah
-  // ke-update walau co-host udah Terima — sekarang pakai listener realtime.
-  if(cohostListUnsub){ try{ cohostListUnsub(); }catch(e){} cohostListUnsub = null; }
-  cohostListUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${liveSessionId}/cohosts`), (snap) => {
-    const val = snap.val();
-    if(!val){ box.textContent = 'Belum ada co-host.'; return; }
-    box.innerHTML = Object.entries(val).map(([uid,c]) =>
-      `👤 ${escapeHtml(c.name||uid)} — ${c.status==='accepted'?'✅ Live bareng':'⏳ Menunggu konfirmasi'}`
-    ).join('<br>');
-  });
-}
-
-// Generic helper: pasang track remote (video/audio) ke grid kecil berdasarkan identity peserta
-// Buat atau ambil wrapper tile untuk satu peserta di grid
-function getOrCreateTileWrapper(identity, gridId){
-  const grid = document.getElementById(gridId);
-  if(!grid) return null;
-  let wrap = grid.querySelector(`div[data-tile="${identity}"]`);
-  if(!wrap){
-    wrap = document.createElement('div');
-    wrap.dataset.tile = identity;
-    wrap.style.cssText = 'position:relative;width:110px;height:150px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;';
-    // Placeholder gelap (tampil saat kamera mati)
-    const ph = document.createElement('div');
-    ph.className = 'tile-cam-off';
-    ph.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
-    ph.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
-    wrap.appendChild(ph);
-    grid.appendChild(wrap);
-  }
-  return wrap;
-}
-
-function attachRemoteTrackToGrid(track, identity, gridId){
-  const grid = document.getElementById(gridId);
-  if(!grid) return;
-  if(track.kind === 'video'){
-    const wrap = getOrCreateTileWrapper(identity, gridId);
-    if(!wrap) return;
-    let tile = wrap.querySelector('video');
-    if(!tile){
-      tile = document.createElement('video');
-      tile.autoplay = true; tile.playsInline = true; tile.muted = true;
-      tile.dataset.identity = identity;
-      tile.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
-      wrap.appendChild(tile);
-    }
-    try{ track.detach(tile); }catch(e){}
-    track.attach(tile);
-    tile.style.display = 'block';
-    const ph = wrap.querySelector('.tile-cam-off');
-    if(ph) ph.style.display = 'none';
-  } else if(track.kind === 'audio'){
-    let ael = document.querySelector(`audio[data-identity="${identity}-audio"]`);
-    if(!ael){
-      ael = document.createElement('audio');
-      ael.autoplay = true; ael.style.display = 'none';
-      ael.dataset.identity = identity + '-audio';
-      document.body.appendChild(ael);
-    }
-    try{ track.detach(ael); }catch(e){}
-    track.attach(ael);
-  }
-}
-
-// Sembunyikan video tile tapi pertahankan wrapper (kamera mati, bukan disconnect)
-function hideGridTileVideo(identity){
-  document.querySelectorAll(`div[data-tile="${identity}"]`).forEach(wrap => {
-    const vid = wrap.querySelector('video');
-    if(vid){ try{ vid.srcObject = null; }catch(e){} vid.style.display = 'none'; }
-    const ph = wrap.querySelector('.tile-cam-off');
-    if(ph) ph.style.display = 'flex';
-  });
-}
-
-// Hapus tile sepenuhnya (peserta benar-benar disconnect)
-function removeGridTile(identity){
-  document.querySelectorAll(`div[data-tile="${identity}"]`).forEach(el => el.remove());
-  document.querySelectorAll(`[data-identity="${identity}"]`).forEach(el => el.remove());
-  document.querySelectorAll(`[data-identity="${identity}-audio"]`).forEach(el => el.remove());
-}
-
-// ===== Listener undangan collab (dipasang setelah login, lihat initAuthGate) =====
-let collabInviteUnsub = null;
-function setupCollabInviteListener(){
-  if(!window.firebaseReady || !MY_UID) return;
-  if(collabInviteUnsub){ try{ collabInviteUnsub(); }catch(e){} }
-  collabInviteUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, 'collabInvites/'+MY_UID), (snap) => {
-    const val = snap.val();
-    const banner = $('collabInviteBanner');
-    if(!val || Object.keys(val).length===0){ if(banner) banner.style.display='none'; return; }
-    const sessionId = Object.keys(val)[0];
-    const inv = val[sessionId];
-    if(!banner) return;
-    $('collabInviteText').textContent = `🎥 ${inv.hostName||'Seseorang'} mengundangmu Collab Live bareng!`;
-    banner.style.display = 'block';
-    addNotif(`🎥 ${inv.hostName||'Seseorang'} mengundangmu Collab Live bareng! Buka tab 📹 Live untuk menerima.`, '🎥');
-    $('collabAcceptBtn').onclick = () => acceptCollabInvite(sessionId, inv);
-    $('collabDeclineBtn').onclick = () => declineCollabInvite(sessionId);
-  });
-}
-
-function declineCollabInvite(sessionId){
-  window.rtdbRemove(window.rtdbRef(window.firebaseDb, `collabInvites/${MY_UID}/${sessionId}`)).catch(()=>{});
-  window.rtdbRemove(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/cohosts/${MY_UID}`)).catch(()=>{});
-  $('collabInviteBanner').style.display = 'none';
-}
-
-let cohostRoom = null, cohostStream = null;
-async function acceptCollabInvite(sessionId, inv){
-  $('collabInviteBanner').style.display = 'none';
-  try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb, `collabInvites/${MY_UID}/${sessionId}`)); }catch(e){}
-  // Pindah ke tab LIVE → mode Tonton → tampilan viewer, lalu join sebagai co-host (bisa publish video)
-  document.querySelector('.tab[data-panel="live"]')?.click();
-  $('liveModeWatchBtn')?.click();
-  $('sessionListWrap').style.display = 'none';
-  $('viewerScreenWrap').style.display = 'block';
-  $('viewerScreenPh').style.display = 'flex';
-  $('viewerVideo').style.display = 'none';
-  $('viewerVideo').muted = true;
-  $('viewerUnmuteBtn').style.display = 'none';
-  $('viewerCommentsOverlay').innerHTML = '';
-  if($('viewerConnStatus')) $('viewerConnStatus').textContent = 'Menghubungkan ke siaran...';
-  watchingSessionId = sessionId;
-
-  // Identity LiveKit milik HOST UTAMA siaran ini (beda dengan identity co-host yang baru join).
-  // Dipakai buat mutuskan: video ini ditaruh di layar besar (host utama) atau di grid kecil (co-host lain).
-  const mainHostIdentity = 'host-' + inv.hostUid;
-
-  // Daftar juga sebagai "viewer" supaya hitungan penonton akurat & co-host ikut tahu kalau live diakhiri host
-  const myViewerRef = window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/viewers/${MY_UID}`);
-  try{
-    await window.rtdbSet(myViewerRef, true);
-    window.rtdbOnDisconnect(myViewerRef).remove();
-  } catch(e){}
-  viewerViewersUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/viewers`), (snap) => {
-    const v = snap.val(); $('viewerScreenCount').textContent = v ? Object.keys(v).length : 0;
-  });
-  viewerActiveUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/active`), (snap) => {
-    const val = snap.val();
-    if((val === false || val === null) && watchingSessionId === sessionId){
-      stopWatchingSession();
-      $('viewerScreenWrap').style.display = 'none';
-      $('sessionListWrap').style.display = 'block';
-      alert('Live sudah diakhiri oleh penjual. Terima kasih sudah Live bareng! 🙌');
-    }
-  });
-  // Dengarkan komentar & emote — tanpa listener ini, emote yang dikirim host TIDAK PERNAH muncul di sisi co-host
-  viewerCommentsUnsub = window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/comments`), (snap) => {
-    const c = snap.val(); if(!c) return;
-    const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
-    if(isEmote) addEmoteRainTo('viewerEmoteRain', c.text.trim());
-    addCommentTo('viewerCommentsOverlay', c.user, c.text);
-  });
-  setupViewerUnmuteHandler();
-
-  try{
-    cohostStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}, audio:true});
-    const identity = 'host-' + MY_UID;
-    const {token, url} = await getLivekitToken(sessionId, identity, true);
-    const {Room, RoomEvent, Track, LocalVideoTrack, LocalAudioTrack} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
-    const room = new Room();
-    cohostRoom = room;
-    window._viewerLivekitRoom = room; // supaya stopWatchingSession lama tetap bisa disconnect
-
-    // Helper: pasang track dari HOST UTAMA ke layar besar (#viewerVideo), track peserta lain ke grid kecil
-    function routeIncomingTrack(track, participant){
-      if(participant.identity === mainHostIdentity){
-        if(track.kind === 'video'){
-          const vid = $('viewerVideo');
-          track.attach(vid);
-          vid.muted = true;
-          vid.style.display = 'block';
-          $('viewerScreenPh').style.display = 'none';
-          vid.play().catch(()=>{});
-          if($('viewerConnStatus')) $('viewerConnStatus').textContent = '📡 Video tersambung!';
-        } else if(track.kind === 'audio'){
-          window._viewerAudioTrack = track.mediaStreamTrack;
-          $('viewerUnmuteBtn').style.display = 'block';
-        }
-        return;
-      }
-      attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
-    }
-
-    room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
-      if(participant.identity === identity) return;
-      routeIncomingTrack(track, participant);
-    });
-    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
-      if(participant.identity === mainHostIdentity){
-        if(track.kind === 'video'){
-          track.detach();
-          $('viewerVideo').style.display = 'none';
-          $('viewerScreenPh').style.display = 'flex';
-          $('viewerUnmuteBtn').style.display = 'none';
-        } else {
-          track.detach();
-          const audioEl = document.getElementById('viewerAudioEl');
-          if(audioEl) audioEl.remove();
-        }
-        return;
-      }
-      if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity);
-    });
-    room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
-
-    await room.connect(url, token);
-
-    const vt = cohostStream.getVideoTracks()[0];
-    const at = cohostStream.getAudioTracks()[0];
-    if(vt) await room.localParticipant.publishTrack(new LocalVideoTrack(vt), {source: Track.Source.Camera});
-    if(at) await room.localParticipant.publishTrack(new LocalAudioTrack(at), {source: Track.Source.Microphone});
-
-    // Tampilkan preview video diri sendiri di grid co-host (pakai wrapper agar konsisten)
-    document.querySelectorAll('div[data-tile="self"], video[data-identity="self"]').forEach(el => el.remove());
-    const selfWrap = document.createElement('div');
-    selfWrap.dataset.tile = 'self';
-    selfWrap.style.cssText = 'position:relative;width:110px;height:150px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;border:2px solid var(--teal);';
-    const selfPh = document.createElement('div');
-    selfPh.className = 'tile-cam-off';
-    selfPh.style.cssText = 'position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
-    selfPh.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
-    selfWrap.appendChild(selfPh);
-    const selfTile = document.createElement('video');
-    selfTile.autoplay = true; selfTile.muted = true; selfTile.playsInline = true;
-    selfTile.dataset.identity = 'self';
-    selfTile.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
-    selfWrap.appendChild(selfTile);
-    $('viewerCohostGrid').appendChild(selfWrap);
-    selfTile.srcObject = cohostStream;
-
-    // Pasang track yang sudah ada dari partisipan lain (host utama / co-host lain) — pakai routing yang sama
-    room.remoteParticipants.forEach(p => {
-      if(p.identity === identity) return;
-      p.trackPublications.forEach(pub => { if(pub.track) routeIncomingTrack(pub.track, p); });
-    });
-
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/cohosts/${MY_UID}`), {
-      name: (myProfile && (myProfile.storeName||myProfile.displayName)) || 'Co-host', status:'accepted', joinedAt: Date.now()
-    });
-
-    $('cohostControls').style.display='flex';
-    alert('Kamu sekarang Live bareng sebagai co-host! 🎉 Kamera & mikmu sudah aktif untuk penonton.');
-  } catch(err){
-    alert('Gagal join sebagai co-host: ' + err.message);
-  }
-}
 $('toggleCamBtn').addEventListener('click', async () => {
   const vid=$('liveVideo');
   if(camStream){
@@ -3371,16 +2551,13 @@ $('toggleCamBtn').addEventListener('click', async () => {
       } catch(e){}
     }
     vid.style.display='none'; $('liveScreenPh').style.display='flex';
-    $('toggleCamBtn').textContent='📷 Aktifkan Kamera';
-    hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
-    return;
+    $('toggleCamBtn').textContent='📷 Aktifkan Kamera'; return;
   }
   try{
     camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:true});
     vid.srcObject=camStream; vid.style.display='block';
     $('liveScreenPh').style.display='none';
     $('toggleCamBtn').textContent='📷 Matikan Kamera';
-    hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
 
     // Publish to LiveKit if already connected
     if(livekitRoom && livekitRoom.state==='connected'){
@@ -3405,37 +2582,14 @@ $('toggleCamBtn').addEventListener('click', async () => {
   } catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
 });
 
-// ===== HOST: TOGGLE MIC SENDIRI (sebelumnya cuma co-host yang punya tombol ini) =====
-let hostMicOn = true;
-$('toggleMicBtn').addEventListener('click', () => {
-  if(!camStream){ alert('Aktifkan kamera dulu — mic ikut nyala otomatis bareng kamera.'); return; }
-  const btn = $('toggleMicBtn');
-  if(hostMicOn){
-    // Mute: disable track-nya aja (bukan stop), supaya bisa dihidupkan lagi tanpa minta izin ulang
-    camStream.getAudioTracks().forEach(t => { t.enabled = false; });
-    btn.textContent = '🎙️ Hidupkan Mic';
-    hostMicOn = false;
-  } else {
-    camStream.getAudioTracks().forEach(t => { t.enabled = true; });
-    btn.textContent = '🎙️ Matikan Mic';
-    hostMicOn = true;
-  }
-});
-
 $('stopLiveBtn').addEventListener('click', async () => {
   if(!confirm('Akhiri sesi live sekarang?')) return;
-  $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏹ Stop Live';
-
-  // Helper: update progress bar + status text
-  const setStopProgress = (pct, msg) => {
-    $('stopProgressWrap').style.display = 'block';
-    $('stopProgressBar').style.width = pct + '%';
-    $('stopStatusText').textContent = msg;
-  };
-
-  setStopProgress(5, '⏹ Menghentikan rekaman...');
+  $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏳ Mengakhiri...';
   try{
     if(mediaRecorder && mediaRecorder.state!=='inactive'){
+      // Dulu di sini bisa nge-hang selamanya kalau event 'onstop' gak pernah nembak
+      // (misal recorder error pas sinyal lag). Sekarang dikasih fallback: kalau dalam
+      // 3 detik gak ada respon, lanjut aja proses stop-nya, jangan nge-block tombol.
       await new Promise(resolve=>{
         let done=false;
         const finish=()=>{ if(!done){ done=true; resolve(); } };
@@ -3446,47 +2600,30 @@ $('stopLiveBtn').addEventListener('click', async () => {
       });
     }
   }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
-
-  setStopProgress(25, '📷 Melepas kamera & mikrofon...');
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
-  hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
-
-  setStopProgress(45, '🌐 Memutus koneksi LiveKit...');
-  if(livekitRoom){
-    try{
-      await Promise.race([
-        livekitRoom.disconnect(),
-        new Promise(r=>setTimeout(r, 2000))
-      ]);
-    } catch(e){}
-    livekitRoom=null;
-  }
-
-  setStopProgress(60, '🧹 Membersihkan sesi & koneksi...');
+  // Disconnect from LiveKit
+  if(livekitRoom){ try{ await livekitRoom.disconnect(); } catch(e){} livekitRoom=null; }
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
   if(hostViewersUnsub){ hostViewersUnsub(); hostViewersUnsub=null; }
   if(hostCommentsUnsub){ hostCommentsUnsub(); hostCommentsUnsub=null; }
-  if(cohostListUnsub){ cohostListUnsub(); cohostListUnsub=null; }
-
   if(window.firebaseReady && liveSessionId){
-    setStopProgress(78, '☁️ Menghapus data sesi dari server...');
     try{
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});
+      // Dulu cuma 'viewers' yang dihapus, sisanya (comments, signal WebRTC, dll) numpuk
+      // terus di database meskipun sesinya udah gak bisa ditonton lagi. Sekarang seluruh
+      // node sesi ini dihapus total — aman, karena data pesanan/ringkasan sudah tersimpan
+      // di sisi host (liveOrders), gak bergantung ke data Firebase ini.
       await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId));
     } catch(e){}
   }
-
-  setStopProgress(90, '📊 Membuat ringkasan sesi...');
   liveActive=false;
+  // Simpan nama sesi SEBELUM generateLiveSummary/reset supaya tidak hilang
   const _savedSessionName = $('liveSessionName').value.trim() || 'Sesi Live';
   generateLiveSummary();
-
-  setStopProgress(100, '✅ Sesi live selesai!');
-  setTimeout(()=>{ $('stopProgressWrap').style.display='none'; }, 1500);
-
   if(recordedChunks.length>0){
     pendingVideoBlob=new Blob(recordedChunks,{type:recordedChunks[0].type||'video/webm'});
+    // Simpan nama sesi ke dataset supaya tetap tersedia saat upload
     $('saveVideoBtn').dataset.sessionName = _savedSessionName;
     $('videoSaveStatus').textContent='';
     $('videoSavePrompt').style.display='block';
@@ -3610,7 +2747,6 @@ function resetToLiveSetup(){
   $('liveView').classList.remove('active');
   $('liveSummarySection').style.display='none';
   $('videoSavePrompt').style.display='none';
-  const cg = $('liveCohostGrid'); if(cg) cg.innerHTML='';
   liveSessionId=null;
   $('liveSessionName').value=''; $('liveProductInfo').value='';
 }
@@ -3699,9 +2835,7 @@ $('saveVideoBtn').addEventListener('click', async () => {
     $('videoSaveStatus').textContent='✅ Video tersimpan di Galeri Video Global!';
     $('videoSaveStatus').style.color='var(--good)';
     pendingVideoBlob=null;
-    // Sembunyikan progress bar setelah 2 detik; videoSavePrompt tetap tampil
-    // supaya user bisa lihat pesan sukses & tombol Simpan — sama seperti old v1.
-    setTimeout(()=>{ progWrap.classList.remove('show'); },2000);
+    setTimeout(()=>{ $('videoSavePrompt').style.display='none'; progWrap.classList.remove('show'); },2000);
   } catch(err){
     $('videoSaveStatus').textContent='Gagal mengunggah: '+err.message;
     $('videoSaveStatus').style.color='var(--bad)';
@@ -3713,11 +2847,8 @@ $('saveVideoBtn').addEventListener('click', async () => {
 
 $('discardVideoBtn').addEventListener('click', () => {
   pendingVideoBlob=null;
+  $('videoSavePrompt').style.display='none';
   $('uploadProgressWrap').classList.remove('show');
-  // Sebelumnya cuma nutup kartu videoSavePrompt-nya doang — liveSummarySection &
-  // liveView (kamera, grid co-host, daftar pesanan) tetap nyangkut sampai user
-  // klik "Live Baru" manual atau refresh. Sekarang langsung reset bersih sekalian.
-  resetToLiveSetup();
 });
 
 // ===== WATCH MODE: BROWSE & JOIN LIVE SESSIONS =====
@@ -3749,39 +2880,6 @@ function startSessionListListener(){
 document.addEventListener('click', (e) => {
   if(e.target.classList.contains('watch-session-btn')){ joinAsViewer(e.target.dataset.id); }
 });
-
-// Dipakai bersama oleh penonton biasa (joinAsViewer) dan co-host (acceptCollabInvite)
-// supaya tombol unmute selalu berfungsi di kedua jalur.
-function setupViewerUnmuteHandler(){
-  window._viewerAudioMuted = true;
-  $('viewerUnmuteBtn').onclick=()=>{
-    const vid=$('viewerVideo');
-    let audioEl=document.getElementById('viewerAudioEl');
-    if(window._viewerAudioMuted){
-      // UNMUTE
-      vid.muted=false;
-      vid.play().catch(()=>{});
-      if(window._viewerAudioTrack){
-        if(!audioEl){
-          audioEl=document.createElement('audio');
-          audioEl.id='viewerAudioEl';
-          audioEl.style.display='none';
-          document.body.appendChild(audioEl);
-        }
-        audioEl.srcObject=new MediaStream([window._viewerAudioTrack]);
-        audioEl.play().catch(()=>{});
-      }
-      window._viewerAudioMuted=false;
-      $('viewerUnmuteBtn').textContent='🔇 Mute';
-    } else {
-      // MUTE
-      vid.muted=true;
-      if(audioEl){ audioEl.pause(); audioEl.srcObject=null; }
-      window._viewerAudioMuted=true;
-      $('viewerUnmuteBtn').textContent='🔊 Tap untuk dengar suara';
-    }
-  };
-}
 
 async function joinAsViewer(sessionId){
   if(!window.firebaseReady) return;
@@ -3820,76 +2918,42 @@ async function joinAsViewer(sessionId){
   // Connect viewer to LiveKit room
   const identity = 'viewer-' + MY_UID + '-' + Date.now();
   try{
-    // Ambil identity host UTAMA siaran ini. Sebelumnya kode cuma asumsi "track video pertama
-    // yang nyambung = host", yang berantakan kalau viewer baru gabung PAS host & co-host udah
-    // bareng-bareng live (urutan track yang masuk jadi gak terjamin host duluan).
-    let mainHostIdentity = null;
-    try{
-      const hostSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/hostUid`));
-      const hostUid = hostSnap.val();
-      if(hostUid) mainHostIdentity = 'host-' + hostUid;
-    } catch(e){}
-
     const {token, url} = await getLivekitToken(sessionId, identity, false);
     const {Room, RoomEvent, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
     const room = new Room();
     window._viewerLivekitRoom = room;
 
-    // Satu fungsi routing dipakai baik buat track yang masuk live (TrackSubscribed) maupun
-    // track yang sudah ada duluan saat viewer baru connect — supaya hasilnya selalu konsisten:
-    // video host utama → layar besar, video siapapun yang lain → grid kecil co-host.
-    function routeIncomingTrack(track, participant){
-      const isHostTrack = mainHostIdentity ? (participant.identity === mainHostIdentity) : !$('viewerVideo').srcObject;
-      if(track.kind === Track.Kind.Video){
-        if(isHostTrack && !$('viewerVideo').srcObject){
-          const vid = $('viewerVideo');
-          track.attach(vid);
-          vid.muted = true;
-          vid.style.display='block';
-          $('viewerScreenPh').style.display='none';
-          vid.play().catch(()=>{});
-          $('viewerUnmuteBtn').style.display='block';
-          if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
-        } else {
-          attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
-        }
-      } else if(track.kind === Track.Kind.Audio){
-        if(isHostTrack && !window._viewerAudioTrack){
-          window._viewerAudioTrack = track.mediaStreamTrack;
-          $('viewerUnmuteBtn').style.display='block';
-          if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
-        } else {
-          attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
-        }
-      }
-    }
-
     room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-      routeIncomingTrack(track, participant);
+      if(track.kind === Track.Kind.Video){
+        const vid = $('viewerVideo');
+        track.attach(vid);
+        vid.muted = true;
+        vid.style.display='block';
+        $('viewerScreenPh').style.display='none';
+        vid.play().catch(()=>{});
+        $('viewerUnmuteBtn').style.display='block';
+        if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
+      } else if(track.kind === Track.Kind.Audio){
+        // JANGAN pakai track.attach() - LiveKit akan auto-play bypass muted.
+        // Simpan raw MediaStreamTrack, baru diplay manual saat user tap tombol.
+        window._viewerAudioTrack = track.mediaStreamTrack;
+        $('viewerUnmuteBtn').style.display='block';
+        if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
+      }
     });
 
-    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
-      const cohostTileWrap = document.querySelector(`div[data-tile="${participant.identity}"]`);
-      const isHostTrack = mainHostIdentity ? participant.identity === mainHostIdentity : !cohostTileWrap;
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
       if(track.kind === Track.Kind.Video){
-        if(isHostTrack){
-          track.detach();
-          $('viewerVideo').style.display='none';
-          $('viewerScreenPh').style.display='flex';
-          $('viewerUnmuteBtn').style.display='none';
-        } else {
-          hideGridTileVideo(participant.identity);
-        }
+        track.detach();
+        $('viewerVideo').style.display='none';
+        $('viewerScreenPh').style.display='flex';
+        $('viewerUnmuteBtn').style.display='none';
       } else if(track.kind === Track.Kind.Audio){
         track.detach();
-        if(isHostTrack){
-          const audioEl = document.getElementById('viewerAudioEl');
-          if(audioEl) audioEl.remove();
-          window._viewerAudioTrack = null;
-        }
+        const audioEl = document.getElementById('viewerAudioEl');
+        if(audioEl) audioEl.remove();
       }
     });
-    room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
 
     room.on(RoomEvent.Disconnected, () => {
       if($('viewerConnStatus')) $('viewerConnStatus').textContent='Koneksi terputus.';
@@ -3899,12 +2963,23 @@ async function joinAsViewer(sessionId){
     await room.connect(url, token);
     if($('viewerConnStatus')) $('viewerConnStatus').textContent='Tersambung, menunggu video host...';
 
-    // Pasang track yang SUDAH ada sebelum viewer ini connect (misalnya viewer baru gabung
-    // pas host & co-host udah bareng-bareng live) — pakai routing yang sama, jadi tetap rapi:
-    // host di layar besar, co-host di grid kecil.
+    // Attach any already-published tracks
     room.remoteParticipants.forEach(participant => {
       participant.trackPublications.forEach(publication => {
-        if(publication.track) routeIncomingTrack(publication.track, participant);
+        if(publication.track && publication.track.kind === Track.Kind.Video){
+          const vid = $('viewerVideo');
+          publication.track.attach(vid);
+          vid.muted=true;
+          vid.style.display='block';
+          $('viewerScreenPh').style.display='none';
+          vid.play().catch(()=>{});
+          $('viewerUnmuteBtn').style.display='block';
+          if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
+        } else if(publication.track && publication.track.kind === Track.Kind.Audio){
+          // Simpan raw track, jangan attach - biar user kontrol kapan dengar
+          window._viewerAudioTrack = publication.track.mediaStreamTrack;
+          $('viewerUnmuteBtn').style.display='block';
+        }
       });
     });
 
@@ -3914,13 +2989,37 @@ async function joinAsViewer(sessionId){
     console.error('LiveKit viewer error:', err);
   }
 
-  setupViewerUnmuteHandler();
+  window._viewerAudioMuted = true;
+  $('viewerUnmuteBtn').onclick=()=>{
+    const vid=$('viewerVideo');
+    let audioEl=document.getElementById('viewerAudioEl');
+    if(window._viewerAudioMuted){
+      // UNMUTE
+      vid.muted=false;
+      vid.play().catch(()=>{});
+      if(window._viewerAudioTrack){
+        if(!audioEl){
+          audioEl=document.createElement('audio');
+          audioEl.id='viewerAudioEl';
+          audioEl.style.display='none';
+          document.body.appendChild(audioEl);
+        }
+        audioEl.srcObject=new MediaStream([window._viewerAudioTrack]);
+        audioEl.play().catch(()=>{});
+      }
+      window._viewerAudioMuted=false;
+      $('viewerUnmuteBtn').textContent='🔇 Mute';
+    } else {
+      // MUTE
+      vid.muted=true;
+      if(audioEl){ audioEl.pause(); audioEl.srcObject=null; }
+      window._viewerAudioMuted=true;
+      $('viewerUnmuteBtn').textContent='🔊 Tap untuk dengar suara';
+    }
+  };
 
   viewerCommentsUnsub=window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/comments`), (snap) => {
-    const c=snap.val(); if(!c) return;
-    const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
-    if(isEmote) addEmoteRainTo('viewerEmoteRain', c.text.trim());
-    addCommentTo('viewerCommentsOverlay', c.user, c.text);
+    const c=snap.val(); if(c) addCommentTo('viewerCommentsOverlay', c.user, c.text);
   });
 }
 
@@ -3937,14 +3036,6 @@ function stopWatchingSession(){
     window.rtdbRemove(window.rtdbRef(window.firebaseDb,`liveSessions/${watchingSessionId}/viewers/${MY_UID}`)).catch(()=>{});
   }
   watchingSessionId=null;
-  // Bersihkan kamera/mic co-host kalau sebelumnya join sebagai collab
-  if(cohostStream){ try{ cohostStream.getTracks().forEach(t=>t.stop()); }catch(e){} cohostStream=null; }
-  cohostRoom = null;
-  cohostCamOn = true; cohostMicOn = true;
-  const grid = $('viewerCohostGrid'); if(grid) grid.innerHTML='';
-  const cc = $('cohostControls'); if(cc) cc.style.display='none';
-  $('cohostToggleCamBtn').textContent='📷 Matikan Kamera';
-  $('cohostToggleMicBtn').textContent='🎙️ Matikan Mic';
   const vid=$('viewerVideo');
   if(vid){ vid.srcObject=null; vid.style.display='none'; }
   $('viewerUnmuteBtn').style.display='none';
@@ -3955,10 +3046,6 @@ function stopWatchingSession(){
 }
 
 $('backToSessionListBtn').addEventListener('click', () => {
-  // Jika sedang aktif sebagai co-host, tanya konfirmasi dulu sebelum keluar
-  if(cohostRoom){
-    if(!confirm('Kamu sedang Live bareng sebagai co-host. Keluar dan tinggalkan collab?')) return;
-  }
   stopWatchingSession();
   $('viewerScreenWrap').style.display='none';
   $('sessionListWrap').style.display='block';
@@ -3975,73 +3062,6 @@ document.querySelectorAll('.viewer-emote').forEach(btn=>{
 });
 
 $('viewerSendCommentBtn').addEventListener('click', sendViewerComment);
-// ===== CO-HOST: TOGGLE KAMERA & MIC =====
-let cohostCamOn = true, cohostMicOn = true;
-
-$('cohostToggleCamBtn').addEventListener('click', async () => {
-  if(!cohostRoom || !cohostStream) return;
-  const btn = $('cohostToggleCamBtn');
-  const selfTile = document.querySelector('video[data-identity="self"]');
-  if(cohostCamOn){
-    // Matikan kamera: stop video track dan unpublish
-    cohostStream.getVideoTracks().forEach(t => t.stop());
-    try{
-      const pubs = [...cohostRoom.localParticipant.trackPublications.values()];
-      for(const pub of pubs){
-        if(pub.track && (pub.source === 'camera' || pub.track.kind === 'video')) await cohostRoom.localParticipant.unpublishTrack(pub.track);
-      }
-    } catch(e){}
-    // Tampilkan placeholder gelap di self-tile
-    if(selfTile){ selfTile.style.display='none'; }
-    const selfWrap = $('viewerCohostGrid').querySelector('video[data-identity="self"]')?.parentElement;
-    if(selfWrap){
-      let selfPh = selfWrap.querySelector('.tile-cam-off');
-      if(!selfPh){
-        selfPh = document.createElement('div');
-        selfPh.className = 'tile-cam-off';
-        selfPh.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
-        selfPh.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
-        selfWrap.appendChild(selfPh);
-      }
-      selfPh.style.display = 'flex';
-    }
-    btn.textContent = '📷 Hidupkan Kamera';
-    cohostCamOn = false;
-  } else {
-    // Hidupkan kamera lagi: minta akses baru dan publish ulang
-    try{
-      const newStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});
-      const vt = newStream.getVideoTracks()[0];
-      // Ganti track di cohostStream
-      cohostStream.getVideoTracks().forEach(t => cohostStream.removeTrack(t));
-      cohostStream.addTrack(vt);
-      if(selfTile){ selfTile.srcObject = cohostStream; selfTile.style.display = 'block'; }
-      // Sembunyikan placeholder
-      const selfWrapOn = selfTile?.parentElement;
-      if(selfWrapOn){ const ph = selfWrapOn.querySelector('.tile-cam-off'); if(ph) ph.style.display='none'; }
-      const {LocalVideoTrack, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
-      await cohostRoom.localParticipant.publishTrack(new LocalVideoTrack(vt), {source: Track.Source.Camera});
-      btn.textContent = '📷 Matikan Kamera';
-      cohostCamOn = true;
-    } catch(err){ alert('Gagal menghidupkan kamera: ' + err.message); }
-  }
-});
-
-$('cohostToggleMicBtn').addEventListener('click', async () => {
-  if(!cohostRoom || !cohostStream) return;
-  const btn = $('cohostToggleMicBtn');
-  if(cohostMicOn){
-    // Mute: disable audio track (tidak stop, supaya bisa unmute lagi)
-    cohostStream.getAudioTracks().forEach(t => { t.enabled = false; });
-    btn.textContent = '🎙️ Hidupkan Mic';
-    cohostMicOn = false;
-  } else {
-    // Unmute: enable kembali
-    cohostStream.getAudioTracks().forEach(t => { t.enabled = true; });
-    btn.textContent = '🎙️ Matikan Mic';
-    cohostMicOn = true;
-  }
-});
 $('viewerCommentInput').addEventListener('keydown', (e) => { if(e.key==='Enter') sendViewerComment(); });
 function sendViewerComment(){
   const txt=$('viewerCommentInput').value.trim();
@@ -4095,247 +3115,6 @@ document.addEventListener('click', async (e) => {
     } catch(err){ alert('Gagal menghapus video: '+err.message); }
   }
 });
-async function applyAutoTranslate(el){
-  const txt = el.dataset.srcText;
-  const lang = el.dataset.targetLang;
-  if(!txt || !lang) return;
-  el.textContent = '⏳ Menerjemahkan...';
-  try{
-    const result = await translateText(txt, lang);
-    $('textInput').value = result.trim();
-    el.classList.remove('show');
-  } catch(e){ el.textContent = '❌ Gagal. Klik lagi.'; }
-}
-
-// ============ FULLSCREEN IMAGE ============
-function openImgFullscreen(src){
-  document.getElementById('imgFullscreenImg').src = src;
-  document.getElementById('imgFullscreenOverlay').classList.add('show');
-}
-function closeImgFullscreen(){
-  document.getElementById('imgFullscreenOverlay').classList.remove('show');
-  document.getElementById('imgFullscreenImg').src = '';
-}
-document.addEventListener('keydown', (e) => { if(e.key==='Escape') closeImgFullscreen(); });
-
-// ============ DARK MODE ============
-function applyDarkMode(on){
-  document.body.classList.toggle('dark-mode', on);
-  $('darkModeBtn').textContent = on ? '☀️' : '🌙';
-  const chk = document.getElementById('settingDarkMode');
-  if(chk) chk.checked = on;
-  try{ localStorage.setItem('umkm_dark_mode', on?'1':'0'); }catch(e){}
-}
-document.getElementById('darkModeBtn').addEventListener('click', () => {
-  applyDarkMode(!document.body.classList.contains('dark-mode'));
-});
-document.getElementById('settingDarkMode').addEventListener('change', (e) => {
-  applyDarkMode(e.target.checked);
-});
-// Load saved dark mode
-try{
-  if(localStorage.getItem('umkm_dark_mode')==='1') applyDarkMode(true);
-}catch(e){}
-
-// ============ NOTIFICATIONS ============
-let notifications = [];
-let notifEnabled = true;
-function addNotif(msg, icon='🔔'){
-  if(!notifEnabled) return;
-  notifications.unshift({msg, icon, time:new Date().toLocaleTimeString('id-ID')});
-  if(notifications.length > 30) notifications.pop();
-  document.getElementById('notifDot').classList.add('show');
-  renderNotifList();
-}
-function renderNotifList(){
-  const list = document.getElementById('notifList');
-  if(!list) return;
-  if(notifications.length===0){ list.innerHTML='<div class="empty-state">Tidak ada notifikasi baru.</div>'; return; }
-  list.innerHTML = notifications.map(n=>`
-    <div style="padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;">
-      <span style="margin-right:6px;">${n.icon}</span>${escapeHtml(n.msg)}
-      <div style="font-size:11px;color:var(--ink-soft);margin-top:3px;">${n.time}</div>
-    </div>
-  `).join('');
-}
-document.getElementById('notifBtn').addEventListener('click', () => {
-  document.getElementById('notifDot').classList.remove('show');
-  document.getElementById('notifModal').classList.add('show');
-  renderNotifList();
-});
-document.getElementById('notifModalClose').addEventListener('click', () => {
-  document.getElementById('notifModal').classList.remove('show');
-});
-document.getElementById('clearNotifBtn').addEventListener('click', () => {
-  notifications = [];
-  renderNotifList();
-});
-document.getElementById('settingNotif').addEventListener('change', (e) => {
-  notifEnabled = e.target.checked;
-});
-// Hook ke galeri — notif saat ada postingan baru
-let lastGalleryCount = 0;
-const origStartGalleryListener = startGalleryListener;
-// Patch gallery cache update to trigger notifs
-const _origRenderGallery = renderGalleryFromCache;
-window._galleryNotifPatch = function(){
-  if(galleryCache){
-    const cnt = Object.keys(galleryCache).length;
-    if(lastGalleryCount > 0 && cnt > lastGalleryCount){
-      addNotif('Ada konten baru di Galeri Publik! 🌍', '🌍');
-    }
-    lastGalleryCount = cnt;
-  }
-};
-
-// ============ AUTO-TRANSLATE ============
-let autoTranslateEnabled = true;
-document.getElementById('settingAutoTranslate').addEventListener('change', (e) => {
-  autoTranslateEnabled = e.target.checked;
-});
-
-async function translateText(text, targetLang){
-  if(!hasAnyKey()) throw new Error('NO_KEY');
-  const prompt = targetLang==='en'
-    ? `Terjemahkan teks berikut dari Bahasa Indonesia ke Bahasa Inggris. Balas HANYA dengan teks terjemahan, tanpa penjelasan:\n"${text}"`
-    : `Translate the following English text to Indonesian (Bahasa Indonesia). Reply ONLY with the translation, no explanations:\n"${text}"`;
-  return await callAI(prompt);
-}
-
-async function runTranslation(targetLang){
-  const txt = document.getElementById('translateInput').value.trim();
-  if(!txt){ alert('Ketik teks dulu.'); return; }
-  const btn = targetLang==='en'?document.getElementById('translateToEnBtn'):document.getElementById('translateToIdBtn');
-  const origText = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Menerjemahkan...';
-  try{
-    const result = await translateText(txt, targetLang);
-    const resEl = document.getElementById('translateResult');
-    const copyBtn = document.getElementById('translateCopyBtn');
-    resEl.textContent = result.trim();
-    resEl.style.display = 'block';
-    copyBtn.style.display = 'block';
-    copyBtn.onclick = () => {
-      navigator.clipboard.writeText(result.trim()).then(()=>{ copyBtn.textContent='✅ Tersalin!'; setTimeout(()=>{ copyBtn.textContent='📋 Salin hasil terjemahan'; },1500); });
-    };
-  } catch(err){ alert('Gagal menerjemahkan: '+err.message); }
-  finally{ btn.disabled=false; btn.textContent=origText; }
-}
-
-document.getElementById('translateToEnBtn').addEventListener('click', () => runTranslation('en'));
-document.getElementById('translateToIdBtn').addEventListener('click', () => runTranslation('id'));
-
-// Auto detect & suggest translation on text input
-let autoTranslateTimer = null;
-$('textInput').addEventListener('input', (e) => {
-  if(!autoTranslateEnabled || !hasAnyKey()) return;
-  clearTimeout(autoTranslateTimer);
-  const txt = e.target.value.trim();
-  if(txt.length < 10) return;
-  autoTranslateTimer = setTimeout(async () => {
-    // Simple heuristic: jika ada kata bahasa inggris umum, tawarkan terjemahan
-    const enWords = /\b(the|is|are|was|were|have|has|do|does|will|would|can|could|should|this|that|with|from|they|their)\b/i;
-    const hasEn = enWords.test(txt);
-    const hint = document.getElementById('financeTranslateHint');
-    if(!hint) return;
-    hint.textContent = hasEn ? '🌐 Teks terdeteksi Inggris — klik untuk terjemahkan ke Indonesia' : '🌐 Teks terdeteksi Indonesia — klik untuk terjemahkan ke Inggris';
-    hint.dataset.targetLang = hasEn ? 'id' : 'en';
-    hint.dataset.srcText = txt;
-    hint.classList.add('show');
-  }, 800);
-});
-
-// ============ SETTINGS PANEL ============
-// ============ TERJEMAHAN INLINE (di field judul/konten langsung, bukan di Settings) ============
-function detectLangSimple(text){
-  const enWords = /\b(the|is|are|was|were|have|has|do|does|will|would|can|could|should|this|that|with|from|they|their|and|for)\b/i;
-  return enWords.test(text) ? 'en' : 'id';
-}
-
-async function translateFieldInline(getText, setText, btn){
-  const txt = (getText() || '').trim();
-  if(!txt){ alert('Belum ada teks untuk diterjemahkan.'); return; }
-  if(!hasAnyKey()){ goToSettingsForKey(); alert('Isi API key dulu di tab ⚙️ Pengaturan untuk pakai fitur terjemahan.'); return; }
-  const targetLang = detectLangSimple(txt) === 'en' ? 'id' : 'en';
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = '⏳ ...';
-  try{
-    const result = await translateText(txt, targetLang);
-    setText(result.trim());
-  } catch(err){ alert('Gagal menerjemahkan: ' + err.message); }
-  finally{ btn.disabled = false; btn.textContent = orig; }
-}
-
-document.getElementById('productNameTranslateBtn').addEventListener('click', () => {
-  const inp = document.getElementById('productName');
-  translateFieldInline(() => inp.value, (v) => { inp.value = v; }, document.getElementById('productNameTranslateBtn'));
-});
-document.getElementById('resTitleTranslateBtn').addEventListener('click', () => {
-  const el = document.getElementById('resTitle');
-  translateFieldInline(() => el.textContent, (v) => { el.textContent = v; }, document.getElementById('resTitleTranslateBtn'));
-});
-document.getElementById('resCaptionTranslateBtn').addEventListener('click', () => {
-  const el = document.getElementById('resCaption');
-  translateFieldInline(() => el.textContent, (v) => { el.textContent = v; }, document.getElementById('resCaptionTranslateBtn'));
-});
-
-document.getElementById('clearDataBtn').addEventListener('click', () => {
-  if(!confirm('Hapus SEMUA data lokal? Ini akan menghapus transaksi, API key, dan preferensi. Data di Firebase tetap aman.')) return;
-  try{
-    localStorage.clear();
-    alert('Data lokal berhasil dihapus. Halaman akan di-refresh.');
-    location.reload();
-  } catch(e){ alert('Gagal menghapus: '+e.message); }
-});
-
-
-// ============ SPLASH / ONBOARDING ============
-// Selalu tampil setiap buka aplikasi — splashDone() dipanggil saat user tutup splash
-(function(){
-  let currentSlide = 1;
-  const totalSlides = 3;
-
-  function goToSlide(n){
-    for(let i=1;i<=totalSlides;i++){
-      const sl = document.getElementById('splashSlide'+i);
-      if(sl) sl.classList.toggle('active', i===n);
-    }
-    document.querySelectorAll('.splash-dot').forEach(d => {
-      d.classList.toggle('active', parseInt(d.dataset.slide)===n);
-    });
-    currentSlide = n;
-    const nextBtn = document.getElementById('splashNextBtn');
-    if(nextBtn){
-      if(n === totalSlides){
-        nextBtn.className = 'sn-start';
-        nextBtn.textContent = '🚀 Mulai Sekarang';
-      } else {
-        nextBtn.className = 'sn-next';
-        nextBtn.textContent = 'Lanjut →';
-      }
-    }
-  }
-
-  function closeSplash(){
-    const el = document.getElementById('splashOverlay');
-    if(el){
-      el.style.transition='opacity .35s ease';
-      el.style.opacity='0';
-      setTimeout(()=>{ el.style.display='none'; }, 350);
-    }
-    splashDone();
-  }
-
-  document.getElementById('splashNextBtn').addEventListener('click',()=>{
-    if(currentSlide < totalSlides){ goToSlide(currentSlide+1); }
-    else{ closeSplash(); }
-  });
-  document.getElementById('splashSkipBtn').addEventListener('click', closeSplash);
-
-  document.querySelectorAll('.splash-dot').forEach(d=>{
-    d.addEventListener('click',()=>goToSlide(parseInt(d.dataset.slide)));
-  });
-})();
 
 </script>
 </body>

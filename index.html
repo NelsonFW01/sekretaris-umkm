@@ -1228,9 +1228,11 @@
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
         <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;">
-          <div style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
-            <div style="font-size:28px;margin-bottom:8px;">&#x1F5FA;</div>
-            <div>Peta akan tampil setelah ada user yang bagikan lokasi atau daftarkan toko.</div>
+          <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
+            <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
+            <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Peta Komunitas</div>
+            <div style="margin-bottom:14px;font-size:12.5px;">Klik tombol di bawah untuk memuat peta dan lokasi toko.</div>
+            <button id="loadMapBtn" style="background:var(--teal);color:white;border:none;border-radius:11px;padding:11px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Muat Peta</button>
           </div>
         </div>
         <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;text-align:center;">👤 Biru = lokasi user &nbsp;·&nbsp; 🏪 Oranye = toko terdaftar</div>
@@ -2974,37 +2976,42 @@ async function renderCommunityMap(){
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     if(tab.dataset.panel === 'community'){
-      setTimeout(async () => {
-        if(typeof L === 'undefined') return;
-        if(!communityMap){
-          // Coba ambil GPS user dulu sebelum init peta supaya center benar
-          if(myLocation && myLocation.lat){
-            initCommunityMap(myLocation.lat, myLocation.lng);
-          } else if(navigator.geolocation){
-            // Coba dapat posisi sekali dengan timeout cepat
-            await new Promise(resolve => {
-              navigator.geolocation.getCurrentPosition(
-                pos => { initCommunityMap(pos.coords.latitude, pos.coords.longitude); resolve(); },
-                () => { initCommunityMap(); resolve(); },
-                {maximumAge: 60000, timeout: 3000}
-              );
-            });
-          } else {
-            initCommunityMap();
-          }
-        } else {
-          communityMap.invalidateSize();
-        }
-        await renderCommunityMap();
-      }, 250);
+      // Kalau peta sudah dimuat, cukup invalidateSize supaya tile tidak rusak
+      if(communityMap){
+        setTimeout(() => { communityMap.invalidateSize(); }, 250);
+      }
+      // Kalau belum dimuat, biarkan user klik tombol "Muat Peta" sendiri
     }
   });
+});
+
+// Tombol "Muat Peta" — user klik sendiri saat siap
+document.getElementById('loadMapBtn').addEventListener('click', async () => {
+  if(typeof L === 'undefined') return;
+  const btn = document.getElementById('loadMapBtn');
+  btn.textContent = '⏳ Memuat...';
+  btn.disabled = true;
+
+  if(!communityMap){
+    // Prioritas center: GPS saya → Jakarta
+    if(myLocation && myLocation.lat){
+      initCommunityMap(myLocation.lat, myLocation.lng);
+    } else {
+      // Default ke Jakarta, bukan [0,0]
+      initCommunityMap(-6.2088, 106.8456);
+    }
+  }
+
+  await renderCommunityMap();
+  // Sembunyikan prompt setelah peta berhasil dimuat
+  const prompt = document.getElementById('mapLoadPrompt');
+  if(prompt) prompt.style.display = 'none';
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', async () => {
   if(!communityMap){
     if(myLocation && myLocation.lat) initCommunityMap(myLocation.lat, myLocation.lng);
-    else initCommunityMap();
+    else initCommunityMap(-6.2088, 106.8456);
   }
   await renderCommunityMap();
   // Kalau ada lokasi user sendiri, fly ke sana setelah render

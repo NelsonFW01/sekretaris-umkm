@@ -223,6 +223,7 @@
   .record-zone{
     background: var(--bg-card); border-radius: var(--radius); box-shadow: var(--shadow);
     padding: 28px 22px; text-align:center; border: 1px solid var(--line); margin-bottom: 18px;
+    overflow: hidden; box-sizing: border-box; width: 100%;
   }
   .record-zone h2{ font-size:18px; margin-bottom:4px; }
   .record-zone p.hint{ color:var(--ink-soft); font-size:13.5px; margin-bottom:22px; }
@@ -244,15 +245,15 @@
   .mic-status{ font-size: 13px; color: var(--ink-soft); font-weight:500; min-height:18px; }
   .mic-status.live{ color: var(--coral); font-weight:600; }
 
-  .text-fallback{ display:flex; gap:8px; margin-top:18px; }
+  .text-fallback{ display:flex; gap:8px; margin-top:18px; width:100%; box-sizing:border-box; }
   .text-fallback input{
-    flex:1; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
-    font-size: 14px; font-family: inherit; background: var(--bg);
+    flex:1; min-width:0; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
+    font-size: 14px; font-family: inherit; background: var(--bg); box-sizing:border-box;
   }
   .text-fallback input:focus{ outline:none; border-color: var(--teal); }
   .text-fallback button{
-    padding: 12px 18px; border-radius: 12px; border:none; background: var(--teal);
-    color:white; font-weight:600; font-size:14px; cursor:pointer;
+    flex-shrink:0; padding: 12px 18px; border-radius: 12px; border:none; background: var(--teal);
+    color:white; font-weight:600; font-size:14px; cursor:pointer; white-space:nowrap;
   }
   .text-fallback button:disabled{ opacity:0.5; cursor:not-allowed; }
 
@@ -624,6 +625,105 @@
   .upload-progress-bar-bg{height:8px;background:var(--sand);border-radius:10px;overflow:hidden;}
   .upload-progress-bar{height:100%;background:var(--teal);border-radius:10px;width:0%;transition:width .3s;}
   .upload-progress-label{font-size:11.5px;color:var(--ink-soft);margin-top:5px;text-align:center;}
+
+  /* ===== SPLASH / ONBOARDING SCREEN ===== */
+  .splash-overlay{
+    position:fixed;inset:0;z-index:10001;
+    background:linear-gradient(160deg,#1B4D4A 0%,#103230 60%,#0D2826 100%);
+    display:flex;flex-direction:column;align-items:center;overflow-y:auto;
+    padding:0 0 32px;
+  }
+  .splash-overlay.hidden{display:none;}
+  .splash-hero{
+    width:100%;padding:48px 28px 32px;text-align:center;
+    background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 100%);
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .splash-logo{
+    width:68px;height:68px;background:rgba(255,255,255,0.12);border-radius:20px;
+    display:flex;align-items:center;justify-content:center;font-size:32px;
+    margin:0 auto 18px;border:2px solid rgba(255,255,255,0.18);
+  }
+  .splash-hero h1{
+    font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;
+    color:#fff;letter-spacing:-0.02em;margin-bottom:8px;line-height:1.2;
+  }
+  .splash-hero p{
+    color:rgba(255,255,255,0.65);font-size:14px;line-height:1.6;max-width:320px;margin:0 auto;
+  }
+  .splash-slides{
+    width:100%;max-width:440px;padding:0 20px;margin-top:28px;
+  }
+  .splash-slide{
+    display:none;animation:fadeUp .35s ease;
+  }
+  .splash-slide.active{display:block;}
+  .feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;}
+  .feature-card{
+    background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
+    border-radius:14px;padding:14px 12px;text-align:center;
+  }
+  .feature-card .fc-icon{font-size:26px;margin-bottom:6px;}
+  .feature-card .fc-title{font-size:12.5px;font-weight:700;color:#fff;margin-bottom:3px;}
+  .feature-card .fc-desc{font-size:11px;color:rgba(255,255,255,0.55);line-height:1.4;}
+  .splash-section-title{
+    font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:700;
+    color:rgba(255,255,255,0.9);margin-bottom:14px;text-align:center;letter-spacing:-0.01em;
+  }
+  .setup-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+  .setup-step{
+    display:flex;align-items:flex-start;gap:12px;
+    background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);
+    border-radius:13px;padding:13px 14px;
+  }
+  .setup-step .ss-num{
+    width:26px;height:26px;border-radius:50%;background:var(--coral);color:white;
+    font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+    margin-top:1px;
+  }
+  .setup-step .ss-body{}
+  .setup-step .ss-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;}
+  .setup-step .ss-desc{font-size:11.5px;color:rgba(255,255,255,0.55);line-height:1.45;}
+  .boost-promo-card{
+    background:linear-gradient(135deg,rgba(232,99,63,0.22),rgba(200,79,47,0.14));
+    border:1.5px solid rgba(232,99,63,0.4);border-radius:16px;padding:18px;text-align:center;
+    margin-bottom:20px;
+  }
+  .boost-promo-card .bp-icon{font-size:32px;margin-bottom:8px;}
+  .boost-promo-card h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:6px;font-family:'Plus Jakarta Sans',sans-serif;}
+  .boost-promo-card p{font-size:12.5px;color:rgba(255,255,255,0.7);line-height:1.5;margin-bottom:12px;}
+  .boost-promo-card .bp-price{
+    display:inline-block;background:var(--coral);color:white;font-weight:800;font-size:14px;
+    padding:6px 18px;border-radius:20px;
+  }
+  .splash-dots{
+    display:flex;justify-content:center;gap:6px;margin-bottom:22px;
+  }
+  .splash-dot{
+    width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.25);
+    transition:all .25s ease;cursor:pointer;
+  }
+  .splash-dot.active{background:#fff;width:22px;border-radius:4px;}
+  .splash-nav{
+    display:flex;gap:10px;padding:0 20px;width:100%;max-width:440px;
+  }
+  .splash-nav .sn-skip{
+    flex:0;padding:13px 18px;border-radius:13px;border:1.5px solid rgba(255,255,255,0.2);
+    background:transparent;color:rgba(255,255,255,0.6);font-size:13px;font-weight:600;cursor:pointer;
+    white-space:nowrap;
+  }
+  .splash-nav .sn-next{
+    flex:1;padding:13px;border-radius:13px;border:none;
+    background:white;color:var(--teal);font-size:14px;font-weight:800;cursor:pointer;
+    font-family:'Plus Jakarta Sans',sans-serif;transition:opacity .15s;
+  }
+  .splash-nav .sn-next:active{opacity:0.85;}
+  .splash-nav .sn-start{
+    flex:1;padding:13px;border-radius:13px;border:none;
+    background:var(--coral);color:white;font-size:14px;font-weight:800;cursor:pointer;
+    font-family:'Plus Jakarta Sans',sans-serif;transition:opacity .15s;
+  }
+  .splash-nav .sn-start:active{opacity:0.85;}
 </style>
 </head>
 <body>
@@ -1203,6 +1303,124 @@
 </div>
 
 <!-- ===== LOGIN / REGISTER (WAJIB SEBELUM PAKAI APLIKASI) ===== -->
+<!-- ===== SPLASH / ONBOARDING SCREEN ===== -->
+<div class="splash-overlay" id="splashOverlay">
+  <div class="splash-hero">
+    <div class="splash-logo">🤝</div>
+    <h1>Sekretaris UMKM</h1>
+    <p>Asisten AI serba bisa untuk usaha kecil & menengah Indonesia</p>
+  </div>
+
+  <div class="splash-slides" style="width:100%;max-width:440px;padding:0 20px;margin-top:28px;">
+
+    <!-- Slide 1: Fitur-fitur -->
+    <div class="splash-slide active" id="splashSlide1">
+      <div class="splash-section-title">✨ Semua yang kamu butuhkan</div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="fc-icon">💰</div>
+          <div class="fc-title">Catat Keuangan</div>
+          <div class="fc-desc">Cukup ngomong atau ketik, AI langsung catat otomatis</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📸</div>
+          <div class="fc-title">Bikin Konten</div>
+          <div class="fc-desc">Caption & foto produk siap posting ke medsos</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📺</div>
+          <div class="fc-title">Live Streaming</div>
+          <div class="fc-desc">Siaran langsung + catat pesanan otomatis saat live</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">🌍</div>
+          <div class="fc-title">Galeri Publik</div>
+          <div class="fc-desc">Pamerkan produk ke sesama pedagang UMKM</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">📊</div>
+          <div class="fc-title">Dashboard</div>
+          <div class="fc-desc">Grafik pemasukan & pengeluaran real-time</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">👥</div>
+          <div class="fc-title">Komunitas</div>
+          <div class="fc-desc">Terhubung & kolaborasi live bareng UMKM lain</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 2: Setup API -->
+    <div class="splash-slide" id="splashSlide2">
+      <div class="splash-section-title">⚙️ Setup awal (2 menit)</div>
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="ss-num">1</div>
+          <div class="ss-body">
+            <div class="ss-title">Daftar & masuk akun</div>
+            <div class="ss-desc">Buat akun gratis dengan email — akun ini terhubung ke komunitas UMKM se-Indonesia</div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="ss-num">2</div>
+          <div class="ss-body">
+            <div class="ss-title">Ambil API Key AI</div>
+            <div class="ss-desc">Buka <strong style="color:rgba(255,255,255,0.9);">gemini.google.com/app</strong> atau OpenAI, salin API key-mu (gratis tersedia)</div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="ss-num">3</div>
+          <div class="ss-body">
+            <div class="ss-title">Tempel di tab ⚙️ Setting</div>
+            <div class="ss-desc">Masuk ke tab Setting → tempel API key → semua fitur AI langsung aktif</div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <div class="ss-num">4</div>
+          <div class="ss-body">
+            <div class="ss-title">Lengkapi profil toko</div>
+            <div class="ss-desc">Isi nama toko & info pembayaran di tab 👥 Komunitas supaya pembeli mudah menghubungimu</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Slide 3: Boost promo -->
+    <div class="splash-slide" id="splashSlide3">
+      <div class="splash-section-title">🚀 Mau produkmu makin dilihat?</div>
+      <div class="boost-promo-card">
+        <div class="bp-icon">🚀</div>
+        <h3>Fitur Boost Produk</h3>
+        <p>Tampilkan produkmu di urutan <strong style="color:#fff;">paling atas</strong> Galeri Publik selama 24 jam penuh. Dilihat oleh semua pengguna Sekretaris UMKM!</p>
+        <div class="bp-price">Hanya Rp 10.000 / 24 jam</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">🎥 Collab Live Streaming</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Undang UMKM lain untuk live bareng dalam satu siaran. Kalian bisa tampil bersama, berbagi penonton, dan saling promosi — gratis!</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">📹 Galeri Video Live</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Rekaman sesi live tersimpan otomatis dan bisa ditonton siapa saja di tab Video — bangun kepercayaan pembeli lewat konten nyata.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Dots indicator -->
+  <div class="splash-dots" style="margin-top:20px;">
+    <div class="splash-dot active" data-slide="1"></div>
+    <div class="splash-dot" data-slide="2"></div>
+    <div class="splash-dot" data-slide="3"></div>
+  </div>
+
+  <!-- Nav buttons -->
+  <div class="splash-nav">
+    <button class="sn-skip" id="splashSkipBtn">Lewati</button>
+    <button class="sn-next" id="splashNextBtn">Lanjut →</button>
+  </div>
+</div>
+
+
 <div class="welcome-overlay" id="authOverlay">
   <div class="welcome-box">
     <div class="wb-icon">🔐</div>
@@ -2800,7 +3018,8 @@ async function connectHostToLiveKit(){
       if(participant.identity === identity) return;
       attachRemoteTrackToGrid(track, participant.identity, 'liveCohostGrid');
     });
-    livekitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => removeGridTile(participant.identity));
+    livekitRoom.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => { if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity); });
+    livekitRoom.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
     await livekitRoom.connect(url, token);
     // Publish existing camStream tracks
     if(camStream){
@@ -2871,21 +3090,45 @@ function renderCohostList(){
 }
 
 // Generic helper: pasang track remote (video/audio) ke grid kecil berdasarkan identity peserta
+// Buat atau ambil wrapper tile untuk satu peserta di grid
+function getOrCreateTileWrapper(identity, gridId){
+  const grid = document.getElementById(gridId);
+  if(!grid) return null;
+  let wrap = grid.querySelector(`div[data-tile="${identity}"]`);
+  if(!wrap){
+    wrap = document.createElement('div');
+    wrap.dataset.tile = identity;
+    wrap.style.cssText = 'position:relative;width:110px;height:150px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;';
+    // Placeholder gelap (tampil saat kamera mati)
+    const ph = document.createElement('div');
+    ph.className = 'tile-cam-off';
+    ph.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
+    ph.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
+    wrap.appendChild(ph);
+    grid.appendChild(wrap);
+  }
+  return wrap;
+}
+
 function attachRemoteTrackToGrid(track, identity, gridId){
   const grid = document.getElementById(gridId);
   if(!grid) return;
   if(track.kind === 'video'){
-    let tile = grid.querySelector(`video[data-identity="${identity}"]`);
+    const wrap = getOrCreateTileWrapper(identity, gridId);
+    if(!wrap) return;
+    let tile = wrap.querySelector('video');
     if(!tile){
       tile = document.createElement('video');
       tile.autoplay = true; tile.playsInline = true; tile.muted = true;
       tile.dataset.identity = identity;
-      tile.style.cssText = 'width:110px;height:150px;border-radius:10px;object-fit:cover;background:#000;';
-      grid.appendChild(tile);
+      tile.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
+      wrap.appendChild(tile);
     }
-    // Detach dulu sebelum attach ulang untuk cegah duplikasi
     try{ track.detach(tile); }catch(e){}
     track.attach(tile);
+    tile.style.display = 'block';
+    const ph = wrap.querySelector('.tile-cam-off');
+    if(ph) ph.style.display = 'none';
   } else if(track.kind === 'audio'){
     let ael = document.querySelector(`audio[data-identity="${identity}-audio"]`);
     if(!ael){
@@ -2898,7 +3141,20 @@ function attachRemoteTrackToGrid(track, identity, gridId){
     track.attach(ael);
   }
 }
+
+// Sembunyikan video tile tapi pertahankan wrapper (kamera mati, bukan disconnect)
+function hideGridTileVideo(identity){
+  document.querySelectorAll(`div[data-tile="${identity}"]`).forEach(wrap => {
+    const vid = wrap.querySelector('video');
+    if(vid){ try{ vid.srcObject = null; }catch(e){} vid.style.display = 'none'; }
+    const ph = wrap.querySelector('.tile-cam-off');
+    if(ph) ph.style.display = 'flex';
+  });
+}
+
+// Hapus tile sepenuhnya (peserta benar-benar disconnect)
 function removeGridTile(identity){
+  document.querySelectorAll(`div[data-tile="${identity}"]`).forEach(el => el.remove());
   document.querySelectorAll(`[data-identity="${identity}"]`).forEach(el => el.remove());
   document.querySelectorAll(`[data-identity="${identity}-audio"]`).forEach(el => el.remove());
 }
@@ -2917,6 +3173,7 @@ function setupCollabInviteListener(){
     if(!banner) return;
     $('collabInviteText').textContent = `🎥 ${inv.hostName||'Seseorang'} mengundangmu Collab Live bareng!`;
     banner.style.display = 'block';
+    addNotif(`🎥 ${inv.hostName||'Seseorang'} mengundangmu Collab Live bareng! Buka tab 📹 Live untuk menerima.`, '🎥');
     $('collabAcceptBtn').onclick = () => acceptCollabInvite(sessionId, inv);
     $('collabDeclineBtn').onclick = () => declineCollabInvite(sessionId);
   });
@@ -2951,7 +3208,8 @@ async function acceptCollabInvite(sessionId, inv){
       if(participant.identity === identity) return;
       attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
     });
-    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => removeGridTile(participant.identity));
+    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => { if(track.kind==='video') hideGridTileVideo(participant.identity); else removeGridTile(participant.identity); });
+    room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
 
     await room.connect(url, token);
 
@@ -2960,14 +3218,22 @@ async function acceptCollabInvite(sessionId, inv){
     if(vt) await room.localParticipant.publishTrack(new LocalVideoTrack(vt), {source: Track.Source.Camera});
     if(at) await room.localParticipant.publishTrack(new LocalAudioTrack(at), {source: Track.Source.Microphone});
 
-    // Tampilkan preview video diri sendiri di grid co-host
-    // Pastikan tidak ada duplikasi: cek di SEMUA grid
-    document.querySelectorAll('video[data-identity="self"]').forEach(el => el.remove());
+    // Tampilkan preview video diri sendiri di grid co-host (pakai wrapper agar konsisten)
+    document.querySelectorAll('div[data-tile="self"], video[data-identity="self"]').forEach(el => el.remove());
+    const selfWrap = document.createElement('div');
+    selfWrap.dataset.tile = 'self';
+    selfWrap.style.cssText = 'position:relative;width:110px;height:150px;border-radius:10px;overflow:hidden;background:#000;flex-shrink:0;border:2px solid var(--teal);';
+    const selfPh = document.createElement('div');
+    selfPh.className = 'tile-cam-off';
+    selfPh.style.cssText = 'position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
+    selfPh.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
+    selfWrap.appendChild(selfPh);
     const selfTile = document.createElement('video');
     selfTile.autoplay = true; selfTile.muted = true; selfTile.playsInline = true;
     selfTile.dataset.identity = 'self';
-    selfTile.style.cssText = 'width:110px;height:150px;border-radius:10px;object-fit:cover;background:#000;border:2px solid var(--teal);';
-    $('viewerCohostGrid').appendChild(selfTile);
+    selfTile.style.cssText = 'width:100%;height:100%;object-fit:cover;position:absolute;inset:0;';
+    selfWrap.appendChild(selfTile);
+    $('viewerCohostGrid').appendChild(selfWrap);
     selfTile.srcObject = cohostStream;
 
     // Pasang track yang sudah ada dari partisipan lain (host utama / co-host lain)
@@ -3397,18 +3663,25 @@ async function joinAsViewer(sessionId){
       }
     });
 
-    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
       if(track.kind === Track.Kind.Video){
-        track.detach();
-        $('viewerVideo').style.display='none';
-        $('viewerScreenPh').style.display='flex';
-        $('viewerUnmuteBtn').style.display='none';
+        // Cek apakah track ini ada di viewerCohostGrid (co-host lain) atau viewerVideo (host utama)
+        const cohostTileWrap = document.querySelector(`div[data-tile="${participant.identity}"]`);
+        if(cohostTileWrap){
+          hideGridTileVideo(participant.identity);
+        } else {
+          track.detach();
+          $('viewerVideo').style.display='none';
+          $('viewerScreenPh').style.display='flex';
+          $('viewerUnmuteBtn').style.display='none';
+        }
       } else if(track.kind === Track.Kind.Audio){
         track.detach();
         const audioEl = document.getElementById('viewerAudioEl');
         if(audioEl) audioEl.remove();
       }
     });
+    room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
 
     room.on(RoomEvent.Disconnected, () => {
       if($('viewerConnStatus')) $('viewerConnStatus').textContent='Koneksi terputus.';
@@ -3543,12 +3816,25 @@ $('cohostToggleCamBtn').addEventListener('click', async () => {
     // Matikan kamera: stop video track dan unpublish
     cohostStream.getVideoTracks().forEach(t => t.stop());
     try{
-      const pubs = cohostRoom.localParticipant.trackPublications;
-      for(const pub of pubs.values()){
-        if(pub.track && pub.source === 'camera') await cohostRoom.localParticipant.unpublishTrack(pub.track);
+      const pubs = [...cohostRoom.localParticipant.trackPublications.values()];
+      for(const pub of pubs){
+        if(pub.track && (pub.source === 'camera' || pub.track.kind === 'video')) await cohostRoom.localParticipant.unpublishTrack(pub.track);
       }
     } catch(e){}
-    if(selfTile) selfTile.style.opacity = '0.3';
+    // Tampilkan placeholder gelap di self-tile
+    if(selfTile){ selfTile.style.display='none'; }
+    const selfWrap = $('viewerCohostGrid').querySelector('video[data-identity="self"]')?.parentElement;
+    if(selfWrap){
+      let selfPh = selfWrap.querySelector('.tile-cam-off');
+      if(!selfPh){
+        selfPh = document.createElement('div');
+        selfPh.className = 'tile-cam-off';
+        selfPh.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-size:11px;gap:4px;';
+        selfPh.innerHTML = '<span style="font-size:22px;">📷</span><span>Kamera mati</span>';
+        selfWrap.appendChild(selfPh);
+      }
+      selfPh.style.display = 'flex';
+    }
     btn.textContent = '📷 Hidupkan Kamera';
     cohostCamOn = false;
   } else {
@@ -3559,7 +3845,10 @@ $('cohostToggleCamBtn').addEventListener('click', async () => {
       // Ganti track di cohostStream
       cohostStream.getVideoTracks().forEach(t => cohostStream.removeTrack(t));
       cohostStream.addTrack(vt);
-      if(selfTile){ selfTile.srcObject = cohostStream; selfTile.style.opacity = '1'; }
+      if(selfTile){ selfTile.srcObject = cohostStream; selfTile.style.display = 'block'; }
+      // Sembunyikan placeholder
+      const selfWrapOn = selfTile?.parentElement;
+      if(selfWrapOn){ const ph = selfWrapOn.querySelector('.tile-cam-off'); if(ph) ph.style.display='none'; }
       const {LocalVideoTrack, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
       await cohostRoom.localParticipant.publishTrack(new LocalVideoTrack(vt), {source: Track.Source.Camera});
       btn.textContent = '📷 Matikan Kamera';
@@ -3828,6 +4117,60 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     location.reload();
   } catch(e){ alert('Gagal menghapus: '+e.message); }
 });
+
+
+// ============ SPLASH / ONBOARDING ============
+(function(){
+  // Cek apakah user sudah pernah lihat splash
+  let seenSplash = false;
+  try{ seenSplash = localStorage.getItem('umkm_seen_splash') === '1'; }catch(e){}
+  if(seenSplash){
+    const el = document.getElementById('splashOverlay');
+    if(el) el.classList.add('hidden');
+    return;
+  }
+
+  let currentSlide = 1;
+  const totalSlides = 3;
+
+  function goToSlide(n){
+    for(let i=1;i<=totalSlides;i++){
+      const sl = document.getElementById('splashSlide'+i);
+      if(sl) sl.classList.toggle('active', i===n);
+    }
+    document.querySelectorAll('.splash-dot').forEach(d => {
+      d.classList.toggle('active', parseInt(d.dataset.slide)===n);
+    });
+    currentSlide = n;
+    const nextBtn = document.getElementById('splashNextBtn');
+    if(nextBtn){
+      if(n === totalSlides){
+        nextBtn.textContent = '';
+        nextBtn.className = 'sn-start';
+        nextBtn.textContent = '🚀 Mulai Sekarang';
+      } else {
+        nextBtn.className = 'sn-next';
+        nextBtn.textContent = 'Lanjut →';
+      }
+    }
+  }
+
+  function closeSplash(){
+    try{ localStorage.setItem('umkm_seen_splash','1'); }catch(e){}
+    const el = document.getElementById('splashOverlay');
+    if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.classList.add('hidden'),300); }
+  }
+
+  document.getElementById('splashNextBtn').addEventListener('click',()=>{
+    if(currentSlide < totalSlides){ goToSlide(currentSlide+1); }
+    else{ closeSplash(); }
+  });
+  document.getElementById('splashSkipBtn').addEventListener('click', closeSplash);
+
+  document.querySelectorAll('.splash-dot').forEach(d=>{
+    d.addEventListener('click',()=>goToSlide(parseInt(d.dataset.slide)));
+  });
+})();
 
 </script>
 </body>

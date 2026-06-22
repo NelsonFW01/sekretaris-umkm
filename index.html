@@ -991,6 +991,7 @@
 
         <div class="live-cam-row">
           <button class="cam-btn" id="toggleCamBtn">📷 Aktifkan Kamera</button>
+          <button id="toggleMicBtn" style="border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);">🎙️ Matikan Mic</button>
           <button class="stop-btn" id="stopLiveBtn">⏹ Stop Live</button>
         </div>
 
@@ -2901,7 +2902,7 @@ const LIVEKIT_TOKEN_URL = 'https://snowy-paper-f1d3.nagoyaflora.workers.dev/toke
 
 let liveActive=false, liveOrders=[], liveComments=[], liveCoachInterval=null;
 let liveDurationTimer=null, liveSeconds=0, camStream=null;
-let liveSessionId=null, hostViewersUnsub=null, hostCommentsUnsub=null;
+let liveSessionId=null, hostViewersUnsub=null, hostCommentsUnsub=null, cohostListUnsub=null;
 let peerConnections={}, pendingViewerUids=new Set();
 let mediaRecorder=null, recordedChunks=[], pendingVideoBlob=null;
 
@@ -3103,13 +3104,16 @@ $('collabInviteBtn').addEventListener('click', async () => {
 function renderCohostList(){
   const box = $('collabCohostList');
   if(!box || !liveSessionId) return;
-  window.rtdbGet(window.rtdbRef(window.firebaseDb, `liveSessions/${liveSessionId}/cohosts`)).then(snap => {
+  // Sebelumnya pakai rtdbGet (ambil sekali) jadi status "Menunggu konfirmasi" gak pernah
+  // ke-update walau co-host udah Terima — sekarang pakai listener realtime.
+  if(cohostListUnsub){ try{ cohostListUnsub(); }catch(e){} cohostListUnsub = null; }
+  cohostListUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb, `liveSessions/${liveSessionId}/cohosts`), (snap) => {
     const val = snap.val();
     if(!val){ box.textContent = 'Belum ada co-host.'; return; }
     box.innerHTML = Object.entries(val).map(([uid,c]) =>
       `👤 ${escapeHtml(c.name||uid)} — ${c.status==='accepted'?'✅ Live bareng':'⏳ Menunggu konfirmasi'}`
     ).join('<br>');
-  }).catch(()=>{});
+  });
 }
 
 // Generic helper: pasang track remote (video/audio) ke grid kecil berdasarkan identity peserta
@@ -3361,13 +3365,16 @@ $('toggleCamBtn').addEventListener('click', async () => {
       } catch(e){}
     }
     vid.style.display='none'; $('liveScreenPh').style.display='flex';
-    $('toggleCamBtn').textContent='📷 Aktifkan Kamera'; return;
+    $('toggleCamBtn').textContent='📷 Aktifkan Kamera';
+    hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
+    return;
   }
   try{
     camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:true});
     vid.srcObject=camStream; vid.style.display='block';
     $('liveScreenPh').style.display='none';
     $('toggleCamBtn').textContent='📷 Matikan Kamera';
+    hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
 
     // Publish to LiveKit if already connected
     if(livekitRoom && livekitRoom.state==='connected'){
@@ -3392,6 +3399,23 @@ $('toggleCamBtn').addEventListener('click', async () => {
   } catch(err){ alert('Tidak bisa akses kamera: '+err.message); }
 });
 
+// ===== HOST: TOGGLE MIC SENDIRI (sebelumnya cuma co-host yang punya tombol ini) =====
+let hostMicOn = true;
+$('toggleMicBtn').addEventListener('click', () => {
+  if(!camStream){ alert('Aktifkan kamera dulu — mic ikut nyala otomatis bareng kamera.'); return; }
+  const btn = $('toggleMicBtn');
+  if(hostMicOn){
+    // Mute: disable track-nya aja (bukan stop), supaya bisa dihidupkan lagi tanpa minta izin ulang
+    camStream.getAudioTracks().forEach(t => { t.enabled = false; });
+    btn.textContent = '🎙️ Hidupkan Mic';
+    hostMicOn = false;
+  } else {
+    camStream.getAudioTracks().forEach(t => { t.enabled = true; });
+    btn.textContent = '🎙️ Matikan Mic';
+    hostMicOn = true;
+  }
+});
+
 $('stopLiveBtn').addEventListener('click', async () => {
   if(!confirm('Akhiri sesi live sekarang?')) return;
   $('stopLiveBtn').disabled=true; $('stopLiveBtn').textContent='⏳ Mengakhiri...';
@@ -3411,12 +3435,14 @@ $('stopLiveBtn').addEventListener('click', async () => {
     }
   }catch(e){ showDebugToast('Error saat stop live: '+e.message); }
   if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  hostMicOn = true; $('toggleMicBtn').textContent = '🎙️ Matikan Mic';
   // Disconnect from LiveKit
   if(livekitRoom){ try{ await livekitRoom.disconnect(); } catch(e){} livekitRoom=null; }
   clearInterval(liveCoachInterval); clearInterval(liveDurationTimer);
   Object.values(peerConnections).forEach(pc=>pc.close()); peerConnections={};
   if(hostViewersUnsub){ hostViewersUnsub(); hostViewersUnsub=null; }
   if(hostCommentsUnsub){ hostCommentsUnsub(); hostCommentsUnsub=null; }
+  if(cohostListUnsub){ cohostListUnsub(); cohostListUnsub=null; }
   if(window.firebaseReady && liveSessionId){
     try{
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});

@@ -2943,8 +2943,7 @@ async function acceptCollabInvite(sessionId, inv){
     alert('Gagal join sebagai co-host: ' + err.message);
   }
 }
-
-
+$('toggleCamBtn').addEventListener('click', async () => {
   const vid=$('liveVideo');
   if(camStream){
     if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop();

@@ -4143,17 +4143,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
 
 // ============ SPLASH / ONBOARDING ============
+// Selalu tampil setiap buka aplikasi — splashDone() dipanggil saat user tutup splash
 (function(){
-  // Cek apakah user sudah pernah lihat splash
-  let seenSplash = false;
-  try{ seenSplash = localStorage.getItem('umkm_seen_splash') === '1'; }catch(e){}
-  if(seenSplash){
-    const el = document.getElementById('splashOverlay');
-    if(el) el.classList.add('hidden');
-    splashDone(); // Langsung unlock auth
-    return;
-  }
-
   let currentSlide = 1;
   const totalSlides = 3;
 
@@ -4169,7 +4160,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const nextBtn = document.getElementById('splashNextBtn');
     if(nextBtn){
       if(n === totalSlides){
-        nextBtn.textContent = '';
         nextBtn.className = 'sn-start';
         nextBtn.textContent = '🚀 Mulai Sekarang';
       } else {
@@ -4180,9 +4170,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
   function closeSplash(){
-    try{ localStorage.setItem('umkm_seen_splash','1'); }catch(e){}
     const el = document.getElementById('splashOverlay');
-    if(el){ el.style.opacity='0'; el.style.transition='opacity .3s ease'; setTimeout(()=>el.classList.add('hidden'),300); }
+    if(el){
+      el.style.transition='opacity .35s ease';
+      el.style.opacity='0';
+      setTimeout(()=>{ el.style.display='none'; }, 350);
+    }
     splashDone();
   }
 

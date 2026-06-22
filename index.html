@@ -2686,12 +2686,19 @@ function pickSupportedMime(){
 $('liveModeHostBtn').addEventListener('click', () => {
   $('liveModeHostBtn').classList.add('active'); $('liveModeWatchBtn').classList.remove('active');
   $('liveHostMode').style.display='block'; $('liveWatchMode').style.display='none';
-  stopWatchingSession();
+  // Jangan putuskan collab jika user sedang aktif sebagai co-host
+  if(!cohostRoom) stopWatchingSession();
 });
 $('liveModeWatchBtn').addEventListener('click', () => {
   $('liveModeWatchBtn').classList.add('active'); $('liveModeHostBtn').classList.remove('active');
   $('liveHostMode').style.display='none'; $('liveWatchMode').style.display='block';
-  startSessionListListener();
+  // Jika sedang aktif collab, langsung tampilkan layar viewer (jangan reset)
+  if(cohostRoom && watchingSessionId){
+    $('sessionListWrap').style.display='none';
+    $('viewerScreenWrap').style.display='block';
+  } else {
+    startSessionListListener();
+  }
 });
 
 // ===== HOST: START SESSION =====
@@ -2730,7 +2737,11 @@ $('startLiveBtn').addEventListener('click', async () => {
         $('viewerCount').textContent=uids.length;
       });
       hostCommentsUnsub = window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId+'/comments'), (snap) => {
-        const c=snap.val(); if(c) processIncomingComment(c.user, c.text, 'liveCommentsOverlay');
+        const c=snap.val(); if(!c) return;
+        // Jika teks adalah emote murni, tampilkan sebagai emote rain di layar host juga
+        const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
+        if(isEmote) addEmoteRainTo('emoteRain', c.text.trim());
+        processIncomingComment(c.user, c.text, 'liveCommentsOverlay');
       });
     } catch(err){ console.error('Gagal membuat sesi live di server:', err); liveSessionId=null; }
   } else {
@@ -2868,6 +2879,8 @@ function attachRemoteTrackToGrid(track, identity, gridId){
       tile.style.cssText = 'width:110px;height:150px;border-radius:10px;object-fit:cover;background:#000;';
       grid.appendChild(tile);
     }
+    // Detach dulu sebelum attach ulang untuk cegah duplikasi
+    try{ track.detach(tile); }catch(e){}
     track.attach(tile);
   } else if(track.kind === 'audio'){
     let ael = document.querySelector(`audio[data-identity="${identity}-audio"]`);
@@ -2877,6 +2890,7 @@ function attachRemoteTrackToGrid(track, identity, gridId){
       ael.dataset.identity = identity + '-audio';
       document.body.appendChild(ael);
     }
+    try{ track.detach(ael); }catch(e){}
     track.attach(ael);
   }
 }
@@ -2943,14 +2957,13 @@ async function acceptCollabInvite(sessionId, inv){
     if(at) await room.localParticipant.publishTrack(new LocalAudioTrack(at), {source: Track.Source.Microphone});
 
     // Tampilkan preview video diri sendiri di grid co-host
-    let selfTile = document.querySelector('video[data-identity="self"]');
-    if(!selfTile){
-      selfTile = document.createElement('video');
-      selfTile.autoplay = true; selfTile.muted = true; selfTile.playsInline = true;
-      selfTile.dataset.identity = 'self';
-      selfTile.style.cssText = 'width:110px;height:150px;border-radius:10px;object-fit:cover;background:#000;border:2px solid var(--teal);';
-      $('viewerCohostGrid').appendChild(selfTile);
-    }
+    // Pastikan tidak ada duplikasi: cek di SEMUA grid
+    document.querySelectorAll('video[data-identity="self"]').forEach(el => el.remove());
+    const selfTile = document.createElement('video');
+    selfTile.autoplay = true; selfTile.muted = true; selfTile.playsInline = true;
+    selfTile.dataset.identity = 'self';
+    selfTile.style.cssText = 'width:110px;height:150px;border-radius:10px;object-fit:cover;background:#000;border:2px solid var(--teal);';
+    $('viewerCohostGrid').appendChild(selfTile);
     selfTile.srcObject = cohostStream;
 
     // Pasang track yang sudah ada dari partisipan lain (host utama / co-host lain)
@@ -3456,7 +3469,10 @@ async function joinAsViewer(sessionId){
   };
 
   viewerCommentsUnsub=window.rtdbOnChildAdded(window.rtdbRef(window.firebaseDb,`liveSessions/${sessionId}/comments`), (snap) => {
-    const c=snap.val(); if(c) addCommentTo('viewerCommentsOverlay', c.user, c.text);
+    const c=snap.val(); if(!c) return;
+    const isEmote = /^[\p{Emoji}]+$/u.test((c.text||'').trim());
+    if(isEmote) addEmoteRainTo('viewerEmoteRain', c.text.trim());
+    addCommentTo('viewerCommentsOverlay', c.user, c.text);
   });
 }
 
@@ -3487,6 +3503,10 @@ function stopWatchingSession(){
 }
 
 $('backToSessionListBtn').addEventListener('click', () => {
+  // Jika sedang aktif sebagai co-host, tanya konfirmasi dulu sebelum keluar
+  if(cohostRoom){
+    if(!confirm('Kamu sedang Live bareng sebagai co-host. Keluar dan tinggalkan collab?')) return;
+  }
   stopWatchingSession();
   $('viewerScreenWrap').style.display='none';
   $('sessionListWrap').style.display='block';

@@ -580,7 +580,6 @@
     backdrop-filter:blur(4px);
   }
   .welcome-overlay.hidden{display:none;}
-  .welcome-overlay.splash-pending{display:none;}
   .welcome-box{
     background:var(--bg-card);border-radius:22px;padding:28px 24px;max-width:400px;width:100%;
     box-shadow:0 20px 60px rgba(42,38,34,0.2);text-align:center;
@@ -1422,7 +1421,7 @@
 </div>
 
 
-<div class="welcome-overlay splash-pending" id="authOverlay">
+<div class="welcome-overlay hidden" id="authOverlay" style="display:none!important;">
   <div class="welcome-box">
     <div class="wb-icon">🔐</div>
     <h2 id="authTitle">Masuk ke Akunmu</h2>
@@ -1681,6 +1680,29 @@ $a('forgotPasswordBtn').addEventListener('click', async () => {
   }
 });
 
+// Disebut oleh initAuthGate (user belum login) DAN oleh closeSplash / seenSplash path.
+// Hanya menampilkan authOverlay jika splash sudah selesai.
+let _splashDone = false;
+let _authWantsShow = false;
+function unlockAuthOverlay(){
+  _authWantsShow = true;
+  if(_splashDone){
+    const a = document.getElementById('authOverlay');
+    if(a){ a.style.removeProperty('display'); a.classList.remove('hidden'); }
+  }
+}
+function splashDone(){
+  _splashDone = true;
+  if(_authWantsShow){
+    const a = document.getElementById('authOverlay');
+    if(a){ a.style.removeProperty('display'); a.classList.remove('hidden'); }
+  } else {
+    // user sudah login, cukup hapus inline style saja (authOverlay tetap hidden)
+    const a = document.getElementById('authOverlay');
+    if(a) a.style.removeProperty('display');
+  }
+}
+
 function initAuthGate(){
   window.fbOnAuthStateChanged(window.fbAuth, async (user) => {
     if(user){
@@ -1702,7 +1724,7 @@ function initAuthGate(){
     } else {
       MY_UID = null;
       currentAuthEmail=''; isAdmin=false;
-      $a('authOverlay').classList.remove('hidden');
+      unlockAuthOverlay(); // Tampilkan login hanya setelah splash selesai
       $a('authUserEmail').textContent = '—';
     }
   });
@@ -4128,9 +4150,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   if(seenSplash){
     const el = document.getElementById('splashOverlay');
     if(el) el.classList.add('hidden');
-    // Langsung tampilkan authOverlay (tidak perlu tunggu splash)
-    const auth = document.getElementById('authOverlay');
-    if(auth) auth.classList.remove('splash-pending');
+    splashDone(); // Langsung unlock auth
     return;
   }
 
@@ -4162,10 +4182,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   function closeSplash(){
     try{ localStorage.setItem('umkm_seen_splash','1'); }catch(e){}
     const el = document.getElementById('splashOverlay');
-    if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.classList.add('hidden'),300); }
-    // Baru tampilkan authOverlay setelah splash selesai
-    const auth = document.getElementById('authOverlay');
-    if(auth) auth.classList.remove('splash-pending');
+    if(el){ el.style.opacity='0'; el.style.transition='opacity .3s ease'; setTimeout(()=>el.classList.add('hidden'),300); }
+    splashDone();
   }
 
   document.getElementById('splashNextBtn').addEventListener('click',()=>{

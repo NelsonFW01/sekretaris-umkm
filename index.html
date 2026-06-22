@@ -1746,10 +1746,10 @@ else { document.addEventListener('firebase-config-missing', ()=>{ $a('authError'
 
 
 // ============ STATE ============
-// KEY DEFAULT — fallback kalau user belum isi key sendiri.
-// Key ini adalah key publik dengan rate limit rendah. User bisa override dengan key mereka sendiri.
-const DEFAULT_GROQ_KEY = "";        // Isi dengan Groq key default kamu kalau ada
-const DEFAULT_OPENROUTER_KEY = "";  // Isi dengan OpenRouter key default kamu kalau ada
+// KEY ADMIN — fallback kalau user belum isi key sendiri.
+// Kalau quota admin hampir habis (rate limit 429), user akan dapat warning.
+const ADMIN_GROQ_KEY = "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";
+const ADMIN_OPENROUTER_KEY = "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";
 
 let groqKey = "";
 let openrouterKey = "";
@@ -1763,10 +1763,55 @@ let recognition = null;
 let categoryChartInstance = null;
 let trendChartInstance = null;
 
+// Tracking apakah user sedang pakai key admin (bukan key sendiri)
+let adminKeyRateLimitedCount = 0;
+const ADMIN_RATELIMIT_WARN_THRESHOLD = 2; // warning muncul setelah 2x rate limit berturut-turut
+
 const $ = (id) => document.getElementById(id);
-function hasAnyKey(){ return !!(groqKey || openrouterKey || DEFAULT_GROQ_KEY || DEFAULT_OPENROUTER_KEY); }
-function activeGroqKey(){ return groqKey || DEFAULT_GROQ_KEY; }
-function activeOpenRouterKey(){ return openrouterKey || DEFAULT_OPENROUTER_KEY; }
+function hasAnyKey(){ return !!(groqKey || openrouterKey || ADMIN_GROQ_KEY || ADMIN_OPENROUTER_KEY); }
+function activeGroqKey(){ return groqKey || ADMIN_GROQ_KEY; }
+function activeOpenRouterKey(){ return openrouterKey || ADMIN_OPENROUTER_KEY; }
+function usingAdminKey(){ return !(groqKey || openrouterKey); }
+
+// Tampilkan banner warning ke user supaya segera isi key sendiri
+function showAdminKeyWarning(reason){
+  // Hindari tampil lebih dari sekali
+  if(document.getElementById('adminKeyWarningBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'adminKeyWarningBanner';
+  banner.style.cssText = `
+    position:fixed; bottom:70px; left:50%; transform:translateX(-50%);
+    width:calc(100% - 32px); max-width:520px;
+    background:#FFF3CD; border:1.5px solid #E6A817; border-radius:14px;
+    padding:14px 16px; z-index:9000; box-shadow:0 4px 20px rgba(0,0,0,0.15);
+    display:flex; align-items:flex-start; gap:10px; animation:fadeUp .3s ease;
+  `;
+  banner.innerHTML = `
+    <span style="font-size:22px;flex-shrink:0;">⚠️</span>
+    <div style="flex:1;">
+      <div style="font-weight:700;font-size:13.5px;color:#7A4F00;margin-bottom:3px;">
+        Kuota AI bawaan ${reason} — segera isi API key kamu sendiri!
+      </div>
+      <div style="font-size:12px;color:#8A6500;line-height:1.5;">
+        Fitur AI mungkin lambat atau tidak merespons. Isi key gratis kamu di 
+        <strong>⚙️ Pengaturan → API Key</strong> agar tetap lancar.
+      </div>
+      <button onclick="
+        document.querySelector('.tab[data-panel=\\'settings\\']')?.click();
+        document.getElementById('groqKeyInput')?.scrollIntoView({behavior:'smooth',block:'center'});
+        document.getElementById('adminKeyWarningBanner')?.remove();
+      " style="
+        margin-top:10px; padding:8px 16px; background:#E6A817; border:none;
+        border-radius:9px; font-weight:700; font-size:12.5px; cursor:pointer; color:#3D2800;
+      ">⚙️ Isi API Key Sekarang</button>
+    </div>
+    <button onclick="document.getElementById('adminKeyWarningBanner')?.remove();"
+      style="background:none;border:none;font-size:18px;cursor:pointer;color:#8A6500;flex-shrink:0;padding:0 2px;">✕</button>
+  `;
+  document.body.appendChild(banner);
+  // Auto hilang setelah 20 detik
+  setTimeout(() => { banner?.remove(); }, 20000);
+}
 
 // ============ API KEY ============
 function loadSavedKeys(){
@@ -1784,7 +1829,6 @@ function updateKeyStatus(){
   const status = $('keyStatus');
   if(!status) return;
   const usingOwnKey = !!(groqKey || openrouterKey);
-  const hasDefault = !!(DEFAULT_GROQ_KEY || DEFAULT_OPENROUTER_KEY);
 
   if(usingOwnKey){
     const both = groqKey && openrouterKey;
@@ -1792,12 +1836,10 @@ function updateKeyStatus(){
       ? '✅ Key kamu sendiri aktif (Groq + OpenRouter)'
       : '✅ Key kamu sendiri aktif — tambah satu lagi supaya makin stabil';
     status.style.color = '#2D7A4F';
-  } else if(hasDefault){
-    status.textContent = '🟡 Pakai key bawaan — bisa lambat di jam sibuk. Isi key sendiri di bawah ini.';
-    status.style.color = '#8A5A1F';
   } else {
-    status.textContent = '⚠️ Belum ada API key — isi key kamu sendiri di bawah ini (gratis)';
-    status.style.color = '#C84F2F';
+    // Pakai key admin
+    status.innerHTML = '🟡 Pakai <strong>key bawaan dari admin</strong> — fitur AI tetap jalan, tapi bisa lambat di jam sibuk. Isi key sendiri di bawah supaya lebih stabil & priority.';
+    status.style.color = '#8A5A1F';
   }
 }
 
@@ -1940,11 +1982,42 @@ async function callAI(prompt, imageBase64 = null){
   if(activeGroqKey()) attempts.push(() => callGroq(prompt, imageBase64));
   if(activeOpenRouterKey()) attempts.push(() => callOpenRouter(prompt, imageBase64));
   let lastErr = null;
+  let allRateLimited = true;
   for(let i=0; i<attempts.length; i++){
-    try{ return await attempts[i](); }
+    try{
+      const result = await attempts[i]();
+      // Berhasil — reset counter rate limit
+      adminKeyRateLimitedCount = 0;
+      allRateLimited = false;
+      return result;
+    }
     catch(err){
       lastErr = err;
-      if(err.limited){ await sleep(1200); try{ return await attempts[i](); } catch(err2){ lastErr = err2; } }
+      if(err.limited){
+        await sleep(1200);
+        try{
+          const result = await attempts[i]();
+          adminKeyRateLimitedCount = 0;
+          allRateLimited = false;
+          return result;
+        } catch(err2){ lastErr = err2; }
+      } else {
+        allRateLimited = false;
+      }
+    }
+  }
+  // Semua provider gagal karena rate limit & user pakai key admin → tampilkan warning
+  if(allRateLimited && usingAdminKey()){
+    adminKeyRateLimitedCount++;
+    if(adminKeyRateLimitedCount >= ADMIN_RATELIMIT_WARN_THRESHOLD){
+      showAdminKeyWarning('sedang penuh / hampir habis');
+    }
+  }
+  // Rate limit sekali saja langsung warn (satu provider saja sudah cukup sinyal)
+  if(lastErr && lastErr.limited && usingAdminKey()){
+    adminKeyRateLimitedCount++;
+    if(adminKeyRateLimitedCount >= ADMIN_RATELIMIT_WARN_THRESHOLD){
+      showAdminKeyWarning('sedang penuh / hampir habis');
     }
   }
   throw lastErr || new Error('ALL_PROVIDERS_FAILED');
@@ -2001,7 +2074,12 @@ Jika tidak ada transaksi jelas, balas [].`;
       msg = 'API key tidak valid atau sudah tidak aktif. Cek kembali key kamu di tab ⚙️ Pengaturan.';
       goToSettingsForKey();
     } else if(msg.includes('429') || msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('quota')){
-      msg = 'Kuota AI habis sementara. Coba lagi sebentar, atau isi key sendiri di tab ⚙️ Pengaturan.';
+      if(usingAdminKey()){
+        msg = 'Kuota AI bawaan sedang penuh 🟡 Coba lagi sebentar, atau isi key gratis kamu sendiri di tab ⚙️ Pengaturan agar tidak bergantung kuota admin.';
+        showAdminKeyWarning('sedang penuh');
+      } else {
+        msg = 'Kuota AI kamu habis sementara. Coba lagi sebentar.';
+      }
     }
     alert('Gagal memproses: ' + msg);
   } finally {

@@ -2843,6 +2843,9 @@ let communityMap = null;
 let communityMapMarkers = {};
 
 let activeRoute = null;
+let locWatchId = null;         // ID dari watchPosition (live tracking GPS)
+let myMarkerLive = null;       // Marker "Saya" yang bergerak di peta
+let lastFirebaseUpdate = 0;    // Throttle update ke Firebase (max 1x per 5 detik)
 
 function clearActiveRoute(){
   if(activeRoute){ try{ communityMap.removeControl(activeRoute); }catch(e){} activeRoute=null; }
@@ -3018,6 +3021,8 @@ async function renderCommunityMap(){
 
   // ── 5. Render marker GPS user ─────────────────────────────────
   userPoints.forEach(p => {
+    // Kalau ini marker "Saya" dan live tracking sedang aktif, skip — sudah diurus watchPosition
+    if(p.isMe && locWatchId !== null && myMarkerLive) return;
     const visBadge = p.isMe
       ? (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
@@ -3129,14 +3134,10 @@ async function doMapSearch(){
     const store = (u.storeName||'').toLowerCase();
     const addr = (u.address||'').toLowerCase();
     if(name.includes(q) || store.includes(q) || addr.includes(q)){
-      // Kalau ada alamat teks (lokasi toko), jangan pakai koordinat GPS live user.
-      // Biarkan lat/lng kosong supaya click handler geocode alamat toko yang benar.
-      const hasAddress = !!(u.address && u.address.trim());
       hits.push({
         uid, label: u.storeName || u.displayName || '(Belum isi nama)',
         sub: u.address || (u.storeName ? u.displayName : ''),
-        lat: hasAddress ? null : u.location?.lat,
-        lng: hasAddress ? null : u.location?.lng,
+        lat: u.location?.lat, lng: u.location?.lng,
         address: u.address
       });
     }
@@ -3250,22 +3251,15 @@ document.addEventListener('click', async (e) => {
   else { communityMap.invalidateSize(); }
   communityMap.flyTo([lat, lng], 18, {duration:1});
 
-  // Buka popup marker yang tepat di peta.
-  // Kalau koordinat berasal dari geocode alamat teks (bukan GPS live), selalu buat
-  // marker toko baru di titik geocode — jangan buka marker GPS live user di kota lain.
-  const geocodedFromAddress = !!(row.dataset.address && row.dataset.address.trim() &&
-    (isNaN(parseFloat(row.dataset.lat)) || parseFloat(row.dataset.lat) === 0 || row.dataset.lat === ''));
+  // Coba buka popup marker yang sudah ada di peta
   setTimeout(() => {
     let found = false;
-    if(!geocodedFromAddress && row.dataset.uid){
-      // Koordinat dari GPS toko (bukan geocode) — buka marker store yang sudah ada
-      const mk = communityMapMarkers['store_'+row.dataset.uid];
+    if(row.dataset.uid){
+      const mk = communityMapMarkers['user_'+row.dataset.uid] || communityMapMarkers['store_'+row.dataset.uid];
       if(mk){ mk.openPopup(); found = true; }
     }
     if(!found){
-      // Hapus marker sementara sebelumnya
-      communityMapMarkers['tmp_search'] && (() => { try{ communityMap.removeLayer(communityMapMarkers['tmp_search']); }catch(e){} })();
-      // Tambah marker toko sementara di koordinat yang benar (hasil geocode alamat)
+      // Tambah marker toko sementara dengan icon toko
       const tmpIcon = makeStoreIcon();
       const _tLabel = escapeHtml(tempLabel);
       const tmpMk = L.marker([lat, lng], {icon: tmpIcon}).addTo(communityMap)
@@ -3273,6 +3267,7 @@ document.addEventListener('click', async (e) => {
           +(row.dataset.address ? '<div style="font-size:11.5px;color:#6B645A;margin-top:3px;">'+escapeHtml(row.dataset.address)+'</div>' : '')
           +'<button class="map-route-btn" data-lat="'+lat+'" data-lng="'+lng+'" data-name="'+_tLabel+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button></div>', {maxWidth:220})
         .openPopup();
+      communityMapMarkers['tmp_search'] && (() => { try{ communityMap.removeLayer(communityMapMarkers['tmp_search']); }catch(e){} })();
       communityMapMarkers['tmp_search'] = tmpMk;
     }
   }, 1100);
@@ -3451,26 +3446,82 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
   locVisibilityMode = _selectedLocOpt;
   $('locVisibilityModal').style.display='none';
   $('shareLocBtn').disabled = true; $('shareLocBtn').textContent = 'Mencari lokasi...';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
+
+  // Hentikan watch lama kalau ada
+  if(locWatchId !== null){ navigator.geolocation.clearWatch(locWatchId); locWatchId = null; }
+
+  let firstFix = true;
+  locWatchId = navigator.geolocation.watchPosition(async (pos) => {
     const loc = {
       lat: pos.coords.latitude, lng: pos.coords.longitude, updatedAt: Date.now(),
       visibility: locVisibilityMode,
       allowedUIDs: locVisibilityMode==='private' ? Object.fromEntries([...locPrivateAllowedUIDs].map(u=>[u,true])) : null
     };
     myLocation = loc;
-    try{
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {location:loc, uid:MY_UID});
+
+    // Update marker "Saya" di peta tanpa re-render seluruh peta
+    if(communityMap){
+      if(myMarkerLive){
+        myMarkerLive.setLatLng([loc.lat, loc.lng]);
+      } else {
+        // Buat marker baru kalau belum ada
+        const visBadge = locVisibilityMode==='private'
+          ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
+          : '<div style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🌍 Publik</div>';
+        const popup = '<div style="min-width:160px;font-family:inherit;"><div style="font-weight:700;font-size:13px;margin-bottom:2px;"><span style="color:#1B4D4A;">Saya</span></div>'+visBadge+'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 Live</div></div>';
+        myMarkerLive = L.marker([loc.lat, loc.lng], {icon: makeUserIcon(true)}).addTo(communityMap).bindPopup(popup, {maxWidth:200});
+        communityMapMarkers['user_'+MY_UID] = myMarkerLive;
+      }
+
+      // Kalau ada rute aktif, update titik awal rute supaya garis ikut bergerak
+      if(activeRoute){
+        const wps = activeRoute.getWaypoints();
+        if(wps && wps.length >= 2){
+          wps[0].latLng = L.latLng(loc.lat, loc.lng);
+          activeRoute.setWaypoints(wps);
+        }
+      }
+
+      // Kalau sedang ada rute aktif, pan peta ke posisi user supaya terlihat
+      if(activeRoute){
+        communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:1});
+      } else if(firstFix){
+        // Pertama kali dapat fix & tidak ada rute → fly ke posisi user
+        communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});
+      }
+    }
+
+    // Update status waktu
+    $('locStatus').innerHTML = '📍 Live · '+new Date(loc.updatedAt).toLocaleTimeString('id-ID');
+
+    // Simpan ke Firebase — throttle max 1x per 5 detik supaya tidak boros quota
+    const now = Date.now();
+    if(now - lastFirebaseUpdate > 5000){
+      lastFirebaseUpdate = now;
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {location:loc, uid:MY_UID});
+      } catch(err){ console.warn('Gagal update lokasi ke Firebase:', err.message); }
+    }
+
+    if(firstFix){
+      firstFix = false;
       showMyLocationOnMap(loc, locVisibilityMode);
-    } catch(err){ alert('Gagal menyimpan lokasi: '+err.message); }
-    finally{ $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya'; }
+      $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
+    }
   }, (err) => {
     alert('Gagal mengambil lokasi: '+err.message+'. Pastikan izin lokasi browser diaktifkan.');
     $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
-  }, {enableHighAccuracy:true, timeout:10000});
+    locWatchId = null;
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:2000});
 });
 
 $('stopShareLocBtn').addEventListener('click', async () => {
   if(!window.firebaseReady) return;
+  // Hentikan live tracking GPS
+  if(locWatchId !== null){ navigator.geolocation.clearWatch(locWatchId); locWatchId = null; }
+  // Hapus marker "Saya" dari peta
+  if(myMarkerLive && communityMap){ try{ communityMap.removeLayer(myMarkerLive); }catch(e){} myMarkerLive = null; }
+  delete communityMapMarkers['user_'+MY_UID];
   try{
     await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/location'));
     myLocation = null;

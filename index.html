@@ -2861,32 +2861,71 @@ function makeStoreIcon(){
   });
 }
 
+// Cache koordinat toko hasil geocode (supaya tidak geocode ulang setiap render)
+const storeGeoCache = {};
+
+async function geocodeAddress(uid, address){
+  if(storeGeoCache[uid]) return storeGeoCache[uid];
+  try{
+    const resp = await fetch(
+      'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(address+', Indonesia')+'&format=json&limit=1',
+      {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
+    );
+    const data = await resp.json();
+    if(data && data[0]){
+      const coords = {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+      storeGeoCache[uid] = coords;
+      // Simpan ke Firebase supaya user lain tidak perlu geocode ulang
+      if(window.firebaseReady && uid === MY_UID){
+        window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
+      }
+      return coords;
+    }
+  } catch(e){}
+  return null;
+}
+
 async function renderCommunityMap(){
   if(typeof L === 'undefined') return;
   const usersData = allUsersCache || {};
-  const points = [];
+
+  // ── 1. Kumpulkan titik GPS user ──────────────────────────────
+  const userPoints = [];
   Object.entries(usersData).forEach(([uid, u]) => {
     if(!u.location || !u.location.lat || !u.location.lng) return;
     const loc = u.location;
     const isMe = uid === MY_UID;
-    // Filter lokasi privat: tampilkan hanya kalau saya yang share, atau saya ada di allowedUIDs
     if(!isMe && loc.visibility === 'private'){
-      if(!loc.allowedUIDs || !loc.allowedUIDs[MY_UID]) return; // saya tidak diizinkan
+      if(!loc.allowedUIDs || !loc.allowedUIDs[MY_UID]) return;
     }
-    points.push({lat: loc.lat, lng: loc.lng, uid,
+    userPoints.push({lat: loc.lat, lng: loc.lng, uid,
       name: u.displayName || u.storeName || 'Pengguna',
-      storeName: u.storeName, type: 'user', isMe,
+      storeName: u.storeName, isMe,
       updatedAt: loc.updatedAt, visibility: loc.visibility || 'public'});
   });
-  const storeGeocodeQueue = Object.entries(usersData).filter(([uid, u]) => u.address && (!u.location));
+
+  // ── 2. Kumpulkan toko yang punya alamat (termasuk yang sudah ada GPS) ──
+  const storeEntries = Object.entries(usersData).filter(([uid, u]) => u.address && u.address.trim().length > 3);
+
+  // ── 3. Init peta jika belum ada ──────────────────────────────
   if(!communityMap){
-    const firstPoint = points[0];
-    initCommunityMap(firstPoint ? firstPoint.lat : -6.2088, firstPoint ? firstPoint.lng : 106.8456);
+    let cLat, cLng;
+    if(myLocation && myLocation.lat){ cLat = myLocation.lat; cLng = myLocation.lng; }
+    else if(userPoints.length){ cLat = userPoints[0].lat; cLng = userPoints[0].lng; }
+    else {
+      const firstStored = Object.values(usersData).find(u => u.storeCoords);
+      if(firstStored){ cLat = firstStored.storeCoords.lat; cLng = firstStored.storeCoords.lng; }
+    }
+    initCommunityMap(cLat, cLng);
   }
   if(!communityMap) return;
+
+  // ── 4. Bersihkan marker lama ─────────────────────────────────
   Object.values(communityMapMarkers).forEach(m => { try{ communityMap.removeLayer(m); }catch(e){} });
   communityMapMarkers = {};
-  points.forEach(p => {
+
+  // ── 5. Render marker GPS user ─────────────────────────────────
+  userPoints.forEach(p => {
     const visBadge = p.isMe
       ? (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
@@ -2894,41 +2933,41 @@ async function renderCommunityMap(){
       : (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Dibagikan khusus ke kamu</div>'
           : '');
-    const popupHtml = '<div style="min-width:160px;font-family:inherit;">'
+    const popup = '<div style="min-width:160px;font-family:inherit;">'
       +'<div style="font-weight:700;font-size:13px;margin-bottom:2px;">'+(p.isMe?'<span style="color:#1B4D4A;">Saya</span> — ':'')+escapeHtml(p.name)+'</div>'
       +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">🏪 '+escapeHtml(p.storeName)+'</div>':'')
       +visBadge
       +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
       +'</div>';
-    const marker = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popupHtml);
-    communityMapMarkers['user_'+p.uid] = marker;
+    communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popup);
   });
-  const toGeocode = storeGeocodeQueue.slice(0, 5);
-  for(const [uid, u] of toGeocode){
-    try{
-      const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(u.address+', Indonesia')+'&format=json&limit=1',
-        {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
-      );
-      const data = await resp.json();
-      if(data && data[0]){
-        const glat = parseFloat(data[0].lat), glng = parseFloat(data[0].lon);
-        const popupHtml = '<div style="min-width:160px;font-family:inherit;">'
-          +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">&#x1F3EA; '+escapeHtml(u.storeName||u.displayName||'Toko')+'</div>'
-          +'<div style="font-size:11.5px;color:#6B645A;">'+escapeHtml(u.address)+'</div>'
-          +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:3px;">'+escapeHtml(u.paymentId)+'</div>':'')
-          +'</div>';
-        const marker = L.marker([glat, glng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popupHtml);
-        communityMapMarkers['store_'+uid] = marker;
-      }
-    } catch(e){}
+
+  // ── 6. Fit bounds ke marker GPS yang sudah ada dulu (agar tidak stuck di [0,0]) ───
+  const existingMarkers = Object.values(communityMapMarkers);
+  if(existingMarkers.length > 0){
+    try{ communityMap.fitBounds(L.featureGroup(existingMarkers).getBounds().pad(0.3)); }catch(e){}
   }
-  const allMarkers = Object.values(communityMapMarkers);
-  if(allMarkers.length > 0){
-    try{
-      const group = L.featureGroup(allMarkers);
-      communityMap.fitBounds(group.getBounds().pad(0.3));
-    } catch(e){}
+
+  // ── 7. Geocode toko satu per satu, tambahkan marker saat dapat hasil ─────────
+  for(const [uid, u] of storeEntries.slice(0, 8)){
+    // Cek dulu kalau koordinat sudah tersimpan di Firebase
+    let coords = u.storeCoords || null;
+    if(!coords) coords = await geocodeAddress(uid, u.address);
+    if(!coords) continue;
+
+    const popup = '<div style="min-width:160px;font-family:inherit;">'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+escapeHtml(u.storeName||u.displayName||'Toko')+'</div>'
+      +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
+      +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
+      +'</div>';
+    const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup);
+    communityMapMarkers['store_'+uid] = mk;
+
+    // Re-fit bounds setelah setiap toko ditambahkan
+    const allMk = Object.values(communityMapMarkers);
+    if(allMk.length > 0){
+      try{ communityMap.fitBounds(L.featureGroup(allMk).getBounds().pad(0.3)); }catch(e){}
+    }
   }
 }
 

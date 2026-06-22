@@ -2921,12 +2921,15 @@ function routeToCoords(destLat, destLng, destName){
     const km = (r.summary.totalDistance/1000).toFixed(1);
     const mins = Math.round(r.summary.totalTime/60);
 
-    // Fit peta agar dari-titik A ke titik B keduanya terlihat, dengan padding yang cukup
-    const bounds = L.latLngBounds(
-      [fromLat, fromLng],
-      [destLat, destLng]
-    );
-    communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+    // Fit peta agar seluruh rute terlihat, hanya sekali saat rute pertama ditemukan.
+    // Setelah ini kamera diambil alih oleh watchPosition (ikuti user bergerak).
+    const allCoords = r.coordinates;
+    if(allCoords && allCoords.length > 0){
+      const bounds = L.latLngBounds(allCoords);
+      communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 17, animate: true });
+    } else {
+      communityMap.fitBounds(L.latLngBounds([fromLat, fromLng], [destLat, destLng]), { padding: [60, 60], maxZoom: 17 });
+    }
 
     // Update info bar
     const barEl = document.getElementById('routeInfoBar');
@@ -3499,26 +3502,21 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
         communityMapMarkers['user_'+MY_UID] = myMarkerLive;
       }
 
-      // Kalau ada rute aktif, update titik awal rute supaya garis ikut bergerak
-      if(activeRoute){
-        const wps = activeRoute.getWaypoints();
-        if(wps && wps.length >= 2){
-          wps[0].latLng = L.latLng(loc.lat, loc.lng);
-          activeRoute.setWaypoints(wps);
-        }
-      }
-
       // Kalau sedang ada rute aktif, kamera "ikuti jalur" ala Google Maps:
       // arahkan pandangan agak ke depan di sepanjang garis rute, bukan cuma pas di titik user.
+      // CATATAN: sengaja TIDAK memanggil setWaypoints() di sini karena itu memicu
+      // recalculation rute + fitBounds otomatis dari Leaflet Routing Machine setiap detik
+      // (penyebab peta kedut-kedutan / gerak sendiri). Garis rute memang tetap dari titik
+      // awal ke tujuan — yang bergerak hanya marker user & kamera.
       if(activeRoute){
         if(activeRouteCoords && activeRouteCoords.length >= 2){
           const userLL = L.latLng(loc.lat, loc.lng);
-          const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 70);
+          const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 80);
           const centerLat = (loc.lat + lookAhead.lat) / 2;
           const centerLng = (loc.lng + lookAhead.lng) / 2;
-          communityMap.setView([centerLat, centerLng], 18, {animate:true, duration:1});
+          communityMap.panTo([centerLat, centerLng], {animate:true, duration:0.8, easeLinearity:0.5, noMoveStart:true});
         } else {
-          communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:1});
+          communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:0.8, noMoveStart:true});
         }
       } else if(firstFix){
         // Pertama kali dapat fix & tidak ada rute → fly ke posisi user

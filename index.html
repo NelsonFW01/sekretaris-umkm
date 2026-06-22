@@ -3788,15 +3788,29 @@ async function joinAsViewer(sessionId){
   // Connect viewer to LiveKit room
   const identity = 'viewer-' + MY_UID + '-' + Date.now();
   try{
+    // Ambil identity host UTAMA siaran ini. Sebelumnya kode cuma asumsi "track video pertama
+    // yang nyambung = host", yang berantakan kalau viewer baru gabung PAS host & co-host udah
+    // bareng-bareng live (urutan track yang masuk jadi gak terjamin host duluan).
+    let mainHostIdentity = null;
+    try{
+      const hostSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, `liveSessions/${sessionId}/hostUid`));
+      const hostUid = hostSnap.val();
+      if(hostUid) mainHostIdentity = 'host-' + hostUid;
+    } catch(e){}
+
     const {token, url} = await getLivekitToken(sessionId, identity, false);
     const {Room, RoomEvent, Track} = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.esm.mjs');
     const room = new Room();
     window._viewerLivekitRoom = room;
 
-    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+    // Satu fungsi routing dipakai baik buat track yang masuk live (TrackSubscribed) maupun
+    // track yang sudah ada duluan saat viewer baru connect — supaya hasilnya selalu konsisten:
+    // video host utama → layar besar, video siapapun yang lain → grid kecil co-host.
+    function routeIncomingTrack(track, participant){
+      const isHostTrack = mainHostIdentity ? (participant.identity === mainHostIdentity) : !$('viewerVideo').srcObject;
       if(track.kind === Track.Kind.Video){
-        const vid = $('viewerVideo');
-        if(!vid.srcObject){
+        if(isHostTrack && !$('viewerVideo').srcObject){
+          const vid = $('viewerVideo');
           track.attach(vid);
           vid.muted = true;
           vid.style.display='block';
@@ -3808,7 +3822,7 @@ async function joinAsViewer(sessionId){
           attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
         }
       } else if(track.kind === Track.Kind.Audio){
-        if(!window._viewerAudioTrack){
+        if(isHostTrack && !window._viewerAudioTrack){
           window._viewerAudioTrack = track.mediaStreamTrack;
           $('viewerUnmuteBtn').style.display='block';
           if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video & Audio tersambung!';
@@ -3816,24 +3830,31 @@ async function joinAsViewer(sessionId){
           attachRemoteTrackToGrid(track, participant.identity, 'viewerCohostGrid');
         }
       }
+    }
+
+    room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      routeIncomingTrack(track, participant);
     });
 
     room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+      const cohostTileWrap = document.querySelector(`div[data-tile="${participant.identity}"]`);
+      const isHostTrack = mainHostIdentity ? participant.identity === mainHostIdentity : !cohostTileWrap;
       if(track.kind === Track.Kind.Video){
-        // Cek apakah track ini ada di viewerCohostGrid (co-host lain) atau viewerVideo (host utama)
-        const cohostTileWrap = document.querySelector(`div[data-tile="${participant.identity}"]`);
-        if(cohostTileWrap){
-          hideGridTileVideo(participant.identity);
-        } else {
+        if(isHostTrack){
           track.detach();
           $('viewerVideo').style.display='none';
           $('viewerScreenPh').style.display='flex';
           $('viewerUnmuteBtn').style.display='none';
+        } else {
+          hideGridTileVideo(participant.identity);
         }
       } else if(track.kind === Track.Kind.Audio){
         track.detach();
-        const audioEl = document.getElementById('viewerAudioEl');
-        if(audioEl) audioEl.remove();
+        if(isHostTrack){
+          const audioEl = document.getElementById('viewerAudioEl');
+          if(audioEl) audioEl.remove();
+          window._viewerAudioTrack = null;
+        }
       }
     });
     room.on(RoomEvent.ParticipantDisconnected, (participant) => removeGridTile(participant.identity));
@@ -3846,23 +3867,12 @@ async function joinAsViewer(sessionId){
     await room.connect(url, token);
     if($('viewerConnStatus')) $('viewerConnStatus').textContent='Tersambung, menunggu video host...';
 
-    // Attach any already-published tracks
+    // Pasang track yang SUDAH ada sebelum viewer ini connect (misalnya viewer baru gabung
+    // pas host & co-host udah bareng-bareng live) — pakai routing yang sama, jadi tetap rapi:
+    // host di layar besar, co-host di grid kecil.
     room.remoteParticipants.forEach(participant => {
       participant.trackPublications.forEach(publication => {
-        if(publication.track && publication.track.kind === Track.Kind.Video){
-          const vid = $('viewerVideo');
-          publication.track.attach(vid);
-          vid.muted=true;
-          vid.style.display='block';
-          $('viewerScreenPh').style.display='none';
-          vid.play().catch(()=>{});
-          $('viewerUnmuteBtn').style.display='block';
-          if($('viewerConnStatus')) $('viewerConnStatus').textContent='📡 Video tersambung!';
-        } else if(publication.track && publication.track.kind === Track.Kind.Audio){
-          // Simpan raw track, jangan attach - biar user kontrol kapan dengar
-          window._viewerAudioTrack = publication.track.mediaStreamTrack;
-          $('viewerUnmuteBtn').style.display='block';
-        }
+        if(publication.track) routeIncomingTrack(publication.track, participant);
       });
     });
 

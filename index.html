@@ -2890,35 +2890,48 @@ function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
 }
 
 function routeToCoords(destLat, destLng, destName){
-  if(!communityMap) return;
-  clearActiveRoute();
-
-  // Jika lokasi user sudah ada (dari share location), langsung pakai
-  if(myLocation && myLocation.lat){
-    _doRoute(myLocation.lat, myLocation.lng, destLat, destLng, destName);
+  if(!communityMap){
+    // Jika map belum ada, inisialisasi dulu
+    const mapEl = document.getElementById('communityMapContainer');
+    if(mapEl) mapEl.style.display = 'block';
+    initCommunityMap();
+    setTimeout(() => {
+      routeToCoords(destLat, destLng, destName);
+    }, 500);
     return;
   }
+  clearActiveRoute();
 
-  // Jika belum, coba ambil GPS diam-diam (tanpa paksa user share)
+  // Setup bar dulu
+  const bar = document.getElementById('routeInfoBar') || (() => {
+    const b = document.createElement('div');
+    b.id = 'routeInfoBar';
+    b.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;min-width:180px;max-width:90%;flex-wrap:wrap;text-align:center;justify-content:center;';
+    const mapEl = document.getElementById('leafletMap') || document.getElementById('communityMapContainer');
+    if(mapEl){ if(!mapEl.style.position || mapEl.style.position==='static') mapEl.style.position='relative'; mapEl.appendChild(b); }
+    return b;
+  })();
+  bar.innerHTML = '📍 Mendeteksi lokasi kamu...';
+
+  // SELALU trigger GPS fresh untuk rute yang akurat, jangan andalkan myLocation lama
   if(navigator.geolocation){
-    const bar = document.getElementById('routeInfoBar') || (() => {
-      const b = document.createElement('div');
-      b.id = 'routeInfoBar';
-      b.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;min-width:180px;max-width:90%;flex-wrap:wrap;text-align:center;justify-content:center;';
-      const mapEl = document.getElementById('leafletMap') || document.getElementById('communityMapContainer');
-      if(mapEl){ if(!mapEl.style.position || mapEl.style.position==='static') mapEl.style.position='relative'; mapEl.appendChild(b); }
-      return b;
-    })();
-    bar.innerHTML = '📍 Mendeteksi lokasi kamu...';
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        _doRoute(pos.coords.latitude, pos.coords.longitude, destLat, destLng, destName);
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+        _doRoute(userLat, userLng, destLat, destLng, destName);
       },
       (err) => {
-        // GPS gagal → tawarkan Google Maps sebagai fallback
-        bar.innerHTML = '⚠️ Lokasi tidak bisa dideteksi &nbsp;<a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="background:#1B4D4A;color:white;padding:4px 10px;border-radius:12px;font-size:11.5px;text-decoration:none;font-weight:700;">🗺️ Buka Google Maps</a>&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕</button>';
+        console.warn('GPS failed:', err);
+        // Jika myLocation sudah tersimpan dari share sebelumnya, gunakan itu
+        if(myLocation && myLocation.lat){
+          _doRoute(myLocation.lat, myLocation.lng, destLat, destLng, destName);
+        } else {
+          // GPS gagal → tawarkan Google Maps sebagai fallback
+          bar.innerHTML = '⚠️ Lokasi tidak bisa dideteksi &nbsp;<a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="background:#1B4D4A;color:white;padding:4px 10px;border-radius:12px;font-size:11.5px;text-decoration:none;font-weight:700;">🗺️ Buka Google Maps</a>&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕</button>';
+        }
       },
-      { timeout: 8000, maximumAge: 30000 }
+      { timeout: 8000, maximumAge: 0 } // maximumAge: 0 = always get fresh GPS
     );
     return;
   }
@@ -3446,7 +3459,17 @@ document.addEventListener('click', (e) => {
   const lat = parseFloat(btn.dataset.lat);
   const lng = parseFloat(btn.dataset.lng);
   const name = btn.dataset.name || 'Tujuan';
-  if(!isNaN(lat) && !isNaN(lng)) routeToCoords(lat, lng, name);
+  if(!isNaN(lat) && !isNaN(lng)){
+    // Automatic switch ke tab komunitas jika belum aktif
+    const communityTab = document.querySelector('.tab[data-panel="community"]');
+    if(communityTab && !communityTab.classList.contains('active')){
+      communityTab.click();
+    }
+    // Trigger rute setelah tab switch (berikan waktu untuk render)
+    setTimeout(() => {
+      routeToCoords(lat, lng, name);
+    }, 100);
+  }
 });
 
 // Klik hasil search → fly ke lokasi di peta

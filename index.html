@@ -484,6 +484,130 @@
 
   @media (max-width:380px){ .switch{ width:96px; } .switch .knob{ width:46px; } }
 
+  /* ===== NAVIGATION / ROUTING STYLES ===== */
+  .nav-breadcrumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .nav-breadcrumb::after {
+    content: '→';
+    margin-left: 4px;
+  }
+  .umkm-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .umkm-card:hover {
+    border-color: var(--teal);
+    box-shadow: 0 4px 12px rgba(27,77,74,0.15);
+  }
+  .umkm-card.selected {
+    background: var(--teal);
+    color: white;
+    border-color: var(--teal);
+  }
+  .umkm-card .uc-name {
+    font-weight: 700;
+    font-size: 13.5px;
+    margin-bottom: 4px;
+  }
+  .umkm-card .uc-addr {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .umkm-card.selected .uc-addr {
+    color: rgba(255,255,255,0.75);
+  }
+  .umkm-card .uc-distance {
+    font-size: 11px;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  .umkm-card.selected .uc-distance {
+    color: rgba(255,255,255,0.85);
+  }
+  .nav-instruction {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .nav-instruction .ni-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .nav-instruction .ni-text {
+    flex: 1;
+  }
+  .nav-waypoint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+  }
+  .nav-waypoint:last-child {
+    border-bottom: none;
+  }
+  .nav-waypoint .nw-marker {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+  .nav-waypoint.active .nw-marker {
+    background: #4ade80;
+    font-size: 12px;
+  }
+  .history-item {
+    background: var(--sand);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .history-item .hi-name {
+    font-weight: 600;
+  }
+  .history-item .hi-time {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  .leaflet-routing-container {
+    display: none;
+  }
+  @keyframes routePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  .route-line-animated {
+    animation: routePulse 2s infinite;
+  }
+
   .boost-btn{
     width:100%; margin-top:10px; padding:10px; border-radius:10px; border:1.5px solid var(--coral);
     background:#FFF1EC; color:var(--coral-dark); font-weight:700; font-size:12.5px; cursor:pointer;
@@ -779,6 +903,7 @@
     <button class="tab" data-panel="live">📺 LIVE</button>
     <button class="tab" data-panel="videos">🎥 Video</button>
     <button class="tab" data-panel="community">👥 Komunitas</button>
+    <button class="tab" data-panel="navigation">🗺️ Navigasi</button>
     <button class="tab" data-panel="settings">⚙️ Setting</button>
   </div>
 
@@ -1257,6 +1382,142 @@
       </div>
     </section>
     <!-- ===== SETTINGS PANEL ===== -->
+    <!-- ===== NAVIGATION PANEL ===== -->
+    <section class="panel" id="panel-navigation">
+      <h2 style="font-size:18px;margin-bottom:16px;">🗺️ Navigasi & Rute</h2>
+      
+      <!-- Location Sharing Section -->
+      <div class="record-zone" style="margin-bottom:18px;">
+        <h3 style="font-size:16px;margin-bottom:12px;">📍 Share Lokasi Saya</h3>
+        <p style="color:var(--ink-soft);font-size:13px;margin-bottom:14px;">Bagikan posisi Anda saat ini untuk memulai navigasi</p>
+        <button class="generate-btn" id="shareLocationBtn">📍 Dapatkan Lokasi Saya</button>
+        <div id="myLocationDisplay" style="margin-top:14px;padding:12px 14px;background:var(--sand);border-radius:12px;display:none;font-size:13px;">
+          <div style="font-weight:700;margin-bottom:6px;">Lokasi Anda:</div>
+          <div id="myLocationText" style="font-family:'JetBrains Mono';font-size:12px;word-break:break-all;"></div>
+          <div style="color:var(--ink-soft);font-size:11px;margin-top:6px;display:flex;align-items:center;gap:4px;">
+            <span class="status-dot on" style="margin:0;"></span> Aktif & Siap Navigasi
+          </div>
+        </div>
+      </div>
+
+      <!-- UMKM Selection Section -->
+      <div class="record-zone" style="margin-bottom:18px;">
+        <h3 style="font-size:16px;margin-bottom:12px;">🎯 Pilih Tujuan UMKM</h3>
+        <p style="color:var(--ink-soft);font-size:13px;margin-bottom:14px;">Pilih UMKM mana yang ingin Anda kunjungi</p>
+        
+        <div style="margin-bottom:12px;">
+          <label style="font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:8px;">Cari UMKM:</label>
+          <input type="text" id="umkmSearch" placeholder="Ketik nama UMKM atau alamat..." style="width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid var(--line);font-size:14px;font-family:inherit;background:var(--bg-card);">
+        </div>
+
+        <div id="umkmList" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;">
+          <div style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px 10px;">
+            Tekan "Dapatkan Lokasi Saya" dulu untuk melihat UMKM terdekat
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Container -->
+      <div style="background:var(--bg-card);border-radius:14px;overflow:hidden;margin-bottom:18px;box-shadow:var(--shadow);">
+        <div id="navigationMap" style="width:100%;height:380px;background:#e0e0e0;position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);font-size:13px;pointer-events:none;">
+            📍 Peta akan muncul di sini
+          </div>
+        </div>
+      </div>
+
+      <!-- Route Info Display -->
+      <div id="routeInfoCard" style="display:none;background:var(--teal);color:white;border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:var(--shadow);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h3 style="font-size:15px;margin:0;">📍 Rute ke Tujuan</h3>
+          <button id="closeRouteBtn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:14px;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.12);">
+          <div>
+            <div style="font-size:11px;opacity:0.75;">Jarak</div>
+            <div style="font-size:18px;font-weight:700;font-family:'Plus Jakarta Sans';" id="routeDistance">-</div>
+          </div>
+          <div>
+            <div style="font-size:11px;opacity:0.75;">Durasi</div>
+            <div style="font-size:18px;font-weight:700;font-family:'Plus Jakarta Sans';" id="routeDuration">-</div>
+          </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.08);border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:12px;">
+          <div style="font-weight:600;margin-bottom:8px;">📍 Tujuan: <span id="routeDestinationName"></span></div>
+          <div style="font-size:12px;opacity:0.85;margin-bottom:6px;" id="routeDestinationAddr"></div>
+          <div style="font-size:11px;opacity:0.65;">Dipebarui: <span id="routeUpdateTime">baru saja</span></div>
+        </div>
+        <div id="breadcrumbTrail" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="generate-btn secondary" id="startNavigationBtn" style="margin:0;padding:11px 14px;font-size:13px;flex:1;box-shadow:none;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);">🎯 Mulai Navigasi</button>
+          <button class="generate-btn secondary" id="voiceInstructionBtn" style="margin:0;padding:11px 14px;font-size:13px;flex-shrink:0;box-shadow:none;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);">🔊</button>
+        </div>
+      </div>
+
+      <!-- Live Navigation Panel -->
+      <div id="liveNavigationPanel" style="display:none;background:linear-gradient(135deg,var(--teal),var(--teal-dark));color:white;border-radius:var(--radius);padding:18px;margin-bottom:18px;box-shadow:var(--shadow);position:sticky;bottom:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <h3 style="font-size:15px;margin:0;display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:8px;height:8px;background:#4ade80;border-radius:50%;animation:liveBlink 1s infinite;"></span> Navigasi Berlangsung</h3>
+          <button id="stopNavigationBtn" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);color:white;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">Hentikan</button>
+        </div>
+        
+        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:14px;margin-bottom:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px;opacity:0.75;margin-bottom:4px;">SISA JARAK</div>
+              <div style="font-size:20px;font-weight:700;font-family:'Plus Jakarta Sans';" id="navRemainingDistance">0 km</div>
+            </div>
+            <div>
+              <div style="font-size:11px;opacity:0.75;margin-bottom:4px;">ESTIMASI TIBA</div>
+              <div style="font-size:20px;font-weight:700;font-family:'Plus Jakarta Sans';" id="navETA">-- menit</div>
+            </div>
+          </div>
+          <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:10px;overflow:hidden;margin-bottom:10px;">
+            <div id="navProgressBar" style="height:100%;background:linear-gradient(90deg,#4ade80,#22c55e);width:15%;transition:width 0.5s ease;"></div>
+          </div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.65);">
+            <span id="navProgressText">15%</span> dari perjalanan
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.08);border-radius:12px;padding:12px;margin-bottom:12px;border-left:3px solid #4ade80;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:16px;">📍</span> <span id="navNextInstruction">Lurus terus 200m</span>
+          </div>
+          <div style="font-size:11px;opacity:0.75;" id="navCurrentRoad">Jl. Merdeka</div>
+        </div>
+
+        <div style="display:flex;gap:8px;">
+          <button id="navRecenterBtn" style="flex:1;padding:10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">📍 Pusatkan Peta</button>
+          <button id="navAlternateRouteBtn" style="flex:1;padding:10px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">🔄 Rute Alternatif</button>
+        </div>
+      </div>
+
+      <!-- Innovation: Traffic Heatmap Toggle -->
+      <div style="background:var(--sand);border-radius:12px;padding:14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div>
+          <div style="font-weight:600;font-size:13.5px;">🔥 Peta Kemacetan Real-time</div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">Simulasi kemacetan live (inovasi AI predictive)</div>
+        </div>
+        <label class="toggle-switch" style="margin:0;">
+          <input type="checkbox" id="trafficHeatmapToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Innovation: Breadcrumb History -->
+      <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:18px;">
+        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;">🌟 Riwayat Navigasi</h3>
+        <div id="navigationHistory" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">
+          <div style="text-align:center;color:var(--ink-soft);font-size:12px;padding:20px 10px;">
+            Belum ada riwayat navigasi
+          </div>
+        </div>
+      </div>
+
+      <button class="generate-btn outline" id="clearNavigationHistoryBtn" style="margin-bottom:18px;">🗑️ Hapus Riwayat</button>
+    </section>
+
     <section class="panel" id="panel-settings">
       <h2 style="font-size:18px;margin-bottom:16px;">⚙️ Pengaturan</h2>
 
@@ -5341,6 +5602,362 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   document.querySelectorAll('.splash-dot').forEach(d=>{
     d.addEventListener('click',()=>goToSlide(parseInt(d.dataset.slide)));
   });
+})();
+
+/* ===== NAVIGATION / ROUTING MODULE ===== */
+(function() {
+  let myLocation = null;
+  let currentRoute = null;
+  let navigationActive = false;
+  let routingControl = null;
+  let navigationMap = null;
+  let navigationHistory = JSON.parse(localStorage.getItem('navHistory')) || [];
+  
+  // Mock UMKM Database
+  const umkmDatabase = [
+    { id: 1, name: 'Kripik Bu Sari', address: 'Jl. Merdeka No. 12, Bandung', lat: -6.9147, lng: 107.6098 },
+    { id: 2, name: 'Tahu Goreng Bapak Joni', address: 'Jl. Sudirman No. 45, Bandung', lat: -6.9271, lng: 107.6347 },
+    { id: 3, name: 'Kue Lapis Nita', address: 'Jl. Ahmad Yani No. 88, Bandung', lat: -6.9219, lng: 107.6089 },
+    { id: 4, name: 'Bakso Pak Hendra', address: 'Jl. Raya Setiabudi No. 123, Bandung', lat: -6.9349, lng: 107.6249 },
+    { id: 5, name: 'Donat Empuk Citra', address: 'Jl. Gatot Subroto No. 77, Bandung', lat: -6.9126, lng: 107.6156 },
+    { id: 6, name: 'Nasi Kuning Ibu Ratna', address: 'Jl. Dago No. 34, Bandung', lat: -6.8842, lng: 107.6149 },
+  ];
+
+  function initNavigationMap() {
+    if (navigationMap) return;
+    navigationMap = L.map('navigationMap').setView([-6.9175, 107.6098], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19
+    }).addTo(navigationMap);
+  }
+
+  function calculateDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  function formatDistance(km) {
+    return km < 1 ? (km * 1000).toFixed(0) + ' m' : km.toFixed(1) + ' km';
+  }
+
+  function updateUMKMList() {
+    const list = document.getElementById('umkmList');
+    if (!myLocation) return;
+
+    const sorted = umkmDatabase
+      .map(u => ({
+        ...u,
+        distance: calculateDistance(myLocation.lat, myLocation.lng, u.lat, u.lng)
+      }))
+      .sort((a, b) => a.distance - b.distance);
+
+    list.innerHTML = sorted.map(u => `
+      <div class="umkm-card" data-id="${u.id}" onclick="selectUMKM(${u.id}, '${u.name}', ${u.lat}, ${u.lng}, '${u.address}')">
+        <div class="uc-name">${u.name}</div>
+        <div class="uc-addr">${u.address}</div>
+        <div class="uc-distance">📍 ${formatDistance(u.distance)}</div>
+      </div>
+    `).join('');
+  }
+
+  window.selectUMKM = function(id, name, lat, lng, addr) {
+    document.querySelectorAll('.umkm-card').forEach(c => c.classList.remove('selected'));
+    document.querySelector(`[data-id="${id}"]`).classList.add('selected');
+    
+    currentRoute = { id, name, lat, lng, addr };
+    
+    // Clear existing route
+    if (routingControl) navigationMap.removeControl(routingControl);
+    
+    // Draw route
+    routingControl = L.Routing.control({
+      waypoints: [
+        L.latLng(myLocation.lat, myLocation.lng),
+        L.latLng(lat, lng)
+      ],
+      routeWhileDragging: false,
+      lineOptions: {
+        styles: [{ color: 'var(--coral)', opacity: 0.8, weight: 4 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 2
+      },
+      createMarker: (i, wp) => {
+        let icon = i === 0 ? '📍' : '🎯';
+        return L.marker(wp.latLng, {
+          icon: L.divIcon({
+            html: `<div style="font-size:24px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3));">${icon}</div>`,
+            iconSize: [30, 30],
+            className: 'leaflet-marker-icon'
+          })
+        });
+      }
+    }).addTo(navigationMap);
+
+    routingControl.on('routesfound', (e) => {
+      const route = e.routes[0];
+      const distance = (route.summary.totalDistance / 1000).toFixed(1);
+      const duration = Math.round(route.summary.totalTime / 60);
+      
+      document.getElementById('routeDistance').textContent = distance + ' km';
+      document.getElementById('routeDuration').textContent = duration + ' menit';
+      document.getElementById('routeDestinationName').textContent = name;
+      document.getElementById('routeDestinationAddr').textContent = addr;
+      document.getElementById('routeInfoCard').style.display = 'block';
+      
+      currentRoute.distance = distance;
+      currentRoute.duration = duration;
+      currentRoute.instructions = route.instructions || [];
+      
+      updateBreadcrumbTrail();
+    });
+
+    navigationMap.fitBounds([
+      [myLocation.lat, myLocation.lng],
+      [lat, lng]
+    ], { padding: [50, 50] });
+  };
+
+  function updateBreadcrumbTrail() {
+    if (!currentRoute.instructions || currentRoute.instructions.length === 0) return;
+    
+    const breadcrumb = document.getElementById('breadcrumbTrail');
+    const instructions = currentRoute.instructions.slice(0, 3);
+    
+    breadcrumb.innerHTML = instructions.map((inst, i) => `
+      <div class="nav-breadcrumb" title="${inst.text}">
+        ${inst.text.substring(0, 20)}${inst.text.length > 20 ? '...' : ''}
+      </div>
+    `).join('');
+  }
+
+  // Get User Location
+  document.getElementById('shareLocationBtn').addEventListener('click', () => {
+    const btn = document.getElementById('shareLocationBtn');
+    btn.textContent = '⏳ Mencari lokasi...';
+    btn.disabled = true;
+
+    if (!navigator.geolocation) {
+      alert('Geolocation tidak didukung browser Anda');
+      btn.textContent = '📍 Dapatkan Lokasi Saya';
+      btn.disabled = false;
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        myLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy
+        };
+
+        // Initialize map if not already done
+        if (!navigationMap) initNavigationMap();
+        
+        // Center map to user location
+        navigationMap.setView([myLocation.lat, myLocation.lng], 14);
+        
+        // Add user marker
+        L.marker([myLocation.lat, myLocation.lng], {
+          icon: L.divIcon({
+            html: `<div style="width:16px;height:16px;background:var(--teal);border:3px solid white;border-radius:50%;box-shadow:0 0 0 3px var(--teal);"></div>`,
+            iconSize: [22, 22],
+            className: 'user-location-marker'
+          })
+        }).addTo(navigationMap);
+
+        // Show location display
+        const lat = myLocation.lat.toFixed(6);
+        const lng = myLocation.lng.toFixed(6);
+        document.getElementById('myLocationText').innerHTML = `${lat}, ${lng}<br/><small>Akurasi: ±${myLocation.accuracy.toFixed(0)}m</small>`;
+        document.getElementById('myLocationDisplay').style.display = 'block';
+
+        // Update UMKM list
+        updateUMKMList();
+
+        btn.textContent = '📍 Dapatkan Lokasi Saya';
+        btn.disabled = false;
+      },
+      (error) => {
+        console.error(error);
+        alert('Gagal mendapatkan lokasi: ' + error.message);
+        btn.textContent = '📍 Dapatkan Lokasi Saya';
+        btn.disabled = false;
+      }
+    );
+  });
+
+  // Start Navigation
+  document.getElementById('startNavigationBtn').addEventListener('click', () => {
+    if (!currentRoute) return;
+    navigationActive = true;
+    
+    document.getElementById('routeInfoCard').style.display = 'none';
+    document.getElementById('liveNavigationPanel').style.display = 'block';
+    
+    // Save to history
+    const historyEntry = {
+      id: currentRoute.id,
+      name: currentRoute.name,
+      timestamp: new Date().toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})
+    };
+    navigationHistory.unshift(historyEntry);
+    navigationHistory = navigationHistory.slice(0, 20);
+    localStorage.setItem('navHistory', JSON.stringify(navigationHistory));
+    updateNavigationHistory();
+    
+    // Simulate navigation progress
+    simulateNavigation();
+  });
+
+  function simulateNavigation() {
+    if (!navigationActive) return;
+    
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 8;
+      if (progress > 100) progress = 100;
+      
+      document.getElementById('navProgressBar').style.width = progress + '%';
+      document.getElementById('navProgressText').textContent = Math.floor(progress) + '%';
+      
+      const remaining = (100 - progress) / 100;
+      const distance = (parseFloat(currentRoute.distance) * remaining).toFixed(2);
+      const eta = Math.ceil(parseFloat(currentRoute.duration) * remaining);
+      
+      document.getElementById('navRemainingDistance').textContent = distance + ' km';
+      document.getElementById('navETA').textContent = eta + ' menit';
+      
+      // Update instruction
+      const instructions = ['Lurus terus', 'Belok kiri', 'Belok kanan', 'Masuk bundaran', 'Keluar bundaran', 'Ikuti jalan utama'];
+      document.getElementById('navNextInstruction').textContent = instructions[Math.floor(Math.random() * instructions.length)] + ' ' + Math.floor(Math.random() * 500 + 50) + 'm';
+      
+      if (progress >= 100) {
+        clearInterval(interval);
+        navigationActive = false;
+        document.getElementById('liveNavigationPanel').innerHTML = `
+          <div style="text-align:center;padding:20px;">
+            <div style="font-size:36px;margin-bottom:12px;">🎉</div>
+            <h3 style="font-size:16px;margin-bottom:6px;">Anda sudah tiba!</h3>
+            <p style="font-size:13px;opacity:0.8;margin-bottom:14px;">Terima kasih telah menggunakan navigasi kami</p>
+            <button class="generate-btn secondary" onclick="location.reload()" style="margin:0;">Mulai Lagi</button>
+          </div>
+        `;
+      }
+    }, 500);
+  }
+
+  // Stop Navigation
+  document.getElementById('stopNavigationBtn').addEventListener('click', () => {
+    navigationActive = false;
+    document.getElementById('liveNavigationPanel').style.display = 'none';
+    document.getElementById('routeInfoCard').style.display = 'block';
+  });
+
+  // Recenter Map
+  document.getElementById('navRecenterBtn').addEventListener('click', () => {
+    if (myLocation && navigationMap) {
+      navigationMap.setView([myLocation.lat, myLocation.lng], 14);
+    }
+  });
+
+  // Voice Instructions
+  document.getElementById('voiceInstructionBtn').addEventListener('click', () => {
+    if (!currentRoute) return;
+    const text = `Navigasi ke ${currentRoute.name}, jarak ${currentRoute.distance} kilometer, durasi ${currentRoute.duration} menit`;
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'id-ID';
+      window.speechSynthesis.speak(utterance);
+    }
+  });
+
+  // Search UMKM
+  document.getElementById('umkmSearch').addEventListener('input', (e) => {
+    const search = e.target.value.toLowerCase();
+    document.querySelectorAll('.umkm-card').forEach(card => {
+      const name = card.querySelector('.uc-name').textContent.toLowerCase();
+      const addr = card.querySelector('.uc-addr').textContent.toLowerCase();
+      card.style.display = (name.includes(search) || addr.includes(search)) ? 'block' : 'none';
+    });
+  });
+
+  // Close Route Info
+  document.getElementById('closeRouteBtn').addEventListener('click', () => {
+    document.getElementById('routeInfoCard').style.display = 'none';
+    currentRoute = null;
+    if (routingControl) navigationMap.removeControl(routingControl);
+    document.querySelectorAll('.umkm-card').forEach(c => c.classList.remove('selected'));
+  });
+
+  // Navigation History
+  function updateNavigationHistory() {
+    const hist = document.getElementById('navigationHistory');
+    if (navigationHistory.length === 0) {
+      hist.innerHTML = '<div style="text-align:center;color:var(--ink-soft);font-size:12px;padding:20px 10px;">Belum ada riwayat navigasi</div>';
+      return;
+    }
+    hist.innerHTML = navigationHistory.map((h, i) => `
+      <div class="history-item">
+        <div>
+          <div class="hi-name">📍 ${h.name}</div>
+          <div class="hi-time">${h.timestamp}</div>
+        </div>
+        <button onclick="deleteHistoryItem(${i})" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:14px;">✕</button>
+      </div>
+    `).join('');
+  }
+
+  window.deleteHistoryItem = function(i) {
+    navigationHistory.splice(i, 1);
+    localStorage.setItem('navHistory', JSON.stringify(navigationHistory));
+    updateNavigationHistory();
+  };
+
+  // Clear History
+  document.getElementById('clearNavigationHistoryBtn').addEventListener('click', () => {
+    if (confirm('Hapus semua riwayat navigasi?')) {
+      navigationHistory = [];
+      localStorage.removeItem('navHistory');
+      updateNavigationHistory();
+    }
+  });
+
+  // Traffic Heatmap Toggle
+  document.getElementById('trafficHeatmapToggle').addEventListener('change', (e) => {
+    if (e.target.checked && navigationMap) {
+      // Add traffic layer (simulation)
+      L.tileLayer('https://tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
+        attribution: '© OSM',
+        maxZoom: 18
+      }).addTo(navigationMap);
+    }
+  });
+
+  // Alternate Route
+  document.getElementById('navAlternateRouteBtn').addEventListener('click', () => {
+    if (currentRoute && navigationMap && routingControl) {
+      navigationMap.removeControl(routingControl);
+      // Redraw with alternative calculation
+      window.selectUMKM(currentRoute.id, currentRoute.name, currentRoute.lat, currentRoute.lng, currentRoute.addr);
+    }
+  });
+
+  // Initialize history on load
+  updateNavigationHistory();
+
+  // Export navigation module
+  window.navigationModule = {
+    updateUMKMList,
+    simulateNavigation
+  };
 })();
 
 </script>

@@ -1238,7 +1238,7 @@
           <button id="mapSearchBtn" style="flex-shrink:0;padding:10px 15px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:600;font-size:13px;cursor:pointer;">🔍</button>
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
-        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;">
+        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;position:relative;">
           <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
             <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
             <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Peta Komunitas</div>
@@ -2849,7 +2849,16 @@ let myMarkerLive = null;       // Marker "Saya" yang bergerak di peta
 let lastFirebaseUpdate = 0;    // Throttle update ke Firebase (max 1x per 5 detik)
 
 function clearActiveRoute(){
-  if(activeRoute){ try{ communityMap.removeControl(activeRoute); }catch(e){} activeRoute=null; }
+  if(activeRoute){
+    // Jika activeRoute adalah Leaflet Routing Machine control
+    if(typeof activeRoute.getPlan === 'function'){
+      try{ communityMap.removeControl(activeRoute); }catch(e){}
+    } else if(activeRoute._fallbackLine){
+      // Jika fallback: polyline garis lurus
+      try{ communityMap.removeLayer(activeRoute._fallbackLine); }catch(e){}
+    }
+    activeRoute = null;
+  }
   activeRouteCoords = null;
   const bar = document.getElementById('routeInfoBar');
   if(bar) bar.remove();
@@ -2858,7 +2867,7 @@ function clearActiveRoute(){
 // Cari titik di sepanjang garis rute, sejauh `aheadMeters` di depan posisi user saat ini.
 // Dipakai supaya kamera peta "melihat ke depan" mengikuti jalur garis, bukan cuma diam di titik user.
 function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
-  if(!routeCoords || routeCoords.length < 2) return userLatLng;
+  if(!userLatLng || !routeCoords || routeCoords.length < 2) return userLatLng || L.latLng(0,0);
   let minDist = Infinity, minIdx = 0;
   for(let i=0; i<routeCoords.length; i++){
     const d = userLatLng.distanceTo(routeCoords[i]);
@@ -2888,68 +2897,133 @@ function routeToCoords(destLat, destLng, destName){
     return;
   }
 
+  // Pastikan container peta punya position:relative agar bar muncul di dalam peta
+  const mapContainerEl = document.getElementById('leafletMap');
+  if(mapContainerEl) mapContainerEl.style.position = 'relative';
+
   // Tampilkan bar loading dulu sebelum rute dihitung
-  let bar = document.getElementById('routeInfoBar');
-  if(!bar){
-    bar = document.createElement('div');
-    bar.id = 'routeInfoBar';
-    bar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;';
-    document.getElementById('leafletMap').appendChild(bar);
-  }
-  bar.innerHTML = '⏳ Menghitung rute ke <span style="color:#1B4D4A;">'+destName+'</span>...';
-
-  activeRoute = L.Routing.control({
-    waypoints: [L.latLng(fromLat, fromLng), L.latLng(destLat, destLng)],
-    router: L.Routing.osrmv1({
-      serviceUrl: 'https://router.project-osrm.org/route/v1',
-      language: 'id'
-    }),
-    lineOptions: { styles: [{ color: '#1B4D4A', weight: 5, opacity: 0.85 }] },
-    show: false,
-    fitSelectedRoutes: false,  // dimatikan — kita fit manual agar animasinya lebih smooth
-    showAlternatives: false,
-    addWaypoints: false,
-    draggableWaypoints: false,
-    createMarker: function(i, wp){
-      return L.marker(wp.latLng, { icon: i===0 ? makeUserIcon(true) : makeStoreIcon() });
+  function getOrCreateBar(){
+    let bar = document.getElementById('routeInfoBar');
+    if(!bar){
+      bar = document.createElement('div');
+      bar.id = 'routeInfoBar';
+      bar.style.cssText = 'position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:1000;background:white;border-radius:20px;padding:7px 16px;font-size:12.5px;font-weight:700;box-shadow:0 2px 12px rgba(0,0,0,0.2);white-space:nowrap;display:flex;align-items:center;gap:8px;pointer-events:auto;min-width:180px;text-align:center;justify-content:center;';
+      const mapEl = document.getElementById('leafletMap');
+      if(mapEl) mapEl.appendChild(bar);
     }
-  }).addTo(communityMap);
+    return bar;
+  }
+  const bar = getOrCreateBar();
+  bar.innerHTML = '⏳ Menghitung rute ke <span style="color:#1B4D4A;margin-left:4px;">'+destName+'</span>...';
 
-  activeRoute.on('routesfound', function(e){
+  // Fungsi fallback: gambar garis lurus jika OSRM gagal/timeout
+  function drawFallbackLine(){
+    const pts = [L.latLng(fromLat, fromLng), L.latLng(destLat, destLng)];
+    // Hitung jarak lurus (Haversine)
+    const R = 6371000;
+    const dLat = (destLat - fromLat) * Math.PI/180;
+    const dLng = (destLng - fromLng) * Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(destLat*Math.PI/180)*Math.sin(dLng/2)**2;
+    const distM = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const km = (distM/1000).toFixed(1);
+
+    const polyline = L.polyline(pts, {color:'#1B4D4A', weight:5, opacity:0.8, dashArray:'12,8'}).addTo(communityMap);
+    // Simpan referensi polyline agar bisa dihapus
+    activeRoute = { _fallbackLine: polyline };
+    activeRouteCoords = pts;
+
+    communityMap.fitBounds(L.latLngBounds(pts), {padding:[60,60]});
+
+    const barEl = getOrCreateBar();
+    barEl.innerHTML = '⚠️ Rute jalan gagal · <span style="color:#1B4D4A;">'+destName+'</span> ~'+km+' km (garis lurus)'
+      +'&nbsp;&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕ Hapus</button>';
+  }
+
+  // Timeout manual 15 detik — jika OSRM tidak merespons (jarak jauh seperti Karawang→Bandung)
+  let routeResolved = false;
+  const routeTimeout = setTimeout(function(){
+    if(!routeResolved){
+      routeResolved = true;
+      console.warn('OSRM timeout, using fallback straight line');
+      // Hapus routing control yang hang
+      if(activeRoute && typeof activeRoute.getPlan === 'function'){
+        try{ communityMap.removeControl(activeRoute); }catch(e){}
+        activeRoute = null;
+      }
+      drawFallbackLine();
+    }
+  }, 15000);
+
+  let routingControl;
+  try {
+    routingControl = L.Routing.control({
+      waypoints: [L.latLng(fromLat, fromLng), L.latLng(destLat, destLng)],
+      router: L.Routing.osrmv1({
+        serviceUrl: 'https://router.project-osrm.org/route/v1',
+        language: 'id',
+        timeout: 12000
+      }),
+      lineOptions: {
+        styles: [{ color: '#1B4D4A', weight: 5, opacity: 0.85 }],
+        extendToWaypoints: true,
+        missingRouteTolerance: 0
+      },
+      show: false,
+      fitSelectedRoutes: false,
+      showAlternatives: false,
+      addWaypoints: false,
+      draggableWaypoints: false,
+      createMarker: function(i, wp){
+        return L.marker(wp.latLng, { icon: i===0 ? makeUserIcon(true) : makeStoreIcon() });
+      }
+    }).addTo(communityMap);
+  } catch(initErr) {
+    console.error('L.Routing.control init failed:', initErr);
+    clearTimeout(routeTimeout);
+    drawFallbackLine();
+    return;
+  }
+
+  activeRoute = routingControl;
+
+  routingControl.on('routesfound', function(e){
+    if(routeResolved) return; // timeout sudah trigger fallback
+    routeResolved = true;
+    clearTimeout(routeTimeout);
+
     const r = e.routes[0];
-    activeRouteCoords = r.coordinates;  // simpan garis rute untuk kamera "ikuti jalur"
+    activeRouteCoords = r.coordinates;
     const km = (r.summary.totalDistance/1000).toFixed(1);
     const mins = Math.round(r.summary.totalTime/60);
 
-    // Fit peta agar seluruh rute terlihat, hanya sekali saat rute pertama ditemukan.
-    // Setelah ini kamera diambil alih oleh watchPosition (ikuti user bergerak).
-    const allCoords = r.coordinates;
-    if(allCoords && allCoords.length > 0){
-      const bounds = L.latLngBounds(allCoords);
-      communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 17, animate: true });
+    if(activeRouteCoords && activeRouteCoords.length > 0){
+      const bounds = L.latLngBounds(activeRouteCoords);
+      communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true });
     } else {
-      communityMap.fitBounds(L.latLngBounds([fromLat, fromLng], [destLat, destLng]), { padding: [60, 60], maxZoom: 17 });
+      communityMap.fitBounds(L.latLngBounds([fromLat, fromLng], [destLat, destLng]), { padding: [60, 60] });
     }
 
-    // Update info bar
-    const barEl = document.getElementById('routeInfoBar');
-    if(barEl){
-      barEl.innerHTML = '🗺️ <span style="color:#1B4D4A;">'+destName+'</span> &nbsp;·&nbsp; 🚗 '+km+' km &nbsp;·&nbsp; ⏱ '+mins+' mnt'
-        +'&nbsp;&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕ Hapus Rute</button>';
-    }
+    const barEl = getOrCreateBar();
+    barEl.innerHTML = '🗺️ <span style="color:#1B4D4A;">'+destName+'</span> &nbsp;·&nbsp; 🚗 '+km+' km &nbsp;·&nbsp; ⏱ '+mins+' mnt'
+      +'&nbsp;&nbsp;<button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">✕ Hapus Rute</button>';
   });
 
-  activeRoute.on('routingerror', function(e){
-    const barEl = document.getElementById('routeInfoBar');
-    if(barEl) barEl.innerHTML = '❌ Gagal menghitung rute. <button onclick="clearActiveRoute();" style="border:none;background:#eee;border-radius:20px;padding:2px 9px;font-size:11px;cursor:pointer;font-weight:600;">Tutup</button>';
-    console.error('Routing error:', e);
+  routingControl.on('routingerror', function(e){
+    if(routeResolved) return;
+    routeResolved = true;
+    clearTimeout(routeTimeout);
+    console.error('Routing error (OSRM):', e);
+    // Hapus routing control yang error
+    try{ communityMap.removeControl(routingControl); }catch(err){}
+    activeRoute = null;
+    drawFallbackLine();
   });
 }
 
 function initCommunityMap(centerLat, centerLng){
   const container = document.getElementById('communityMapContainer');
   if(!container) return;
-  container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;position:relative;"></div>';
+  container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;position:relative;z-index:0;"></div>';
   if(communityMap){ try{ communityMap.remove(); }catch(e){} communityMap=null; }
   communityMapMarkers = {};
   activeRoute = null;
@@ -3508,16 +3582,17 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
       // recalculation rute + fitBounds otomatis dari Leaflet Routing Machine setiap detik
       // (penyebab peta kedut-kedutan / gerak sendiri). Garis rute memang tetap dari titik
       // awal ke tujuan — yang bergerak hanya marker user & kamera.
-      if(activeRoute){
-        if(activeRouteCoords && activeRouteCoords.length >= 2){
-          const userLL = L.latLng(loc.lat, loc.lng);
-          const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 80);
-          const centerLat = (loc.lat + lookAhead.lat) / 2;
-          const centerLng = (loc.lng + lookAhead.lng) / 2;
-          communityMap.panTo([centerLat, centerLng], {animate:true, duration:0.8, easeLinearity:0.5, noMoveStart:true});
-        } else {
-          communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:0.8, noMoveStart:true});
-        }
+      if(activeRoute && activeRouteCoords && activeRouteCoords.length >= 2){
+        // Rute aktif (OSRM atau fallback garis lurus) — kamera ikuti jalur ke depan
+        const userLL = L.latLng(loc.lat, loc.lng);
+        const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 150);
+        // Center sedikit di antara posisi user dan titik look-ahead, zoom in sedikit
+        const centerLat = loc.lat + (lookAhead.lat - loc.lat) * 0.45;
+        const centerLng = loc.lng + (lookAhead.lng - loc.lng) * 0.45;
+        communityMap.panTo([centerLat, centerLng], {animate:true, duration:0.8, easeLinearity:0.4, noMoveStart:true});
+      } else if(activeRoute){
+        // Rute ada tapi koordinat belum tersimpan (rute sedang dihitung)
+        communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:0.8, noMoveStart:true});
       } else if(firstFix){
         // Pertama kali dapat fix & tidak ada rute → fly ke posisi user
         communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});

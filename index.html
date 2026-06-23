@@ -2890,6 +2890,16 @@ function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
 }
 
 function routeToCoords(destLat, destLng, destName){
+  // Validasi koordinat tujuan
+  destLat = parseFloat(destLat);
+  destLng = parseFloat(destLng);
+  
+  if(isNaN(destLat) || isNaN(destLng)){
+    console.error('[v0] Invalid destination coordinates:', {destLat, destLng});
+    alert('❌ Koordinat tujuan tidak valid. Alamat mungkin belum ter-geocode.');
+    return;
+  }
+
   if(!communityMap){
     // Jika map belum ada, inisialisasi dulu
     const mapEl = document.getElementById('communityMapContainer');
@@ -2919,12 +2929,14 @@ function routeToCoords(destLat, destLng, destName){
       (pos) => {
         const userLat = pos.coords.latitude;
         const userLng = pos.coords.longitude;
+        console.log('[v0] GPS acquired:', {userLat, userLng, destLat, destLng});
         _doRoute(userLat, userLng, destLat, destLng, destName);
       },
       (err) => {
-        console.warn('GPS failed:', err);
+        console.warn('[v0] GPS failed:', err);
         // Jika myLocation sudah tersimpan dari share sebelumnya, gunakan itu
-        if(myLocation && myLocation.lat){
+        if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
+          console.log('[v0] Using cached myLocation:', myLocation);
           _doRoute(myLocation.lat, myLocation.lng, destLat, destLng, destName);
         } else {
           // GPS gagal → tawarkan Google Maps sebagai fallback
@@ -2941,11 +2953,32 @@ function routeToCoords(destLat, destLng, destName){
 }
 
 function _doRoute(fromLat, fromLng, destLat, destLng, destName){
+  // Validasi semua koordinat
+  fromLat = parseFloat(fromLat);
+  fromLng = parseFloat(fromLng);
+  destLat = parseFloat(destLat);
+  destLng = parseFloat(destLng);
+  
+  if(isNaN(fromLat) || isNaN(fromLng) || isNaN(destLat) || isNaN(destLng)){
+    console.error('[v0] Invalid route coordinates:', {fromLat, fromLng, destLat, destLng});
+    alert('❌ Koordinat tidak valid:\nUser: '+fromLat+', '+fromLng+'\nTujuan: '+destLat+', '+destLng);
+    return;
+  }
+
+  // Pastikan koordinat dalam range valid (latitude: -90 to 90, longitude: -180 to 180)
+  if(Math.abs(fromLat) > 90 || Math.abs(fromLng) > 180 || Math.abs(destLat) > 90 || Math.abs(destLng) > 180){
+    console.error('[v0] Coordinates out of range:', {fromLat, fromLng, destLat, destLng});
+    alert('❌ Koordinat di luar jangkauan geografis yang valid');
+    return;
+  }
+
   if(!communityMap) return;
 
   // Pastikan container peta punya position:relative agar bar muncul di dalam peta
   const mapContainerEl = document.getElementById('leafletMap');
   if(mapContainerEl) mapContainerEl.style.position = 'relative';
+
+  console.log('[v0] Routing from', {fromLat, fromLng}, 'to', {destLat, destLng}, destName);
 
   // Tampilkan bar loading dulu sebelum rute dihitung
   function getOrCreateBar(){
@@ -3212,12 +3245,16 @@ function makeStoreIcon(){
 const storeGeoCache = {};
 
 async function geocodeAddress(uid, address){
-  if(storeGeoCache[uid]) return storeGeoCache[uid];
+  if(storeGeoCache[uid]){
+    console.log('[v0] Geocode cache hit for', uid, ':', storeGeoCache[uid]);
+    return storeGeoCache[uid];
+  }
   try{
     // Tambahkan 'Bandung, Jawa Barat' sebagai konteks kalau alamat tidak menyebut kota
     // supaya kawasan seperti TKI (Taman Kopo Indah) lebih akurat
     const hasCity = /bandung|jakarta|surabaya|medan|makassar|semarang|yogya|depok|bekasi|tangerang|bogor/i.test(address);
     const q = hasCity ? address : address + ', Bandung, Jawa Barat, Indonesia';
+    console.log('[v0] Geocoding address:', q);
     const resp = await fetch(
       'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=1&addressdetails=1',
       {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
@@ -3225,14 +3262,26 @@ async function geocodeAddress(uid, address){
     const data = await resp.json();
     if(data && data[0]){
       const coords = {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+      console.log('[v0] Geocode result for', address, ':', coords);
+      
+      // Validasi koordinat
+      if(isNaN(coords.lat) || isNaN(coords.lng) || Math.abs(coords.lat) > 90 || Math.abs(coords.lng) > 180){
+        console.error('[v0] Geocode returned invalid coordinates:', coords);
+        return null;
+      }
+      
       storeGeoCache[uid] = coords;
       // Simpan ke Firebase supaya user lain tidak perlu geocode ulang
       if(window.firebaseReady && uid === MY_UID){
         window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
       }
       return coords;
+    } else {
+      console.warn('[v0] Nominatim returned no results for:', address);
     }
-  } catch(e){}
+  } catch(e){
+    console.error('[v0] Geocode error:', e.message);
+  }
   return null;
 }
 
@@ -3310,8 +3359,13 @@ async function renderCommunityMap(){
     // Cek dulu kalau koordinat sudah tersimpan di Firebase
     let coords = u.storeCoords || null;
     if(!coords) coords = await geocodeAddress(uid, u.address);
-    if(!coords) continue;
+    if(!coords){
+      console.warn('[v0] Skipping store', uid, 'because no coords available for:', u.address);
+      continue;
+    }
 
+    console.log('[v0] Rendering store', uid, 'with coords:', coords);
+    
     const _sName = escapeHtml(u.storeName||u.displayName||'Toko');
     const popup = '<div style="min-width:180px;font-family:inherit;">'
       +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+'</div>'
@@ -3459,6 +3513,14 @@ document.addEventListener('click', (e) => {
   const lat = parseFloat(btn.dataset.lat);
   const lng = parseFloat(btn.dataset.lng);
   const name = btn.dataset.name || 'Tujuan';
+  
+  console.log('[v0] Route button clicked:', {
+    rawLat: btn.dataset.lat,
+    rawLng: btn.dataset.lng,
+    lat, lng, name,
+    isValid: !isNaN(lat) && !isNaN(lng)
+  });
+  
   if(!isNaN(lat) && !isNaN(lng)){
     // Automatic switch ke tab komunitas jika belum aktif
     const communityTab = document.querySelector('.tab[data-panel="community"]');
@@ -3469,6 +3531,8 @@ document.addEventListener('click', (e) => {
     setTimeout(() => {
       routeToCoords(lat, lng, name);
     }, 100);
+  } else {
+    console.error('[v0] Invalid coordinates in button:', {lat, lng});
   }
 });
 

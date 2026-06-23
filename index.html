@@ -3048,10 +3048,13 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
     const url = serviceUrl
       + '/driving/' + fromLng + ',' + fromLat + ';' + destLng + ',' + destLat
       + '?overview=full&geometries=geojson&steps=false';
+    console.log('[v0] OSRM URL:', url);
+    console.log('[v0] Route coordinates - From:', {fromLat, fromLng}, 'To:', {destLat, destLng});
     const resp = await fetch(url, { signal: AbortSignal.timeout(timeoutMs - 1000) });
     if(!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if(data.code !== 'Ok' || !data.routes || !data.routes[0]) throw new Error('No route: ' + data.code);
+    console.log('[v0] OSRM Response - Distance:', data.routes[0].distance, 'Duration:', data.routes[0].duration);
     return data.routes[0];
   }
 
@@ -3683,8 +3686,26 @@ $('saveProfileBtn').addEventListener('click', async () => {
   if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
   $('saveProfileBtn').disabled = true;
   try{
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, uid:MY_UID, updatedAt:Date.now()});
-    $('profileSaveStatus').textContent = '✅ Profil tersimpan.';
+    // AUTO-GEOCODE: Jika ada alamat, geocode sekarang juga dan simpan storeCoords
+    let coordsToSave = {};
+    if(myProfile.address && myProfile.address.length > 5){
+      $('profileSaveStatus').textContent = '🌍 Geocoding lokasi toko...';
+      $('profileSaveStatus').style.color = 'var(--ink)';
+      try{
+        const geoResult = await geocodeAddress(MY_UID, myProfile.address);
+        if(geoResult && geoResult.lat && geoResult.lng){
+          coordsToSave.storeCoords = geoResult;
+          console.log('[v0] Auto-geocoded store address:', myProfile.address, '→', geoResult);
+        } else {
+          console.warn('[v0] Geocoding failed for address:', myProfile.address);
+        }
+      } catch(geoErr){
+        console.error('[v0] Geocode error during profile save:', geoErr);
+      }
+    }
+    
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
+    $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (coordsToSave.storeCoords ? ' + Lokasi ter-geocode' : '') + '.';
     $('profileSaveStatus').style.color = 'var(--good)';
     // Sembunyikan reminder setelah nama terisi
     const reminder = $('profileCompleteReminder');

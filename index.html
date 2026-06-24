@@ -2880,28 +2880,18 @@ function stepLabel(step){
   if(!step) return '';
   const mod = (step.maneuver&&step.maneuver.modifier)||'';
   const type= (step.maneuver&&step.maneuver.type)||'';
-  let road = (step.name||'').trim();
-  // Banyak jalan kecil/gang di data OSM Indonesia tidak punya nama tersimpan.
-  // Daripada instruksi jadi ambigu ("Belok kiri" doang tanpa info jalan apa),
-  // kasih fallback yang tetap informatif berdasarkan jenis jalan/ref kalau ada.
-  if(!road && step.ref) road = step.ref;
-  if(!road && step.destinations) road = step.destinations;
-  if(!road && step.pronunciation) road = step.pronunciation;
-  const roadTxt = road ? (' ke '+road) : ' (jalan tanpa nama / gang kecil)';
+  const road= step.name||'';
   const dist= step.distance>0 ? ' ('+fmtDist(step.distance)+')' : '';
   if(type==='arrive') return '🏁 Tiba di tujuan'+dist;
-  if(type==='depart') return '🚦 Mulai perjalanan'+(road?' di '+road:'')+dist;
+  if(type==='depart') return '🚦 Mulai perjalanan'+dist;
   const dirs={
     'left':'🔀 Belok kiri','right':'🔀 Belok kanan',
     'slight left':'↙ Serong kiri','slight right':'↘ Serong kanan',
     'sharp left':'↩ Belok tajam kiri','sharp right':'↪ Belok tajam kanan',
     'straight':'⬆ Lurus','uturn':'↩ Putar balik'
   };
-  // Untuk lurus/straight, kalau jalan tidak berubah nama, jangan tampilkan "(jalan tanpa nama)"
-  // berulang-ulang — cukup "Lurus" saja biar tidak bingung.
-  if(mod==='straight' && !road) return '⬆ Lurus'+dist;
-  const d = dirs[mod]||('➡ '+(type||'Lanjutkan'));
-  return d + roadTxt + dist;
+  const d = dirs[mod]||('➡ '+type);
+  return d + (road?' ke '+road:'') + dist;
 }
 
 // Temukan step yang paling relevan dengan posisi user sekarang
@@ -2988,25 +2978,8 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
-  // Reset flag peringatan "100m lagi" dari sesi navigasi sebelumnya — kalau tidak,
-  // pada rute baru flag warn_<idx> lama masih nyangkut di object function ini,
-  // jadi peringatan suara untuk index step yang sama tidak akan bunyi lagi.
-  Object.keys(startNavigation).forEach(k => { if(k.startsWith('warn_')) delete startNavigation[k]; });
-
-  // SNAP KAMERA INSTAN ke titik AWAL rute (activeRouteCoords[0]) — ini dijamin tersedia
-  // langsung tanpa nunggu GPS sama sekali, jadi kamera pasti langsung "nempel" ke jalur
-  // begitu tombol ditekan (mirip Google Maps), baru nanti diperhalus pakai posisi GPS asli.
-  if(communityMap){
-    communityMap.invalidateSize();
-    const startPt = activeRouteCoords[0];
-    let lookAhead0 = startPt;
-    if(activeRouteCoords.length > 1) lookAhead0 = findLookAheadPoint(startPt, activeRouteCoords, 200);
-    const cLat0 = startPt.lat + (lookAhead0.lat - startPt.lat) * 0.5;
-    const cLng0 = startPt.lng + (lookAhead0.lng - startPt.lng) * 0.5;
-    communityMap.setView([cLat0, cLng0], 17, {animate:false}); // animate:false = langsung snap, tanpa delay animasi
-  }
-
-  // SNAP KAMERA HALUS ke posisi GPS asli (kalau berbeda dari titik awal rute di atas)
+  // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
+  // (tanpa nunggu callback watchPosition pertama, supaya tidak ada delay/diam dulu seperti Google Maps)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     let lookAhead = L.latLng(lat, lng);
@@ -3018,13 +2991,10 @@ function startNavigation(){
     communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
   }
   if(navigator.geolocation){
-    // maximumAge tinggi supaya kalau browser sudah punya fix GPS dari sebelumnya
-    // (misal dari saat klik "Mulai Rute"), langsung dipakai tanpa nunggu fix baru —
-    // ini yang bikin terasa lambat sebelumnya (enableHighAccuracy+maximumAge:5000 sering nunggu fix segar).
     navigator.geolocation.getCurrentPosition(
       (pos) => snapCameraNow(pos.coords.latitude, pos.coords.longitude),
       () => { if(myLocation && myLocation.lat) snapCameraNow(myLocation.lat, myLocation.lng); },
-      {enableHighAccuracy: false, timeout: 4000, maximumAge: 30000}
+      {enableHighAccuracy: true, timeout: 5000, maximumAge: 5000}
     );
   } else if(myLocation && myLocation.lat){
     snapCameraNow(myLocation.lat, myLocation.lng);
@@ -3101,7 +3071,7 @@ function startNavigation(){
     }
   },(err)=>{
     console.warn('Nav GPS error:',err);
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:2000});
+  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────

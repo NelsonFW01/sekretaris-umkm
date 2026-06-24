@@ -3535,10 +3535,20 @@ async function geocodeAddress(uid, address){
     return storeGeoCache[uid];
   }
 
-  // Buat daftar query dari paling spesifik ke paling umum.
-  // Nominatim tidak bisa geocode detail mikro seperti "blok C 2 no 2",
-  // tapi bisa menemukan nama kompleks/perumahan-nya.
-  const makeQ = (s) => /indonesia/i.test(s) ? s : s + ', Indonesia';
+  // Deteksi apakah alamat sudah mengandung negara/kota luar Indonesia
+  const foreignKeywords = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis|bali|lombok|sumedang|bandung|jakarta|surabaya|medan|makassar|yogyakarta|semarang|palembang|pekanbaru|manado|denpasar)\b/i;
+
+  // Heuristik: apakah ini kemungkinan luar Indonesia?
+  const looksOverseas = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis)\b/i.test(address);
+
+  // makeQ: kalau sudah ada nama negara/kota di alamat, pakai apa adanya; kalau tidak, append Indonesia
+  const makeQ = (s) => {
+    if(/indonesia/i.test(s) || looksOverseas) return s;
+    return s + ', Indonesia';
+  };
+
+  // countrycodes: kalau luar Indonesia, jangan batasi — kosong = semua negara
+  const countryParam = looksOverseas ? '' : '&countrycodes=id';
 
   // Normalisasi: buang karakter ganda
   const norm = (s) => s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
@@ -3564,13 +3574,13 @@ async function geocodeAddress(uid, address){
   // Lebih baik return null (marker tidak muncul) daripada menampilkan lokasi yang SALAH.
 
   const queries = [q0, q1, q2].filter(Boolean);
-  console.log('[v0] Geocode queries for', uid, ':', queries);
+  console.log('[v0] Geocode queries for', uid, ':', queries, '| overseas:', looksOverseas);
 
   for(const q of queries){
     try{
       const resp = await fetch(
         'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)
-          +'&format=json&limit=1&addressdetails=1&countrycodes=id',
+          +'&format=json&limit=1&addressdetails=1'+countryParam,
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -3854,8 +3864,12 @@ async function doMapSearch(){
     // Geocode query via Nominatim kalau tidak ada hasil lokal
     resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
     try{
+      // Deteksi apakah query menyebut negara/kota luar Indonesia
+      const looksOverseas = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis|bali|lombok)\b/i.test(q);
+      const searchQ = (!looksOverseas && !/indonesia/i.test(q)) ? q + ', Indonesia' : q;
+      const countryFilter = looksOverseas ? '' : '&countrycodes=id';
       const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q+', Indonesia')+'&format=json&limit=5&addressdetails=1&countrycodes=id',
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(searchQ)+'&format=json&limit=5&addressdetails=1'+countryFilter,
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();

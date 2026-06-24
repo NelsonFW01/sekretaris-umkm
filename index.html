@@ -3127,8 +3127,9 @@ function startNavigation(){
       lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
     }
     // Geser center ke look-ahead point (1.0x) agar user muncul di bawah layar
-    const cLat = lat + (lookAhead.lat - lat) * 1.0;
-    const cLng = lng + (lookAhead.lng - lng) * 1.0;
+    // Offset 0.38x: user muncul di 1/3 bawah layar (bukan di tepi bawah)
+    const cLat = lat + (lookAhead.lat - lat) * 0.38;
+    const cLng = lng + (lookAhead.lng - lng) * 0.38;
     communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
   }
   if(navigator.geolocation){
@@ -3157,8 +3158,10 @@ function startNavigation(){
     if(communityMap){
       if(myMarkerLive) myMarkerLive.setLatLng([lat,lng]);
       else{
-        myMarkerLive=L.marker([lat,lng],{icon:makeUserIcon(true)}).addTo(communityMap)
+        const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+        myMarkerLive=L.marker([lat,lng],{icon:makeUserIcon(true,_navPhoto)}).addTo(communityMap)
           .bindPopup('📍 Lokasi Kamu');
+        communityMapMarkers['user_'+MY_UID]=myMarkerLive;
       }
     }
 
@@ -3200,8 +3203,9 @@ function startNavigation(){
         lookAhead=findLookAheadPoint(userLL,activeRouteCoords,250);
       }
       // Center di look-ahead (1.0x) → user terlihat di bagian bawah layar seperti nav POV
-      const cLat=lat+(lookAhead.lat-lat)*1.0;
-      const cLng=lng+(lookAhead.lng-lng)*1.0;
+      // Offset 0.38x: logo user muncul di 1/3 bawah layar, jalan di depan terlihat
+      const cLat=lat+(lookAhead.lat-lat)*0.38;
+      const cLng=lng+(lookAhead.lng-lng)*0.38;
       communityMap.setView([cLat,cLng],18,{animate:true,duration:0.6,noMoveStart:true});
     }
 

@@ -2855,6 +2855,8 @@ let navMode           = false;  // true = mode navigasi aktif
 let lastSpokenStep    = -1;     // index step terakhir yang sudah diucapkan
 let lastPanTime       = 0;
 let mapUserInteracting= false;
+let lastNavCamTime     = 0;     // throttle update kamera saat navigasi (anti tile/label flicker)
+let lastNavCamLatLng    = null; // posisi terakhir kamera nav di-update, buat cek jarak minimal gerak
 let myMarkerLive      = null;
 let lastFirebaseUpdate= 0;
 let routePending      = false;
@@ -2979,6 +2981,8 @@ function startNavigation(){
   navMode=true;
   lastSpokenStep=-1;
   mapUserInteracting=false;
+  lastNavCamTime=0;
+  lastNavCamLatLng=null;
 
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
@@ -2989,13 +2993,18 @@ function startNavigation(){
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     communityMap.invalidateSize();
-    let lookAhead = L.latLng(lat, lng);
+    const userLLraw = L.latLng(lat, lng);
+    const userLL = (activeRouteCoords && activeRouteCoords.length > 1)
+      ? snapToRoute(userLLraw, activeRouteCoords) : userLLraw;
+    let lookAhead = userLL;
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
+      lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 200);
     }
-    const cLat = lat + (lookAhead.lat - lat) * 0.5;
-    const cLng = lng + (lookAhead.lng - lng) * 0.5;
+    const cLat = userLL.lat + (lookAhead.lat - userLL.lat) * 0.5;
+    const cLng = userLL.lng + (lookAhead.lng - userLL.lng) * 0.5;
     communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
+    lastNavCamTime = Date.now();
+    lastNavCamLatLng = userLLraw;
   }
   if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
     // Sudah ada posisi segar dari saat rute dihitung — snap LANGSUNG, tanpa nunggu apa pun.
@@ -3058,16 +3067,29 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 200m, zoom 17, tanpa throttle di nav mode
+    // Kamera: ikuti user dengan look-ahead 200m, zoom 17.
+    // Pakai posisi yang sudah di-snap KE GARIS RUTE (bukan GPS mentah) supaya kamu kelihatan
+    // tepat berada DI ATAS jalur rute, bukan ngambang di samping garis karena offset GPS.
+    // Throttle ke maksimal 1x per 1.2 detik & minimal pergerakan 8m — supaya peta tidak
+    // di-reset/pan terus-menerus tiap ada update GPS (yang bikin tile/nama jalan belum
+    // selesai render dan kelihatan seperti "hilang").
     if(communityMap && !mapUserInteracting){
-      const userLL=L.latLng(lat,lng);
-      let lookAhead=userLL;
-      if(activeRouteCoords&&activeRouteCoords.length>1){
-        lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
+      const now = Date.now();
+      const userLLraw = L.latLng(lat,lng);
+      const movedEnough = !lastNavCamLatLng || userLLraw.distanceTo(lastNavCamLatLng) > 8;
+      if(now - lastNavCamTime > 1200 && movedEnough){
+        lastNavCamTime = now;
+        lastNavCamLatLng = userLLraw;
+        const userLL = (activeRouteCoords && activeRouteCoords.length>1)
+          ? snapToRoute(userLLraw, activeRouteCoords) : userLLraw;
+        let lookAhead=userLL;
+        if(activeRouteCoords&&activeRouteCoords.length>1){
+          lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
+        }
+        const cLat=userLL.lat+(lookAhead.lat-userLL.lat)*0.5;
+        const cLng=userLL.lng+(lookAhead.lng-userLL.lng)*0.5;
+        communityMap.setView([cLat,cLng],17,{animate:true,duration:0.6,noMoveStart:true});
       }
-      const cLat=lat+(lookAhead.lat-lat)*0.5;
-      const cLng=lng+(lookAhead.lng-lng)*0.5;
-      communityMap.setView([cLat,cLng],17,{animate:true,duration:0.6,noMoveStart:true});
     }
 
     // Cek apakah sudah sampai (< 30m dari tujuan)
@@ -3084,6 +3106,32 @@ function startNavigation(){
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────
+// Cari titik TERDEKAT di ATAS garis rute dari posisi GPS user (snap-to-road visual).
+// GPS HP biasanya sedikit ngambang beberapa meter dari jalan asli — fungsi ini
+// "menempelkan" titik kamera ke garis rute persis, bukan ke koordinat GPS mentah,
+// supaya posisi kamu kelihatan benar-benar DI ATAS garis rute, bukan ngambang di sampingnya.
+function snapToRoute(userLatLng, routeCoords){
+  if(!userLatLng||!routeCoords||routeCoords.length<2) return userLatLng;
+  let minDist=Infinity, best=userLatLng;
+  for(let i=0;i<routeCoords.length-1;i++){
+    const a=routeCoords[i], b=routeCoords[i+1];
+    const segLen=a.distanceTo(b);
+    if(segLen===0) continue;
+    // Proyeksikan userLatLng ke segmen a-b (perhitungan sederhana di ruang lat/lng datar,
+    // cukup akurat untuk jarak antar-segmen rute yang pendek/lokal).
+    const t = Math.max(0, Math.min(1,
+      ((userLatLng.lat-a.lat)*(b.lat-a.lat)+(userLatLng.lng-a.lng)*(b.lng-a.lng)) /
+      ((b.lat-a.lat)**2+(b.lng-a.lng)**2 || 1)
+    ));
+    const proj = L.latLng(a.lat+(b.lat-a.lat)*t, a.lng+(b.lng-a.lng)*t);
+    const d = userLatLng.distanceTo(proj);
+    if(d<minDist){ minDist=d; best=proj; }
+  }
+  // Kalau user terlalu jauh dari rute (>60m, misal salah belok/keluar rute),
+  // jangan paksa snap — pakai posisi GPS asli supaya tidak menyesatkan.
+  return minDist<=60 ? best : userLatLng;
+}
+
 function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
   if(!userLatLng||!routeCoords||routeCoords.length<2) return userLatLng||L.latLng(0,0);
   let minDist=Infinity,minIdx=0;

@@ -3468,8 +3468,9 @@ async function geocodeAddress(uid, address){
       }
       
       storeGeoCache[uid] = coords;
-      // Simpan ke Firebase supaya user lain tidak perlu geocode ulang
-      if(window.firebaseReady && uid === MY_UID){
+      // Simpan ke Firebase untuk SEMUA user supaya render berikutnya langsung pakai storeCoords
+      // tanpa geocode ulang ke Nominatim (hemat waktu dan kuota API).
+      if(window.firebaseReady){
         window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
       }
       return coords;
@@ -3582,11 +3583,15 @@ async function renderCommunityMap(){
     const adminDelImgBtn = (isAdmin && latestGalleryId)
       ? '<button class="map-popup-del-img" data-gallery-id="'+latestGalleryId+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #C84F2F;border-radius:8px;background:#FFF0F0;color:#C84F2F;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Gambar (Admin)</button>'
       : '';
-    // Tombol hapus TOKO dari peta — menghapus storeCoords + address dari Firebase
-    // sehingga toko tidak muncul lagi di peta
-    const adminDelStoreBtn = (isAdmin && !isMyStore)
-      ? '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B1E1E;border-radius:8px;background:#FFF0F0;color:#7B1E1E;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Toko dari Peta (Admin)</button>'
-      : '';
+    // Tombol hapus TOKO dari peta — admin bisa hapus toko siapapun, owner bisa hapus tokonya sendiri
+    let adminDelStoreBtn = '';
+    if(isMyStore){
+      // Tombol untuk owner sendiri (hapus lokasinya dari peta)
+      adminDelStoreBtn = '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B5E00;border-radius:8px;background:#FFFBEA;color:#7B5E00;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Lokasimu dari Peta</button>';
+    } else if(isAdmin){
+      // Tombol untuk admin hapus toko orang lain
+      adminDelStoreBtn = '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B1E1E;border-radius:8px;background:#FFF0F0;color:#7B1E1E;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Toko dari Peta (Admin)</button>';
+    }
     const adminDelBtn = adminDelImgBtn + adminDelStoreBtn;
 
     const popup = '<div style="min-width:180px;font-family:inherit;">'
@@ -3650,20 +3655,27 @@ document.getElementById('loadMapBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', async () => {
-  // Hapus seluruh geocode cache agar alamat yang diperbarui di-geocode ulang
+  const btn = document.getElementById('refreshMapBtn');
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Memperbarui...';
+
+  // 1. Ambil data terbaru dari Firebase agar tidak pakai allUsersCache yang stale
+  if(window.firebaseReady){
+    try{
+      const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'users'));
+      allUsersCache = snap.val() || {};
+    } catch(e){ console.error('[v0] refreshMapBtn: gagal fetch users:', e); }
+  }
+
+  // 2. Hapus seluruh geocode cache agar alamat yang berubah di-geocode ulang
   Object.keys(storeGeoCache).forEach(k => delete storeGeoCache[k]);
-  // FIX: hapus juga storeCoords dari allUsersCache lokal untuk diri sendiri,
-  // agar renderCommunityMap tidak pakai koordinat lama yang belum propagate dari Firebase.
-  if(allUsersCache[MY_UID]) delete allUsersCache[MY_UID].storeCoords;
-  // Reset firstRender agar fitBounds ikut diperbarui
   communityMapFirstRender = true;
+
   if(!communityMap){
     if(myLocation && myLocation.lat) initCommunityMap(myLocation.lat, myLocation.lng);
     else initCommunityMap(-6.2088, 106.8456);
   }
-  const btn = document.getElementById('refreshMapBtn');
-  const origText = btn.textContent;
-  btn.disabled = true; btn.textContent = '⏳ Memperbarui...';
+
   await renderCommunityMap();
   btn.disabled = false; btn.textContent = origText;
   if(communityMap && myLocation && myLocation.lat){
@@ -3766,23 +3778,37 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// ===== ADMIN: Hapus TOKO dari peta (hapus storeCoords + address dari Firebase) =====
+// ===== Hapus TOKO dari peta — owner bisa hapus lokasi sendiri, admin bisa hapus siapapun =====
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.map-popup-del-store');
   if(!btn) return;
-  if(!isAdmin || !window.firebaseReady){ alert('Hanya admin yang bisa melakukan ini.'); return; }
+  if(!window.firebaseReady){ alert('Koneksi Firebase tidak tersedia.'); return; }
   const uid = btn.dataset.uid;
   const name = btn.dataset.name || 'toko ini';
   if(!uid) return;
-  if(!confirm('Hapus lokasi toko "'+name+'" dari peta? Ini akan menghapus alamat & koordinat toko dari akun mereka.')) return;
+
+  // Cek izin: harus admin ATAU pemilik toko itu sendiri
+  const isOwner = uid === MY_UID;
+  if(!isAdmin && !isOwner){ alert('Hanya pemilik atau admin yang bisa melakukan ini.'); return; }
+
+  const konfirmMsg = isOwner
+    ? 'Hapus lokasimu dari peta komunitas? Alamat di profil juga akan dihapus. Kamu bisa isi ulang kapan saja.'
+    : 'Hapus lokasi toko "'+name+'" dari peta? Ini akan menghapus alamat & koordinat toko dari akun mereka.';
+  if(!confirm(konfirmMsg)) return;
+
   btn.disabled = true; btn.textContent = '⏳ Menghapus...';
   try{
-    // Hapus storeCoords dan address dari Firebase (field-level update dengan null)
+    // Hapus storeCoords dan address dari Firebase
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/'+uid), {
       storeCoords: null,
       address: null
     });
-    // Hapus dari cache lokal juga agar tidak muncul lagi tanpa perlu reload
+    // Jika owner menghapus sendiri, bersihkan juga profil lokal dan form
+    if(isOwner){
+      myProfile.address = '';
+      if(document.getElementById('profAddress')) document.getElementById('profAddress').value = '';
+    }
+    // Hapus dari cache lokal
     if(allUsersCache[uid]){
       delete allUsersCache[uid].storeCoords;
       delete allUsersCache[uid].address;
@@ -3795,7 +3821,8 @@ document.addEventListener('click', async (e) => {
     delete communityMapMarkers['store_'+uid];
   } catch(err){
     alert('Gagal menghapus toko dari peta: '+err.message);
-    btn.disabled = false; btn.textContent = '🗑️ Hapus Toko dari Peta (Admin)';
+    btn.disabled = false;
+    btn.textContent = isOwner ? '🗑️ Hapus Lokasimu dari Peta' : '🗑️ Hapus Toko dari Peta (Admin)';
   }
 });
 

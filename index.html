@@ -2849,6 +2849,7 @@ let lastPanTime = 0;           // Throttle panTo/flyTo agar peta tidak gerak ter
 let mapUserInteracting = false; // Flag: user sedang drag/zoom peta secara manual
 let myMarkerLive = null;       // Marker "Saya" yang bergerak di peta
 let lastFirebaseUpdate = 0;    // Throttle update ke Firebase (max 1x per 5 detik)
+let routePending = false;      // Flag: rute sedang dihitung, jangan fly ke lokasi user dulu
 
 function clearActiveRoute(){
   if(activeRoute){
@@ -2900,6 +2901,8 @@ function routeToCoords(destLat, destLng, destName){
     return;
   }
 
+  routePending = true; // tandai rute sedang dihitung agar kamera tidak fly ke lokasi user
+
   if(!communityMap){
     // Jika map belum ada, inisialisasi dulu
     const mapEl = document.getElementById('communityMapContainer');
@@ -2930,10 +2933,12 @@ function routeToCoords(destLat, destLng, destName){
         const userLat = pos.coords.latitude;
         const userLng = pos.coords.longitude;
         console.log('[v0] GPS acquired:', {userLat, userLng, destLat, destLng});
+        routePending = false; // GPS dapat, rute akan digambar sekarang
         _doRoute(userLat, userLng, destLat, destLng, destName);
       },
       (err) => {
         console.warn('[v0] GPS failed:', err);
+        routePending = false; // GPS gagal, clear flag
         // Jika myLocation sudah tersimpan dari share sebelumnya, gunakan itu
         if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
           console.log('[v0] Using cached myLocation:', myLocation);
@@ -3038,6 +3043,7 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
   const routeTimeout = setTimeout(function(){
     if(!routeResolved){
       routeResolved = true;
+      routePending = false; // timeout, clear flag
       console.warn('Route timeout after '+timeoutMs+'ms, using Google Maps link fallback');
       drawFallbackLine();
     }
@@ -3080,6 +3086,7 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
   tryAllOSRM().then(function(route){
     if(routeResolved) return;
     routeResolved = true;
+    routePending = false; // rute sudah digambar
     clearTimeout(routeTimeout);
 
     const coords = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
@@ -3112,6 +3119,7 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
   }).catch(function(err){
     if(routeResolved) return;
     routeResolved = true;
+    routePending = false; // rute gagal, clear flag
     clearTimeout(routeTimeout);
     console.error('All routing failed:', err);
     drawFallbackLine();
@@ -3858,8 +3866,8 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
           // Rute ada tapi koordinat belum tersimpan (rute sedang dihitung)
           communityMap.panTo([loc.lat, loc.lng], {animate:true, duration:0.8, noMoveStart:true});
           lastPanTime = nowPan;
-        } else if(firstFix){
-          // Pertama kali dapat fix & tidak ada rute → fly ke posisi user
+        } else if(firstFix && !routePending){
+          // Pertama kali dapat fix & tidak ada rute & tidak sedang tunggu rute → fly ke posisi user
           communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});
           lastPanTime = nowPan;
         }

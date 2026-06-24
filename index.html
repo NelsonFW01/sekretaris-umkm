@@ -757,6 +757,59 @@
 }
 .leaflet-routing-container { display: none !important; }
 </style>
+<style>
+/* ===== INNOVATION MODULES: Pasar Kongsi + Otak AI ===== */
+.kongsi-hero, .brain-hero{background:linear-gradient(135deg,#1B4D4A,#2a7a6e);color:#fff;padding:18px;border-radius:18px;margin-bottom:14px;}
+.kongsi-hero h2, .brain-hero h2{font-size:18px;margin:0 0 6px;font-weight:800;}
+.kongsi-hero p, .brain-hero p{font-size:13px;opacity:.92;margin:0;line-height:1.5;}
+.kongsi-modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.kongsi-mode{background:#fff;border:2px solid #EFE6D8;border-radius:14px;padding:10px 6px;text-align:center;cursor:pointer;font-size:11.5px;font-weight:700;color:#1B4D4A;transition:all .15s;}
+.kongsi-mode.active{background:#1B4D4A;color:#fff;border-color:#1B4D4A;}
+.kongsi-mode .em{font-size:20px;display:block;margin-bottom:2px;}
+.kongsi-actions{display:flex;gap:8px;margin-bottom:12px;}
+.kongsi-actions button{flex:1;padding:11px;border-radius:12px;border:none;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;}
+.kg-primary{background:#FF6B5B;color:#fff;}
+.kg-secondary{background:#EFE6D8;color:#1B4D4A;}
+.kongsi-form{background:#FFF;border:2px solid #EFE6D8;border-radius:14px;padding:14px;margin-bottom:14px;display:none;}
+.kongsi-form.open{display:block;}
+.kongsi-form label{display:block;font-size:12px;font-weight:700;color:#1B4D4A;margin:8px 0 4px;}
+.kongsi-form input, .kongsi-form textarea, .kongsi-form select{width:100%;padding:10px;border:1.5px solid #EFE6D8;border-radius:10px;font-family:inherit;font-size:13px;box-sizing:border-box;background:#FAF6F0;}
+.kongsi-form textarea{min-height:60px;resize:vertical;}
+.kongsi-card{background:#fff;border:1.5px solid #EFE6D8;border-radius:14px;padding:12px;margin-bottom:10px;}
+.kongsi-card .kc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
+.kongsi-card .kc-title{font-weight:800;font-size:14px;color:#1B4D4A;}
+.kongsi-card .kc-badge{font-size:10px;padding:3px 8px;border-radius:999px;font-weight:700;white-space:nowrap;}
+.kc-badge.stok{background:#FFE5DF;color:#C2452F;}
+.kc-badge.belanja{background:#DCEFE9;color:#1B4D4A;}
+.kc-badge.kurir{background:#FFF1D6;color:#A07000;}
+.kongsi-card .kc-meta{font-size:11.5px;color:#666;margin-bottom:6px;}
+.kongsi-card .kc-desc{font-size:13px;color:#333;line-height:1.5;margin-bottom:8px;}
+.kongsi-card .kc-price{font-size:14px;font-weight:800;color:#1B4D4A;}
+.kongsi-card .kc-foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+.kc-wa{background:#25D366;color:#fff;border:none;padding:8px 14px;border-radius:10px;font-weight:700;font-size:12px;cursor:pointer;text-decoration:none;display:inline-block;}
+.kc-del{background:transparent;border:none;color:#C2452F;font-size:11px;cursor:pointer;font-weight:600;}
+
+/* ===== Otak AI ===== */
+.brain-status{background:#fff;border:2px solid #EFE6D8;border-radius:14px;padding:14px;margin-bottom:12px;}
+.brain-status .bs-row{display:flex;justify-content:space-between;font-size:13px;margin:4px 0;}
+.brain-status .bs-row .bs-l{color:#666;}
+.brain-status .bs-row .bs-v{font-weight:700;color:#1B4D4A;}
+.brain-train{background:linear-gradient(135deg,#FF6B5B,#ff8a7a);color:#fff;border:none;padding:14px;border-radius:14px;font-weight:800;font-size:15px;width:100%;cursor:pointer;font-family:inherit;margin-bottom:12px;box-shadow:0 4px 14px rgba(255,107,91,.3);}
+.brain-train:disabled{opacity:.6;cursor:wait;}
+.brain-progress{background:#EFE6D8;border-radius:999px;overflow:hidden;height:8px;margin-bottom:12px;}
+.brain-progress > div{background:linear-gradient(90deg,#1B4D4A,#67C6D0);height:100%;width:0;transition:width .1s;}
+.brain-loss{background:#fff;border:1.5px solid #EFE6D8;border-radius:14px;padding:12px;margin-bottom:12px;}
+.brain-insight{background:#FFFAF0;border:1.5px solid #EFE6D8;border-radius:14px;padding:14px;margin-bottom:10px;}
+.brain-insight h4{margin:0 0 6px;font-size:13px;color:#1B4D4A;display:flex;align-items:center;gap:6px;}
+.brain-insight .bi-val{font-size:20px;font-weight:800;color:#1B4D4A;margin:4px 0;}
+.brain-insight .bi-sub{font-size:12px;color:#666;line-height:1.5;}
+.brain-anomalies{background:#fff;border:1.5px solid #EFE6D8;border-radius:14px;padding:12px;margin-bottom:10px;}
+.brain-anomalies .ban-item{font-size:12.5px;padding:6px 0;border-bottom:1px dashed #EFE6D8;}
+.brain-anomalies .ban-item:last-child{border-bottom:none;}
+.brain-locked{background:#FFF1D6;border:1.5px solid #E1913D;border-radius:12px;padding:12px;font-size:12.5px;color:#A07000;text-align:center;line-height:1.5;}
+
+@media (max-width:380px){.kongsi-modes{grid-template-columns:repeat(3,1fr);} .kongsi-mode{font-size:10.5px;}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -798,6 +851,8 @@
     <button class="tab" data-panel="live">📺 LIVE</button>
     <button class="tab" data-panel="videos">🎥 Video</button>
     <button class="tab" data-panel="community">👥 Komunitas</button>
+    <button class="tab" data-panel="kongsi">🤝 Pasar Kongsi</button>
+    <button class="tab" data-panel="brain">🧠 Otak AI</button>
     <button class="tab" data-panel="settings">⚙️ Setting</button>
   </div>
 
@@ -1342,6 +1397,59 @@
         </div>
       </div>
     </section>
+    <!-- ===== PASAR KONGSI PANEL ===== -->
+    <section class="panel" id="panel-kongsi">
+      <div class="kongsi-hero">
+        <h2>🤝 Pasar Kongsi UMKM</h2>
+        <p>Bukan saingi UMKM lain — <b>gotong royong</b>. Tukar stok berlebih, kongsi beli bahan baku biar dapat harga grosir, bagi rute kurir. Ekonomi UMKM untuk UMKM.</p>
+      </div>
+      <div class="kongsi-modes">
+        <div class="kongsi-mode active" data-mode="stok"><span class="em">📦</span>Stok Lebih</div>
+        <div class="kongsi-mode" data-mode="belanja"><span class="em">🛒</span>Kongsi Belanja</div>
+        <div class="kongsi-mode" data-mode="kurir"><span class="em">🛵</span>Rute Kurir</div>
+      </div>
+      <div class="kongsi-actions">
+        <button class="kg-primary" id="kgAddBtn">+ Buat Tawaran</button>
+        <button class="kg-secondary" id="kgRefreshBtn">🔄 Muat Ulang</button>
+      </div>
+      <div class="kongsi-form" id="kgForm">
+        <label>Judul singkat</label>
+        <input type="text" id="kgTitle" placeholder="cth: Tepung terigu 25kg lebih, mau lepas murah">
+        <label>Deskripsi</label>
+        <textarea id="kgDesc" placeholder="Jelaskan kondisi, kuantitas, lokasi pickup, deadline..."></textarea>
+        <label>Harga / Patungan (Rp, opsional)</label>
+        <input type="number" id="kgPrice" placeholder="0">
+        <label>Kota</label>
+        <input type="text" id="kgCity" placeholder="cth: Tangerang">
+        <label>WhatsApp kontak (08xx atau 62xx)</label>
+        <input type="text" id="kgWa" placeholder="08123456789">
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="kg-primary" id="kgSubmit" style="flex:1;">Posting</button>
+          <button class="kg-secondary" id="kgCancel" style="flex:1;">Batal</button>
+        </div>
+      </div>
+      <div id="kgList"><div class="empty-state">Belum ada tawaran di mode ini.</div></div>
+    </section>
+
+    <!-- ===== OTAK AI PANEL ===== -->
+    <section class="panel" id="panel-brain">
+      <div class="brain-hero">
+        <h2>🧠 Otak AI UMKM — Privacy First</h2>
+        <p>Neural network mini yang <b>kamu latih sendiri</b> dari riwayat transaksimu. Data tidak pernah keluar browser. Setelah cukup data + dilatih, AI ini prediksi profit harian, hari terkuatmu, dan deteksi anomali.</p>
+      </div>
+      <div class="brain-status" id="brainStatus">
+        <div class="bs-row"><span class="bs-l">Data transaksi tersedia</span><span class="bs-v" id="bsRows">0</span></div>
+        <div class="bs-row"><span class="bs-l">Hari unik tercatat</span><span class="bs-v" id="bsDays">0</span></div>
+        <div class="bs-row"><span class="bs-l">Status model</span><span class="bs-v" id="bsModel">Belum dilatih</span></div>
+        <div class="bs-row"><span class="bs-l">Akurasi (R²)</span><span class="bs-v" id="bsAcc">—</span></div>
+      </div>
+      <button class="brain-train" id="brainTrainBtn">🚀 Latih AI Sekarang</button>
+      <div class="brain-progress" id="brainProg" style="display:none;"><div></div></div>
+      <div class="brain-loss" id="brainLossWrap" style="display:none;"><h4 style="margin:0 0 8px;font-size:13px;color:#1B4D4A;">📉 Loss saat training</h4><canvas id="brainLossChart" style="max-height:160px;"></canvas></div>
+      <div id="brainInsights"></div>
+      <div id="brainLocked" class="brain-locked" style="display:none;">⚠️ Minimal <b>5 hari berbeda</b> dengan transaksi diperlukan untuk melatih AI. Catat lebih banyak transaksi dulu di tab 💰 Catat Uang.</div>
+    </section>
+
     <!-- ===== SETTINGS PANEL ===== -->
     <section class="panel" id="panel-settings">
       <h2 style="font-size:18px;margin-bottom:16px;">⚙️ Pengaturan</h2>
@@ -1415,7 +1523,7 @@
         <h4>Tentang Aplikasi</h4>
         <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:4px;">
           <div class="sr-label">Sekretaris UMKM</div>
-          <div class="sr-sub">Versi 2.0 · Solusi digital terpadu untuk UMKM Indonesia</div>
+          <div class="sr-sub">Versi 2.0 · Dibuat untuk IDCamp Developer Challenge</div>
           <div class="sr-sub">Ditenagai Groq &amp; OpenRouter AI + Firebase</div>
         </div>
         <button class="generate-btn outline" id="clearDataBtn" style="margin-top:8px;border-color:var(--bad);color:var(--bad);">🗑️ Hapus Semua Data Lokal (Reset)</button>
@@ -1454,7 +1562,7 @@
     </div>
   </div>
 
-  <footer>Solusi manajemen bisnis terintegrasi · Ditenagai Groq &amp; OpenRouter AI</footer>
+  <footer>Dibuat untuk IDCamp Developer Challenge · Ditenagai Groq &amp; OpenRouter AI</footer>
 </div>
 
 <!-- ===== FULLSCREEN IMAGE VIEWER ===== -->
@@ -6493,6 +6601,339 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   });
 })();
 
+</script>
+
+<script>
+/* =====================================================================
+   INNOVATION MODULE A: PASAR KONGSI (peer-to-peer UMKM marketplace)
+   - 3 mode: stok lebih / kongsi belanja / rute kurir
+   - Firebase RTDB jika tersedia, fallback localStorage
+   - Hooked ke tab switcher existing
+   ===================================================================== */
+(function(){
+  let kgMode='stok';
+  const LS_KEY='pasarKongsi_v1';
+
+  function $$(id){return document.getElementById(id);}
+  function fmtRp(n){if(!n||isNaN(n))return '—';return 'Rp '+Number(n).toLocaleString('id-ID');}
+  function fmtTime(ts){const d=new Date(ts);const diff=(Date.now()-d.getTime())/1000;if(diff<60)return 'baru saja';if(diff<3600)return Math.floor(diff/60)+'m lalu';if(diff<86400)return Math.floor(diff/3600)+'j lalu';return Math.floor(diff/86400)+'h lalu';}
+  function normalizeWA(w){w=(w||'').replace(/\D/g,'');if(w.startsWith('0'))w='62'+w.slice(1);return w;}
+  function loadLocal(){try{return JSON.parse(localStorage.getItem(LS_KEY)||'[]');}catch(e){return [];}}
+  function saveLocal(arr){localStorage.setItem(LS_KEY,JSON.stringify(arr.slice(-200)));}
+
+  function badge(mode){
+    if(mode==='stok')return '<span class="kc-badge stok">📦 Stok Lebih</span>';
+    if(mode==='belanja')return '<span class="kc-badge belanja">🛒 Kongsi Belanja</span>';
+    return '<span class="kc-badge kurir">🛵 Rute Kurir</span>';
+  }
+
+  function renderList(items){
+    const list=$$('kgList');
+    const filtered=items.filter(i=>i.mode===kgMode).sort((a,b)=>(b.ts||0)-(a.ts||0));
+    if(filtered.length===0){list.innerHTML='<div class="empty-state">Belum ada tawaran di mode ini. Jadilah yang pertama posting!</div>';return;}
+    list.innerHTML=filtered.map(it=>{
+      const wa=normalizeWA(it.wa);
+      const waLink=wa?`https://wa.me/${wa}?text=${encodeURIComponent('Halo, saya tertarik dengan tawaran kamu di Pasar Kongsi: '+it.title)}`:'#';
+      const ownerKey=it.ownerKey||'';
+      const isMine = ownerKey && ownerKey===getOwnerKey();
+      return `<div class="kongsi-card">
+        <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
+        <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
+        <div class="kc-desc">${escapeHtml(it.desc||'')}</div>
+        <div class="kc-foot">
+          <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
+          ${wa?`<a class="kc-wa" href="${waLink}" target="_blank" rel="noopener">💬 Hubungi WA</a>`:''}
+        </div>
+        ${isMine?`<div style="text-align:right;margin-top:6px;"><button class="kc-del" data-del="${it.id}">Hapus tawaran saya</button></div>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  function getOwnerKey(){
+    let k=localStorage.getItem('kgOwnerKey');
+    if(!k){k='u_'+Math.random().toString(36).slice(2,10);localStorage.setItem('kgOwnerKey',k);}
+    return k;
+  }
+
+  let cache=[];
+  function refresh(){
+    if(window.firebaseReady && window.firebaseDb){
+      try{
+        const r=window.rtdbRef(window.firebaseDb,'pasarKongsi');
+        const q=window.rtdbQuery(r, window.rtdbOrderByChild('ts'), window.rtdbLimitToLast(100));
+        window.rtdbGet(q).then(snap=>{
+          const v=snap.val()||{};
+          cache=Object.entries(v).map(([id,val])=>({...val,id}));
+          renderList(cache);
+        }).catch(()=>{cache=loadLocal();renderList(cache);});
+      }catch(e){cache=loadLocal();renderList(cache);}
+    } else {
+      cache=loadLocal();renderList(cache);
+    }
+  }
+
+  function addItem(item){
+    item.ts=Date.now();
+    item.ownerKey=getOwnerKey();
+    if(window.firebaseReady && window.firebaseDb){
+      try{
+        const r=window.rtdbRef(window.firebaseDb,'pasarKongsi');
+        const newRef=window.rtdbPush(r);
+        window.rtdbSet(newRef,item).then(refresh).catch(()=>{const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();});
+      }catch(e){const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();}
+    } else {
+      const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();
+    }
+  }
+
+  function delItem(id){
+    if(window.firebaseReady && window.firebaseDb && !String(id).startsWith('l_')){
+      try{window.rtdbRemove(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+id)).then(refresh);}catch(e){refresh();}
+    } else {
+      const arr=loadLocal().filter(x=>x.id!==id);saveLocal(arr);refresh();
+    }
+  }
+
+  // Wire UI
+  document.querySelectorAll('.kongsi-mode').forEach(el=>{
+    el.addEventListener('click',()=>{
+      document.querySelectorAll('.kongsi-mode').forEach(m=>m.classList.remove('active'));
+      el.classList.add('active');
+      kgMode=el.dataset.mode;
+      renderList(cache);
+    });
+  });
+  $$('kgAddBtn').addEventListener('click',()=>$$('kgForm').classList.toggle('open'));
+  $$('kgCancel').addEventListener('click',()=>$$('kgForm').classList.remove('open'));
+  $$('kgRefreshBtn').addEventListener('click',refresh);
+  $$('kgSubmit').addEventListener('click',()=>{
+    const title=$$('kgTitle').value.trim();
+    const desc=$$('kgDesc').value.trim();
+    const city=$$('kgCity').value.trim();
+    const wa=$$('kgWa').value.trim();
+    const price=Number($$('kgPrice').value)||0;
+    if(!title||!desc||!wa||!city){alert('Isi minimal judul, deskripsi, kota, dan WA dulu ya.');return;}
+    addItem({mode:kgMode,title,desc,city,wa,price});
+    ['kgTitle','kgDesc','kgPrice','kgCity','kgWa'].forEach(id=>$$(id).value='');
+    $$('kgForm').classList.remove('open');
+  });
+  $$('kgList').addEventListener('click',e=>{
+    const id=e.target.getAttribute('data-del');
+    if(id && confirm('Hapus tawaran ini?'))delItem(id);
+  });
+
+  // Auto-refresh on tab open
+  document.querySelectorAll('.tab[data-panel="kongsi"]').forEach(t=>t.addEventListener('click',refresh));
+  document.addEventListener('firebase-ready',refresh);
+  setTimeout(refresh,800);
+})();
+
+/* =====================================================================
+   INNOVATION MODULE B: OTAK AI UMKM (in-browser trainable MLP)
+   - Input  : 7-dim one-hot day-of-week + 1 normalized recent-trend
+   - Hidden : 8 neurons, tanh
+   - Output : 1 (predicted net profit for that day, normalized)
+   - Manual backprop + SGD with momentum. No external ML lib.
+   - Reads `transactions` global yang sudah ada di app.
+   ===================================================================== */
+(function(){
+  const $$=id=>document.getElementById(id);
+  const LS_MODEL='brainModel_v1';
+  let model=null;
+  let lossChart=null;
+
+  // ---- Data prep: group transactions by yyyy-mm-dd, compute net profit per day
+  function prepData(){
+    const txs = (typeof transactions !== 'undefined' && Array.isArray(transactions)) ? transactions : [];
+    const byDay={};
+    txs.forEach(t=>{
+      if(!t.time)return;
+      const d=new Date(t.time);
+      if(isNaN(d))return;
+      const k=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+      if(!byDay[k]){byDay[k]={date:d,net:0,dow:d.getDay()};}
+      byDay[k].net += (t.type==='in'?1:-1) * (Number(t.amount)||0);
+    });
+    const days=Object.values(byDay).sort((a,b)=>a.date-b.date);
+    return {days,rows:txs.length};
+  }
+
+  function buildXY(days){
+    if(days.length<2)return {X:[],Y:[],mean:0,std:1};
+    const nets=days.map(d=>d.net);
+    const mean=nets.reduce((a,b)=>a+b,0)/nets.length;
+    const variance=nets.reduce((a,b)=>a+(b-mean)*(b-mean),0)/nets.length;
+    const std=Math.sqrt(variance)||1;
+    const X=[],Y=[];
+    for(let i=0;i<days.length;i++){
+      const dow=days[i].dow;
+      const oh=[0,0,0,0,0,0,0]; oh[dow]=1;
+      // recent trend: avg of last up-to-3 days net (normalized)
+      let trend=0,cnt=0;
+      for(let j=Math.max(0,i-3);j<i;j++){trend+=days[j].net;cnt++;}
+      trend = cnt?((trend/cnt)-mean)/std:0;
+      X.push([...oh,trend]);
+      Y.push((days[i].net-mean)/std);
+    }
+    return {X,Y,mean,std};
+  }
+
+  // ---- Tiny MLP: 8 -> 8 (tanh) -> 1
+  function randMat(r,c){const m=[];for(let i=0;i<r;i++){const row=[];for(let j=0;j<c;j++)row.push((Math.random()*2-1)*0.5);m.push(row);}return m;}
+  function zerosLike(m){return m.map(r=>r.map(()=>0));}
+  function newModel(){return {W1:randMat(8,8),b1:new Array(8).fill(0),W2:randMat(8,1),b2:[0],mean:0,std:1,trained:false,r2:0};}
+  function tanh(x){return Math.tanh(x);}
+  function fwd(x,m){
+    const h=new Array(8).fill(0);
+    for(let j=0;j<8;j++){let s=m.b1[j];for(let i=0;i<8;i++)s+=x[i]*m.W1[i][j];h[j]=tanh(s);}
+    let o=m.b2[0];for(let j=0;j<8;j++)o+=h[j]*m.W2[j][0];
+    return {h,o};
+  }
+  function train(X,Y,epochs,onEpoch){
+    const m=newModel();
+    const lr=0.03; const mom=0.9;
+    const vW1=zerosLike(m.W1), vb1=m.b1.map(()=>0), vW2=zerosLike(m.W2), vb2=[0];
+    const losses=[];
+    for(let ep=0;ep<epochs;ep++){
+      // shuffle indices
+      const idx=X.map((_,i)=>i).sort(()=>Math.random()-0.5);
+      let totalLoss=0;
+      for(const i of idx){
+        const x=X[i], y=Y[i];
+        const {h,o}=fwd(x,m);
+        const err=o-y;
+        totalLoss+=err*err;
+        // grads
+        const dO=err; // dL/do
+        // W2,b2
+        const gW2=h.map(hj=>hj*dO);
+        const gb2=dO;
+        // hidden grads
+        const dH=new Array(8).fill(0);
+        for(let j=0;j<8;j++)dH[j]=m.W2[j][0]*dO*(1-h[j]*h[j]);
+        // W1,b1
+        for(let i2=0;i2<8;i2++){for(let j=0;j<8;j++){const g=x[i2]*dH[j]; vW1[i2][j]=mom*vW1[i2][j]-lr*g; m.W1[i2][j]+=vW1[i2][j];}}
+        for(let j=0;j<8;j++){vb1[j]=mom*vb1[j]-lr*dH[j]; m.b1[j]+=vb1[j];}
+        for(let j=0;j<8;j++){vW2[j][0]=mom*vW2[j][0]-lr*gW2[j]; m.W2[j][0]+=vW2[j][0];}
+        vb2[0]=mom*vb2[0]-lr*gb2; m.b2[0]+=vb2[0];
+      }
+      losses.push(totalLoss/X.length);
+      if(onEpoch && ep%5===0)onEpoch(ep,epochs,losses);
+    }
+    return {m,losses};
+  }
+
+  function evaluate(X,Y,m){
+    if(X.length===0)return 0;
+    const ymean=Y.reduce((a,b)=>a+b,0)/Y.length;
+    let ssRes=0, ssTot=0;
+    for(let i=0;i<X.length;i++){const {o}=fwd(X[i],m); ssRes+=(Y[i]-o)*(Y[i]-o); ssTot+=(Y[i]-ymean)*(Y[i]-ymean);}
+    return ssTot===0?0:Math.max(0,1-ssRes/ssTot);
+  }
+
+  function predictDay(m,dow,recentTrend){
+    const oh=[0,0,0,0,0,0,0]; oh[dow]=1;
+    const {o}=fwd([...oh,recentTrend],m);
+    return o*m.std + m.mean;
+  }
+
+  function refreshStatus(){
+    const {days,rows}=prepData();
+    $$('bsRows').textContent=rows;
+    $$('bsDays').textContent=days.length;
+    const saved=localStorage.getItem(LS_MODEL);
+    if(saved && !model){try{model=JSON.parse(saved);}catch(e){}}
+    $$('bsModel').textContent=(model&&model.trained)?'✅ Sudah dilatih':'❌ Belum dilatih';
+    $$('bsAcc').textContent=(model&&model.trained)?(model.r2*100).toFixed(1)+'%':'—';
+    $$('brainLocked').style.display=days.length<5?'block':'none';
+    $$('brainTrainBtn').disabled = days.length<5;
+    if(model && model.trained) renderInsights(days);
+  }
+
+  function renderLossChart(losses){
+    $$('brainLossWrap').style.display='block';
+    const ctx=$$('brainLossChart').getContext('2d');
+    if(lossChart)lossChart.destroy();
+    lossChart=new Chart(ctx,{type:'line',data:{labels:losses.map((_,i)=>i+1),datasets:[{label:'Loss (MSE)',data:losses,borderColor:'#FF6B5B',backgroundColor:'rgba(255,107,91,.1)',fill:true,tension:.25,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{title:{display:true,text:'Epoch'}},y:{title:{display:true,text:'Loss'}}}}});
+  }
+
+  function renderInsights(days){
+    if(!model||!model.trained){$$('brainInsights').innerHTML='';return;}
+    // Predict besok
+    const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+    const dow=tomorrow.getDay();
+    const recent=days.slice(-3); const recentTrend = recent.length?((recent.reduce((a,b)=>a+b.net,0)/recent.length)-model.mean)/model.std:0;
+    const pred=predictDay(model,dow,recentTrend);
+    const dowNames=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+    // Hari terkuat
+    const byDow=[0,0,0,0,0,0,0]; const cnt=[0,0,0,0,0,0,0];
+    days.forEach(d=>{byDow[d.dow]+=d.net;cnt[d.dow]++;});
+    const avg=byDow.map((v,i)=>cnt[i]?v/cnt[i]:0);
+    const bestDow=avg.indexOf(Math.max(...avg));
+    const worstDow=avg.indexOf(Math.min(...avg));
+    // Anomalies (>2 std dari prediksi model)
+    const anomalies=[];
+    days.forEach(d=>{
+      const oh=[0,0,0,0,0,0,0]; oh[d.dow]=1;
+      const tr=0; // simplified
+      const {o}=fwd([...oh,tr],model);
+      const predNet=o*model.std+model.mean;
+      const diff=d.net-predNet;
+      if(Math.abs(diff) > 2*model.std){
+        anomalies.push({date:d.date,net:d.net,pred:predNet,diff});
+      }
+    });
+    const fmt=n=>'Rp '+Math.round(n).toLocaleString('id-ID');
+    $$('brainInsights').innerHTML = `
+      <div class="brain-insight">
+        <h4>🔮 Prediksi Profit Bersih Besok (${dowNames[dow]})</h4>
+        <div class="bi-val" style="color:${pred>=0?'#1B4D4A':'#C2452F'};">${fmt(pred)}</div>
+        <div class="bi-sub">Berdasar pola hari + tren 3 hari terakhir. Akurasi model: ${(model.r2*100).toFixed(1)}%. Semakin banyak data, semakin akurat.</div>
+      </div>
+      <div class="brain-insight">
+        <h4>💪 Hari Terkuat & Terlemah</h4>
+        <div class="bi-sub">Hari <b>${dowNames[bestDow]}</b> rata-rata bawa profit <b style="color:#1B4D4A;">${fmt(avg[bestDow])}</b>. Hari <b>${dowNames[worstDow]}</b> paling lemah: <b style="color:#C2452F;">${fmt(avg[worstDow])}</b>.</div>
+        <div class="bi-sub" style="margin-top:6px;">💡 Saran: dorong promo / stok lebih di <b>${dowNames[bestDow]}</b>, dan irit pengeluaran di <b>${dowNames[worstDow]}</b>.</div>
+      </div>
+      <div class="brain-anomalies">
+        <h4 style="margin:0 0 6px;font-size:13px;color:#1B4D4A;">🚨 Deteksi Anomali (${anomalies.length})</h4>
+        ${anomalies.length===0?'<div class="bi-sub">Tidak ada hari yang menyimpang jauh dari pola. Bisnis stabil. ✅</div>':anomalies.slice(-5).map(a=>`<div class="ban-item"><b>${a.date.toLocaleDateString('id-ID')}</b> — aktual ${fmt(a.net)}, model duga ${fmt(a.pred)}. Selisih ${fmt(a.diff)} ${a.diff>0?'⬆️ (lebih bagus dari pola)':'⬇️ (di bawah pola)'}.</div>`).join('')}
+      </div>`;
+  }
+
+  async function runTraining(){
+    const {days}=prepData();
+    if(days.length<5){alert('Butuh minimal 5 hari data berbeda untuk melatih AI.');return;}
+    const {X,Y,mean,std}=buildXY(days);
+    $$('brainTrainBtn').disabled=true;
+    $$('brainTrainBtn').textContent='⏳ Melatih AI...';
+    $$('brainProg').style.display='block';
+    const prog=$$('brainProg').firstElementChild;
+    const epochs=200;
+    // Run training in chunks to keep UI responsive
+    let m=null, finalLosses=[];
+    await new Promise(resolve=>{
+      const res=train(X,Y,epochs,(ep,total,losses)=>{prog.style.width=((ep/total)*100)+'%';});
+      m=res.m; finalLosses=res.losses;
+      m.mean=mean; m.std=std; m.trained=true;
+      m.r2=evaluate(X,Y,m);
+      setTimeout(resolve,50);
+    });
+    model=m;
+    localStorage.setItem(LS_MODEL,JSON.stringify(model));
+    prog.style.width='100%';
+    renderLossChart(finalLosses);
+    $$('brainTrainBtn').disabled=false;
+    $$('brainTrainBtn').textContent='🔁 Latih Ulang AI';
+    refreshStatus();
+  }
+
+  $$('brainTrainBtn').addEventListener('click',runTraining);
+  document.querySelectorAll('.tab[data-panel="brain"]').forEach(t=>t.addEventListener('click',refreshStatus));
+  setTimeout(refreshStatus,1000);
+})();
 </script>
 </body>
 </html>

@@ -3092,16 +3092,17 @@ function startNavigation(){
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
   // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
-  // (tanpa nunggu callback watchPosition pertama, supaya tidak ada delay/diam dulu seperti Google Maps)
+  // Mode navigasi: zoom 18, user di bagian bawah layar (center digeser ke depan)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     let lookAhead = L.latLng(lat, lng);
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
+      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
     }
-    const cLat = lat + (lookAhead.lat - lat) * 0.5;
-    const cLng = lng + (lookAhead.lng - lng) * 0.5;
-    communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
+    // Geser center ke look-ahead point (1.0x) agar user muncul di bawah layar
+    const cLat = lat + (lookAhead.lat - lat) * 1.0;
+    const cLng = lng + (lookAhead.lng - lng) * 1.0;
+    communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
   }
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -3164,16 +3165,17 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 200m, zoom 17, tanpa throttle di nav mode
+    // Kamera: ikuti user dengan look-ahead 250m, zoom 18, user muncul di bawah layar
     if(communityMap && !mapUserInteracting){
       const userLL=L.latLng(lat,lng);
       let lookAhead=userLL;
       if(activeRouteCoords&&activeRouteCoords.length>1){
-        lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
+        lookAhead=findLookAheadPoint(userLL,activeRouteCoords,250);
       }
-      const cLat=lat+(lookAhead.lat-lat)*0.5;
-      const cLng=lng+(lookAhead.lng-lng)*0.5;
-      communityMap.setView([cLat,cLng],17,{animate:true,duration:0.6,noMoveStart:true});
+      // Center di look-ahead (1.0x) → user terlihat di bagian bawah layar seperti nav POV
+      const cLat=lat+(lookAhead.lat-lat)*1.0;
+      const cLng=lng+(lookAhead.lng-lng)*1.0;
+      communityMap.setView([cLat,cLng],18,{animate:true,duration:0.6,noMoveStart:true});
     }
 
     // Cek apakah sudah sampai (< 30m dari tujuan)
@@ -3882,16 +3884,30 @@ async function doMapSearch(){
     const name = (u.displayName||'').toLowerCase();
     const store = (u.storeName||'').toLowerCase();
     const addr = (u.address||'').toLowerCase();
+    const store2 = (u.store2Name||'').toLowerCase();
+    const addr2 = (u.store2Address||'').toLowerCase();
+    // Toko ke-1
     if(name.includes(q) || store.includes(q) || addr.includes(q)){
       hits.push({
         uid, label: u.storeName || u.displayName || '(Belum isi nama)',
         sub: u.address || (u.storeName ? u.displayName : ''),
-        // KRITIS: pakai koordinat TOKO (storeCoords), BUKAN posisi GPS live user.
-        // u.location = posisi fisik orangnya sekarang (bisa beda kota dgn tokonya).
         lat: u.storeCoords?.lat ?? null,
         lng: u.storeCoords?.lng ?? null,
         hasGps: !!(u.location?.lat),
         address: u.address
+      });
+    }
+    // Toko ke-2 — cek terpisah supaya selalu muncul sendiri di hasil
+    if((u.store2Name || u.store2Address) && (store2.includes(q) || addr2.includes(q) || name.includes(q))){
+      const label2 = u.store2Name || ((u.storeName||u.displayName||'Toko')+' 2');
+      hits.push({
+        uid: uid+'_s2',
+        label: label2,
+        sub: u.store2Address || '',
+        lat: u.store2Coords?.lat ?? null,
+        lng: u.store2Coords?.lng ?? null,
+        hasGps: false,
+        address: u.store2Address || ''
       });
     }
   });
@@ -4099,14 +4115,19 @@ document.addEventListener('click', async (e) => {
   if(!communityMap){ initCommunityMap(lat, lng); await renderCommunityMap(); }
   else { communityMap.invalidateSize(); }
 
-  const isOwnEntry = row.dataset.uid && row.dataset.uid === MY_UID;
+  const rowUid = row.dataset.uid || '';
+  // _s2 suffix → toko ke-2 dari user asli
+  const isS2 = rowUid.endsWith('_s2');
+  const realUid = isS2 ? rowUid.slice(0, -3) : rowUid;
+  const isOwnEntry = rowUid === MY_UID || rowUid === MY_UID + '_s2';
 
-  // Kalau hasil pencarian adalah toko sendiri, cukup fly ke sana dan tampilkan popup
-  // — tidak perlu routing dari diri sendiri ke diri sendiri
+  // Kalau hasil pencarian adalah toko sendiri (atau toko ke-2 sendiri), cukup fly + popup
   if(isOwnEntry){
     communityMap.flyTo([lat, lng], 17, {duration:1});
     setTimeout(() => {
-      const mk = communityMapMarkers['user_'+MY_UID] || communityMapMarkers['store_'+MY_UID];
+      const mk = isS2
+        ? communityMapMarkers['store2_'+MY_UID]
+        : (communityMapMarkers['user_'+MY_UID] || communityMapMarkers['store_'+MY_UID]);
       if(mk){ mk.openPopup(); }
     }, 1200);
     return;
@@ -4117,8 +4138,10 @@ document.addEventListener('click', async (e) => {
   // Coba buka popup marker yang sudah ada di peta
   setTimeout(() => {
     let found = false;
-    if(row.dataset.uid){
-      const mk = communityMapMarkers['user_'+row.dataset.uid] || communityMapMarkers['store_'+row.dataset.uid];
+    if(realUid){
+      const mk = isS2
+        ? communityMapMarkers['store2_'+realUid]
+        : (communityMapMarkers['user_'+realUid] || communityMapMarkers['store_'+realUid]);
       if(mk){ mk.openPopup(); found = true; }
     }
     if(!found){
@@ -4186,13 +4209,13 @@ async function loadMyProfile(){
       // Tampilkan preview foto profil & logo toko jika sudah ada
       if(d.profilePhotoUrl){
         const prev = document.getElementById('profilePhotoPreview');
-        if(prev) prev.innerHTML = '<img src="'+d.profilePhotoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'😊\'">';
+        if(prev) prev.innerHTML = '<img src="'+d.profilePhotoUrl+'" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" title="Klik untuk lihat penuh" onerror="this.parentElement.innerHTML=\'😊\'">';
         const delBtn = document.getElementById('profilePhotoDeleteBtn');
         if(delBtn) delBtn.style.display = '';
       }
       if(d.storeLogoUrl){
         const prev2 = document.getElementById('storeLogoPreview');
-        if(prev2) prev2.innerHTML = '<img src="'+d.storeLogoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'🏪\'">';
+        if(prev2) prev2.innerHTML = '<img src="'+d.storeLogoUrl+'" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" title="Klik untuk lihat penuh" onerror="this.parentElement.innerHTML=\'🏪\'">';
         const delBtn2 = document.getElementById('storeLogoDeleteBtn');
         if(delBtn2) delBtn2.style.display = '';
       }
@@ -4358,7 +4381,7 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
     myProfile.profilePhotoUrl = dataUrl;
     if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
     allUsersCache[MY_UID].profilePhotoUrl = dataUrl;
-    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" title="Klik untuk lihat penuh">';
     deleteBtn.style.display = '';
     statusEl.textContent = '✅ Foto berhasil disimpan!';
     statusEl.style.color = 'var(--good)';
@@ -4418,7 +4441,7 @@ document.getElementById('storeLogoInput').addEventListener('change', async (e) =
     myProfile.storeLogoUrl = dataUrl;
     if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
     allUsersCache[MY_UID].storeLogoUrl = dataUrl;
-    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" title="Klik untuk lihat penuh">';
     deleteBtn.style.display = '';
     statusEl.textContent = '✅ Logo berhasil disimpan!';
     statusEl.style.color = 'var(--good)';
@@ -4642,7 +4665,7 @@ function renderUserDirectory(){
     const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
     const myPhotoUrl = myU.profilePhotoUrl || '';
     const myAvatarHtml = myPhotoUrl
-      ? `<img src="${myPhotoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">`
+      ? `<img src="${myPhotoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='😊'">`
       : `<span style="font-size:22px;">😊</span>`;
     mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:pointer;" data-self="true" data-uid="${MY_UID}">
       <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${myAvatarHtml}</div>
@@ -4672,7 +4695,7 @@ function renderUserDirectory(){
     const delBtn = (isAdmin && u.uid !== MY_UID)?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
     const photoUrl = u.profilePhotoUrl || '';
     const avatarHtml = photoUrl
-      ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`
+      ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='👤'">`
       : `<span style="font-size:20px;">👤</span>`;
     return `<div class="user-card" data-uid="${u.uid}">
       <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${avatarHtml}</div>

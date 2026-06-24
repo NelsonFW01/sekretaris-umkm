@@ -2990,6 +2990,9 @@ function startNavigation(){
   // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan.
   // PENTING: pakai myLocation yang SUDAH ADA (baru di-set saat rute dihitung di _doRoute),
   // bukan minta GPS baru lagi — supaya tidak ada delay/nunggu izin/fix GPS baru sama sekali.
+  // animate:FALSE supaya snap INSTAN dan tidak bisa di-cancel/interrupt oleh watchPosition
+  // berikutnya yang datang secara bersamaan (kalau animate:true, animasi 0.5s langsung
+  // dibatalkan oleh setView berikutnya → kamera tidak pernah benar-benar "nyampe" ke rute).
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     communityMap.invalidateSize();
@@ -3002,8 +3005,11 @@ function startNavigation(){
     }
     const cLat = userLL.lat + (lookAhead.lat - userLL.lat) * 0.5;
     const cLng = userLL.lng + (lookAhead.lng - userLL.lng) * 0.5;
-    communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
-    lastNavCamTime = Date.now();
+    // animate:false = INSTAN, tidak bisa di-cancel/interrupt
+    communityMap.setView([cLat, cLng], 17, {animate: false});
+    // Freeze throttle 2.5 detik setelah snap supaya tile/label peta sempat render penuh
+    // sebelum kamera di-update lagi oleh watchPosition
+    lastNavCamTime = Date.now() + 1500;
     lastNavCamLatLng = userLLraw;
   }
   if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
@@ -3070,14 +3076,14 @@ function startNavigation(){
     // Kamera: ikuti user dengan look-ahead 200m, zoom 17.
     // Pakai posisi yang sudah di-snap KE GARIS RUTE (bukan GPS mentah) supaya kamu kelihatan
     // tepat berada DI ATAS jalur rute, bukan ngambang di samping garis karena offset GPS.
-    // Throttle ke maksimal 1x per 1.2 detik & minimal pergerakan 8m — supaya peta tidak
-    // di-reset/pan terus-menerus tiap ada update GPS (yang bikin tile/nama jalan belum
-    // selesai render dan kelihatan seperti "hilang").
+    // Throttle ke maksimal 1x per 1.5 detik & minimal pergerakan 10m.
+    // KUNCI FIX NAMA JALAN: pakai panTo (bukan setView) saat zoom tidak berubah — panTo
+    // hanya menggeser viewport tanpa trigger reload tile, jadi nama jalan tidak hilang.
     if(communityMap && !mapUserInteracting){
       const now = Date.now();
       const userLLraw = L.latLng(lat,lng);
-      const movedEnough = !lastNavCamLatLng || userLLraw.distanceTo(lastNavCamLatLng) > 8;
-      if(now - lastNavCamTime > 1200 && movedEnough){
+      const movedEnough = !lastNavCamLatLng || userLLraw.distanceTo(lastNavCamLatLng) > 10;
+      if(now - lastNavCamTime > 1500 && movedEnough){
         lastNavCamTime = now;
         lastNavCamLatLng = userLLraw;
         const userLL = (activeRouteCoords && activeRouteCoords.length>1)
@@ -3088,7 +3094,8 @@ function startNavigation(){
         }
         const cLat=userLL.lat+(lookAhead.lat-userLL.lat)*0.5;
         const cLng=userLL.lng+(lookAhead.lng-userLL.lng)*0.5;
-        communityMap.setView([cLat,cLng],17,{animate:true,duration:0.6,noMoveStart:true});
+        // panTo (bukan setView) — tidak memicu tile reload saat zoom sudah benar
+        communityMap.panTo([cLat,cLng],{animate:true,duration:0.8,noMoveStart:true,easeLinearity:0.5});
       }
     }
 
@@ -3338,10 +3345,15 @@ function initCommunityMap(centerLat, centerLng){
   if(!lat){ lat = -6.2088; lng = 106.8456; }
   communityMap = L.map('leafletMap', {zoomControl: false}).setView([lat, lng], 17);
   // CartoDB Voyager — detail, colorful, clean
+  // keepBuffer:4 = simpan tile 4 grid di luar viewport, supaya nama jalan TIDAK hilang
+  // saat kamera di-pan sedikit (tile sudah pre-load, tidak perlu fetch ulang tiap detik)
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
-    maxZoom: 20
+    maxZoom: 20,
+    keepBuffer: 4,
+    updateWhenIdle: false,
+    updateWhenZooming: false
   }).addTo(communityMap);
 
   // Tombol kontrol sederhana seperti Google Maps

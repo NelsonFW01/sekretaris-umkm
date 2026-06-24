@@ -1356,10 +1356,14 @@
         <span>🔗</span><a id="pdPaymentLink" href="#" target="_blank" style="color:var(--teal);font-size:13px;"></a>
       </div>
       <div id="pdMapWrap" style="display:none;">
-        <div class="profile-detail-label" style="margin-bottom:6px;">📍 Lokasi Dibagikan</div>
+        <div class="profile-detail-label" style="margin-bottom:6px;">🏪 Lokasi Toko UMKM</div>
         <div id="pdLeafletMap" style="height:200px;border-radius:12px;overflow:hidden;border:1px solid var(--line);"></div>
+        <!-- Tombol rute — GPS user baru diminta saat tombol ini diklik -->
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button id="pdRouteBtn" style="flex:1;padding:10px 0;border:none;border-radius:10px;background:var(--teal);color:white;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Arahkan ke Sini</button>
+          <a id="pdOpenMapsBtn" href="#" target="_blank" style="flex:1;padding:10px 0;border-radius:10px;background:#4285F4;color:white;font-size:13px;font-weight:700;text-align:center;text-decoration:none;display:none;">↗ Google Maps</a>
+        </div>
         <div id="pdRouteInfo" style="display:none;margin-top:8px;font-size:12px;color:var(--ink-soft);padding:8px 10px;background:var(--sand);border-radius:8px;"></div>
-        <a id="pdOpenMapsBtn" href="#" target="_blank" style="display:none;margin-top:8px;padding:9px 14px;background:var(--teal);color:white;border-radius:10px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;display:none;">🗺️ Buka di Google Maps</a>
       </div>
     </div>
   </div>
@@ -3601,12 +3605,7 @@ async function doMapSearch(){
       hits.push({
         uid, label: u.storeName || u.displayName || '(Belum isi nama)',
         sub: u.address || (u.storeName ? u.displayName : ''),
-        // PENTING: gunakan koordinat TOKO (storeCoords / alamat), BUKAN posisi GPS user.
-        // GPS user = di mana orangnya sekarang, BUKAN lokasi tokonya.
-        // Contoh: user GPS di Karawang tapi toko terdaftar di Bandung → harus rute ke Bandung.
-        lat: u.storeCoords?.lat ?? null,
-        lng: u.storeCoords?.lng ?? null,
-        hasGps: !!(u.location?.lat),  // apakah user sedang share GPS (hanya untuk ikon)
+        lat: u.location?.lat, lng: u.location?.lng,
         address: u.address
       });
     }
@@ -3644,11 +3643,10 @@ async function doMapSearch(){
   }
 
   resultsDiv.innerHTML = hits.map((h,i) => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" data-label="${escapeHtml(h.label)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
-    <span style="flex-shrink:0;margin-top:2px;">${h.uid === MY_UID ? '⭐' : (h.address ? '🏪' : (h.hasGps ? '👤' : '🏪'))}</span>
+    <span style="flex-shrink:0;margin-top:2px;">${h.uid === MY_UID ? '⭐' : (h.lat ? '👤' : '🏪')}</span>
     <div>
       <div style="font-weight:600;">${escapeHtml(h.label)}${h.uid === MY_UID ? ' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:1px 6px;font-weight:700;">Toko Saya</span>' : ''}</div>
       ${h.sub ? '<div style="font-size:11.5px;color:var(--ink-soft);">'+escapeHtml(h.sub)+'</div>' : ''}
-      ${(!h.lat && h.address) ? '<div style="font-size:10px;color:#E8633F;margin-top:2px;">📍 Lokasi akan dicari otomatis</div>' : ''}
     </div>
   </div>`).join('');
 }
@@ -4161,78 +4159,107 @@ document.addEventListener('click', (e) => {
 
     if(destLoc && destLoc.lat){
       $('pdMapWrap').style.display='block';
-      // Render mini Leaflet map in profile detail
+      $('pdRouteInfo').style.display='none';
+      const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+destLoc.lat+','+destLoc.lng;
+      const gmUrlNoDir = 'https://www.google.com/maps/search/?api=1&query='+destLoc.lat+','+destLoc.lng;
+      $('pdOpenMapsBtn').href = gmUrlNoDir;
+      $('pdOpenMapsBtn').style.display = 'flex';
+
+      // Render peta toko DULU — tanpa request GPS user
       setTimeout(()=>{
         const mapEl = $('pdLeafletMap');
         if(!mapEl) return;
-        // Destroy existing map if any
         if(mapEl._leaflet_id) {
-          try{ if(mapEl._leaflet_route) mapEl._leaflet_map && mapEl._leaflet_map.removeControl(mapEl._leaflet_route); }catch(e){}
           try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){}
         }
         mapEl.innerHTML = '';
-        const pMap = L.map(mapEl).setView([destLoc.lat, destLoc.lng], 18);
+        const pMap = L.map(mapEl, {zoomControl:true}).setView([destLoc.lat, destLoc.lng], 17);
         mapEl._leaflet_map = pMap;
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
           attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
           subdomains:'abcd', maxZoom:20
         }).addTo(pMap);
-        const icon = makeUserIcon(false);
-        // Google Maps link (fallback, buka app eksternal)
-        const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+destLoc.lat+','+destLoc.lng;
-        $('pdOpenMapsBtn').href = gmUrl;
-        $('pdOpenMapsBtn').style.display = 'block';
-        const routeDiv = $('pdRouteInfo');
 
-        // Selalu ambil GPS segar, lalu pakai OSRM fetch langsung (lebih reliable dari L.Routing.control)
+        // Hanya tampilkan marker TOKO — belum request GPS user
+        const storeName = u.storeName || u.displayName || 'Toko UMKM';
+        const ownerName = u.displayName || '';
+        const storeAddress = u.address || '';
+        const popupContent = '<div style="min-width:170px;font-family:inherit;">'
+          +'<div style="font-weight:700;font-size:13px;margin-bottom:2px;">🏪 '+escapeHtml(storeName)+'</div>'
+          +(ownerName && ownerName !== storeName ? '<div style="font-size:11.5px;color:#6B645A;margin-bottom:2px;">👤 '+escapeHtml(ownerName)+'</div>' : '')
+          +(storeAddress ? '<div style="font-size:11px;color:#6B645A;">📍 '+escapeHtml(storeAddress)+'</div>' : '')
+          +'</div>';
+        L.marker([destLoc.lat, destLoc.lng], {icon: makeStoreIcon()})
+          .bindPopup(popupContent, {maxWidth:220}).addTo(pMap).openPopup();
+
+        // Simpan destLoc ke map element agar bisa diakses tombol rute
+        mapEl._destLoc = destLoc;
+        mapEl._gmUrl = gmUrl;
+        mapEl._u = u;
+      }, 120);
+
+      // Tombol "Arahkan ke Sini" — GPS user baru diminta di sini
+      const routeBtn = $('pdRouteBtn');
+      // Hapus listener lama agar tidak menumpuk
+      const newRouteBtn = routeBtn.cloneNode(true);
+      routeBtn.parentNode.replaceChild(newRouteBtn, routeBtn);
+      newRouteBtn.addEventListener('click', async () => {
+        const mapEl = $('pdLeafletMap');
+        const pMap = mapEl && mapEl._leaflet_map;
+        const dest = mapEl && mapEl._destLoc;
+        if(!pMap || !dest) return;
+        const routeDiv = $('pdRouteInfo');
+        newRouteBtn.disabled = true;
+        newRouteBtn.textContent = '⏳ Mendeteksi lokasi...';
         routeDiv.style.display = 'block';
         routeDiv.innerHTML = '📍 Mendeteksi lokasi kamu...';
-        // Marker tujuan dulu (langsung tampil) — ini lokasi TOKO, bukan lokasi GPS live orangnya
-        L.marker([destLoc.lat, destLoc.lng], {icon: makeStoreIcon()})
-          .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').addTo(pMap).openPopup();
 
         async function _doPdRoute(fromLat, fromLng){
+          newRouteBtn.textContent = '⏳ Menghitung rute...';
           // Marker user
-          L.marker([fromLat, fromLng], {icon: makeUserIcon(true)})
-            .bindPopup('📍 Lokasi Kamu').addTo(pMap);
-
-          // Haversine jarak lurus sebagai baseline
+          if(!mapEl._userMarker){
+            mapEl._userMarker = L.marker([fromLat, fromLng], {icon: makeUserIcon(true)})
+              .bindPopup('📍 Lokasi Kamu').addTo(pMap);
+          } else {
+            mapEl._userMarker.setLatLng([fromLat, fromLng]);
+          }
           function haversineKm(la1,lo1,la2,lo2){
             const R=6371, dLa=(la2-la1)*Math.PI/180, dLo=(lo2-lo1)*Math.PI/180;
             const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
             return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
           }
-
           routeDiv.innerHTML = '⏳ Menghitung rute...';
+          const gmUrlFull = 'https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+dest.lat+','+dest.lng;
+          $('pdOpenMapsBtn').href = gmUrlFull;
           try{
             const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/'
-              +fromLng+','+fromLat+';'+destLoc.lng+','+destLoc.lat
+              +fromLng+','+fromLat+';'+dest.lng+','+dest.lat
               +'?overview=full&geometries=geojson&steps=false';
             const resp = await fetch(osrmUrl, {signal: AbortSignal.timeout(10000)});
             const data = await resp.json();
             if(data.code !== 'Ok' || !data.routes || !data.routes[0]) throw new Error('no route');
             const route = data.routes[0];
             const coords = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
-            // Gambar polyline rute
-            const poly = L.polyline(coords, {color:'#1B4D4A', weight:5, opacity:0.88}).addTo(pMap);
-            // Fit bounds agar rute terlihat penuh
-            pMap.fitBounds(poly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            if(mapEl._routePoly) try{ pMap.removeLayer(mapEl._routePoly); }catch(e){}
+            mapEl._routePoly = L.polyline(coords, {color:'#1B4D4A', weight:5, opacity:0.88}).addTo(pMap);
+            pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
             const km = (route.distance/1000).toFixed(1);
             const mins = Math.round(route.duration/60);
             const hrs = mins>=60 ? Math.floor(mins/60)+' jam '+(mins%60)+' mnt' : mins+' mnt';
             routeDiv.innerHTML = '🚗 <b>'+km+' km</b> &nbsp;·&nbsp; ⏱ '+hrs
-              +' &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+              +' &nbsp;<a href="'+gmUrlFull+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
+            newRouteBtn.textContent = '✅ Rute Ditampilkan';
           } catch(err){
-            console.warn('OSRM profile detail failed:', err.message);
-            // Fallback garis lurus
-            const poly = L.polyline([[fromLat,fromLng],[destLoc.lat,destLoc.lng]],
-              {color:'#1B4D4A', weight:4, opacity:0.7, dashArray:'10,7'}).addTo(pMap);
-            pMap.fitBounds(poly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
-            const dist = haversineKm(fromLat, fromLng, destLoc.lat, destLoc.lng);
+            const dist = haversineKm(fromLat, fromLng, dest.lat, dest.lng);
             const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+' km';
-            routeDiv.innerHTML = '⚠️ Rute jalan gagal dimuat · ≈'+distStr+' (garis lurus)'
-              +' &nbsp;<a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
+            if(mapEl._routePoly) try{ pMap.removeLayer(mapEl._routePoly); }catch(e){}
+            mapEl._routePoly = L.polyline([[fromLat,fromLng],[dest.lat,dest.lng]],
+              {color:'#1B4D4A', weight:4, opacity:0.7, dashArray:'10,7'}).addTo(pMap);
+            pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            routeDiv.innerHTML = '⚠️ ≈'+distStr+' (garis lurus) &nbsp;<a href="'+gmUrlFull+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
+            newRouteBtn.textContent = '📍 Arahkan ke Sini';
           }
+          newRouteBtn.disabled = false;
         }
 
         if(navigator.geolocation){
@@ -4242,23 +4269,31 @@ document.addEventListener('click', (e) => {
               if(myLocation && myLocation.lat){
                 _doPdRoute(myLocation.lat, myLocation.lng);
               } else {
-                routeDiv.innerHTML = '📍 Aktifkan izin lokasi di browser untuk melihat rute.'
-                  +' <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+                routeDiv.innerHTML = '⚠️ Aktifkan izin lokasi browser untuk melihat rute. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);">Google Maps →</a>';
+                newRouteBtn.textContent = '📍 Arahkan ke Sini';
+                newRouteBtn.disabled = false;
               }
             },
-            {timeout: 8000, maximumAge: 0}
+            {timeout: 10000, maximumAge: 5000}
           );
         } else {
-          routeDiv.innerHTML = '📍 Browser tidak mendukung GPS.'
-            +' <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+          routeDiv.innerHTML = '⚠️ Browser tidak mendukung GPS. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);">Google Maps →</a>';
+          newRouteBtn.textContent = '📍 Arahkan ke Sini';
+          newRouteBtn.disabled = false;
         }
-      }, 120);
-    } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }
+      });
+    } else { $('pdMapWrap').style.display='none'; $('pdRouteInfo').style.display='none'; }
     })(); // tutup IIFE async pencarian destLoc (storeCoords/geocode)
     $('profileDetailModal').classList.add('show');
   }
 });
-$('profileDetailClose').addEventListener('click', () => $('profileDetailModal').classList.remove('show'));
+$('profileDetailClose').addEventListener('click', () => {
+  $('profileDetailModal').classList.remove('show');
+  // Reset tombol rute agar siap dipakai di modal berikutnya
+  const btn = $('pdRouteBtn');
+  if(btn){ btn.textContent = '📍 Arahkan ke Sini'; btn.disabled = false; }
+  $('pdRouteInfo').style.display = 'none';
+});
 
 // ===== ADMIN: HAPUS PENGGUNA DARI KOMUNITAS (online maupun offline) =====
 document.addEventListener('click', async (e) => {

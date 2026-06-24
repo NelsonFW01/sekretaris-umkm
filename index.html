@@ -1238,7 +1238,7 @@
           <button id="mapSearchBtn" style="flex-shrink:0;padding:10px 15px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:600;font-size:13px;cursor:pointer;">🔍</button>
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
-        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:380px;background:var(--sand);display:flex;align-items:center;justify-content:center;position:relative;">
+        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;position:relative;">
           <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
             <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
             <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Peta Komunitas</div>
@@ -3118,7 +3118,7 @@ function routeToCoords(destLat, destLng, destName){
   if(!bar){
     bar=document.createElement('div');
     bar.id='routeInfoBar';
-    bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #e5e5e5;padding:14px 16px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.12);font-family:inherit;';
+    bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #eee;padding:14px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.1);';
     const mapEl=document.getElementById('leafletMap')||document.getElementById('communityMapContainer');
     if(mapEl){
       if(!mapEl.style.position||mapEl.style.position==='static') mapEl.style.position='relative';
@@ -3129,7 +3129,7 @@ function routeToCoords(destLat, destLng, destName){
 
   // Ambil GPS fresh — TIDAK bergantung pada myLocation/watchPosition
   if(!navigator.geolocation){
-    bar.innerHTML='⚠️ Browser tidak support GPS. <a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="color:var(--teal);">Buka Google Maps →</a>';
+    bar.innerHTML='<div style="font-size:13px;color:#C84F2F;font-weight:700;margin-bottom:10px;">⚠️ Browser tidak support GPS</div><a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Buka Google Maps ↗</a>';
     routePending=false; return;
   }
 
@@ -3141,9 +3141,7 @@ function routeToCoords(destLat, destLng, destName){
       if(myLocation&&myLocation.lat&&!isNaN(myLocation.lat)){
         _doRoute(myLocation.lat, myLocation.lng, destLat, destLng, destName, bar);
       } else {
-        bar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #e5e5e5;padding:14px 16px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.12);font-family:inherit;';
-        bar.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:13px;color:#C84F2F;font-weight:700;">⚠️ GPS tidak aktif</div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;cursor:pointer;">✕</button></div>'
-          +'<a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;font-family:inherit;">Buka Google Maps ↗</a>';
+        bar.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-size:13px;color:#C84F2F;font-weight:700;">⚠️ GPS tidak aktif</span><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;">✕</button></div><a href="https://www.google.com/maps/dir/?api=1&destination='+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Buka Google Maps ↗</a>';
         routePending=false;
       }
     },
@@ -3219,12 +3217,8 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     activeRouteSteps=[];
     communityMap.fitBounds(L.latLngBounds([[fromLat,fromLng],[destLat,destLng]]),{padding:[60,60]});
     routePending=false;
-    bar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #e5e5e5;padding:14px 16px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.12);font-family:inherit;';
-    bar.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'
-      +'<div><div style="font-size:13px;font-weight:700;color:#C84F2F;">⚠️ Rute jalan tidak tersedia</div>'
-      +'<div style="font-size:12px;color:#888;margin-top:2px;">'+escapeHtml(destName)+' · ~'+fmtDist(straightM)+' (garis lurus)</div></div>'
-      +'<button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#555;">✕</button></div>'
-      +'<a href="https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;font-family:inherit;">Buka Google Maps ↗</a>';
+    bar.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:13px;font-weight:700;color:#C84F2F;">⚠️ Rute tidak tersedia</div><div style="font-size:12px;color:#888;margin-top:2px;">'+escapeHtml(destName)+' · ~'+fmtDist(straightM)+' garis lurus</div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;">✕</button></div><a href="https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Buka Google Maps ↗</a>';
+    return;
   }
 
   // Gambar polyline rute nyata
@@ -3247,16 +3241,8 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
 
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
 
-  bar.style.cssText = 'position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #e5e5e5;padding:14px 16px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.12);font-family:inherit;';
-  bar.innerHTML = '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">'
-    +'<div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div>'
-    +'<div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div>'
-    +'<div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div>'
-    +'<button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#555;">✕</button></div>'
-    +'<div style="display:flex;gap:8px;">'
-    +'<button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button>'
-    +'<a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;font-family:inherit;">Google Maps ↗</a>'
-    +'</div>';
+  bar.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div><div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div><div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div><div style="display:flex;gap:8px;"><button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button><a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a></div>';
+}
 
 function initCommunityMap(centerLat, centerLng){
   const container = document.getElementById('communityMapContainer');
@@ -3279,45 +3265,27 @@ function initCommunityMap(centerLat, centerLng){
     maxZoom: 20
   }).addTo(communityMap);
 
-  // Kontrol sederhana: tombol lokasi saya saja (seperti Google Maps)
+  // Tombol kontrol sederhana seperti Google Maps
   const controlDiv = document.createElement('div');
   controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;';
-
-  // Zoom In
   const btnZoomIn = document.createElement('button');
-  btnZoomIn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  btnZoomIn.innerHTML = '+';
   btnZoomIn.title = 'Zoom In';
-  btnZoomIn.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#333;transition:background 0.15s;';
-  btnZoomIn.onmouseover = () => btnZoomIn.style.background = '#f4f4f4';
-  btnZoomIn.onmouseout = () => btnZoomIn.style.background = 'white';
+  btnZoomIn.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;font-size:22px;font-weight:300;display:flex;align-items:center;justify-content:center;color:#333;line-height:1;';
   btnZoomIn.onclick = () => communityMap.zoomIn();
-
-  // Zoom Out
   const btnZoomOut = document.createElement('button');
-  btnZoomOut.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  btnZoomOut.innerHTML = '&minus;';
   btnZoomOut.title = 'Zoom Out';
-  btnZoomOut.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#333;transition:background 0.15s;';
-  btnZoomOut.onmouseover = () => btnZoomOut.style.background = '#f4f4f4';
-  btnZoomOut.onmouseout = () => btnZoomOut.style.background = 'white';
+  btnZoomOut.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;font-size:22px;font-weight:300;display:flex;align-items:center;justify-content:center;color:#333;line-height:1;';
   btnZoomOut.onclick = () => communityMap.zoomOut();
-
-  // Tombol Lokasi Saya
   const btnGPS = document.createElement('button');
-  btnGPS.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B4D4A" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8" stroke-opacity="0.3"/></svg>';
   btnGPS.title = 'Ke lokasi saya';
-  btnGPS.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.15s;';
-  btnGPS.onmouseover = () => btnGPS.style.background = '#E8F5E9';
-  btnGPS.onmouseout = () => btnGPS.style.background = 'white';
+  btnGPS.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B4D4A" stroke-width="2"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>';
+  btnGPS.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:white;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;';
   btnGPS.onclick = () => {
-    if(myLocation && myLocation.lat) {
-      communityMap.setView([myLocation.lat, myLocation.lng], 17, {animate: true});
-    } else {
-      navigator.geolocation && navigator.geolocation.getCurrentPosition(pos => {
-        communityMap.setView([pos.coords.latitude, pos.coords.longitude], 17, {animate: true});
-      });
-    }
+    if(myLocation && myLocation.lat) { communityMap.setView([myLocation.lat, myLocation.lng], 17, {animate:true}); }
+    else { navigator.geolocation && navigator.geolocation.getCurrentPosition(p => communityMap.setView([p.coords.latitude, p.coords.longitude], 17, {animate:true})); }
   };
-
   controlDiv.appendChild(btnZoomIn);
   controlDiv.appendChild(btnZoomOut);
   controlDiv.appendChild(btnGPS);
@@ -3453,8 +3421,7 @@ async function renderCommunityMap(){
     communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
   });
 
-  // ── 6. Fit bounds ke marker GPS — FIX BUG: hanya saat pertama render, bukan tiap update,
-  //        dan TIDAK jika sedang ada rute aktif (agar tampilan rute tidak terganggu) ───
+  // ── 6. Fit bounds ke marker GPS — FIX BUG: hanya saat pertama render, bukan tiap update ───
   const existingMarkers = Object.values(communityMapMarkers);
   if(existingMarkers.length > 0 && communityMapFirstRender && !mapUserInteracting && !activeRoute && !routePending){
     try{ communityMap.fitBounds(L.featureGroup(existingMarkers).getBounds().pad(0.3)); }catch(e){}
@@ -3475,7 +3442,13 @@ async function renderCommunityMap(){
     
     const isMyStore = uid === MY_UID;
     const _sName = escapeHtml(u.storeName||u.displayName||'Toko');
-    const popup = '<div style="min-width:180px;font-family:inherit;">'      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'      +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'      +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')      +(!isMyStore ? '<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Navigasi ke Toko Saya</button>')      +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'      +'</div>';
+    const popup = '<div style="min-width:180px;font-family:inherit;">'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'
+      +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
+      +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
+      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Navigasi ke Toko Saya':'🗺️ Rute ke sini')+'</button>'
+      +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
+      +'</div>';
     const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
     communityMapMarkers['store_'+uid] = mk;
 
@@ -3848,7 +3821,6 @@ function showMyLocationOnMap(loc, visibility){
   }
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
-  // Jangan re-render peta (yang akan reset bounds) kalau sedang ada rute aktif
   setTimeout(() => { if(typeof renderCommunityMap==='function' && !activeRoute && !routePending) renderCommunityMap(); }, 300);
 }
 
@@ -3956,11 +3928,11 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
         const nowPan = Date.now();
         if(!mapUserInteracting && (nowPan - lastPanTime > 3000)){
           if(firstFix && !routePending && !activeRoute && !activeDestLat){
-            // Pertama kali dapat fix, tidak ada rute dan tidak ada tujuan aktif → fly ke posisi user
+            // Pertama kali dapat fix, tidak ada rute → fly ke posisi user
             communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});
             lastPanTime = nowPan;
           }
-          // Kalau rute aktif atau ada tujuan, jangan gerakkan kamera otomatis
+          // Kalau rute aktif tapi navMode off, jangan gerakkan kamera otomatis
           // biarkan user kontrol sendiri
         }
       }

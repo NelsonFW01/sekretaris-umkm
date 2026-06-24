@@ -2855,8 +2855,6 @@ let navMode           = false;  // true = mode navigasi aktif
 let lastSpokenStep    = -1;     // index step terakhir yang sudah diucapkan
 let lastPanTime       = 0;
 let mapUserInteracting= false;
-let lastNavCamTime     = 0;     // throttle update kamera saat navigasi (anti tile/label flicker)
-let lastNavCamLatLng    = null; // posisi terakhir kamera nav di-update, buat cek jarak minimal gerak
 let myMarkerLive      = null;
 let lastFirebaseUpdate= 0;
 let routePending      = false;
@@ -2882,9 +2880,7 @@ function stepLabel(step){
   if(!step) return '';
   const mod = (step.maneuver&&step.maneuver.modifier)||'';
   const type= (step.maneuver&&step.maneuver.type)||'';
-  // Banyak jalan kecil/gang di data OSM Indonesia tidak punya nama tersimpan (step.name kosong).
-  // Coba ref (nomor jalan) atau destinations (arah tujuan di papan jalan) sebagai pengganti dulu.
-  let road = step.name || step.ref || step.destinations || '';
+  const road= step.name||'';
   const dist= step.distance>0 ? ' ('+fmtDist(step.distance)+')' : '';
   if(type==='arrive') return '🏁 Tiba di tujuan'+dist;
   if(type==='depart') return '🚦 Mulai perjalanan'+dist;
@@ -2895,10 +2891,7 @@ function stepLabel(step){
     'straight':'⬆ Lurus','uturn':'↩ Putar balik'
   };
   const d = dirs[mod]||('➡ '+type);
-  // Kalau nama jalan tetap kosong, jangan biarkan instruksi "menggantung" tanpa info apa pun —
-  // beri keterangan netral supaya jelas itu memang jalan tanpa nama, bukan data yang gagal dimuat.
-  const roadTxt = road ? (' ke '+road) : ' (jalan tanpa nama)';
-  return d + roadTxt + dist;
+  return d + (road?' ke '+road:'') + dist;
 }
 
 // Temukan step yang paling relevan dengan posisi user sekarang
@@ -2981,50 +2974,39 @@ function startNavigation(){
   navMode=true;
   lastSpokenStep=-1;
   mapUserInteracting=false;
-  lastNavCamTime=0;
-  lastNavCamLatLng=null;
 
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
-  // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan.
-  // PENTING: pakai myLocation yang SUDAH ADA (baru di-set saat rute dihitung di _doRoute),
-  // bukan minta GPS baru lagi — supaya tidak ada delay/nunggu izin/fix GPS baru sama sekali.
-  // animate:FALSE supaya snap INSTAN dan tidak bisa di-cancel/interrupt oleh watchPosition
-  // berikutnya yang datang secara bersamaan (kalau animate:true, animasi 0.5s langsung
-  // dibatalkan oleh setView berikutnya → kamera tidak pernah benar-benar "nyampe" ke rute).
+  // SNAP KAMERA INSTAN (animate:false) supaya tidak bisa di-cancel watchPosition berikutnya.
+  // Prioritas: myLocation (sudah ada dari saat rute dihitung, instan) → getCurrentPosition (fallback)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
-    communityMap.invalidateSize();
-    const userLLraw = L.latLng(lat, lng);
-    const userLL = (activeRouteCoords && activeRouteCoords.length > 1)
-      ? snapToRoute(userLLraw, activeRouteCoords) : userLLraw;
-    let lookAhead = userLL;
+    let lookAhead = L.latLng(lat, lng);
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 200);
+      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
     }
-    const cLat = userLL.lat + (lookAhead.lat - userLL.lat) * 0.5;
-    const cLng = userLL.lng + (lookAhead.lng - userLL.lng) * 0.5;
-    // animate:false = INSTAN, tidak bisa di-cancel/interrupt
+    const cLat = lat + (lookAhead.lat - lat) * 0.5;
+    const cLng = lng + (lookAhead.lng - lng) * 0.5;
+    // animate:false = INSTAN, tidak bisa di-interrupt watchPosition yang datang bersamaan
     communityMap.setView([cLat, cLng], 17, {animate: false});
-    // Freeze throttle 2.5 detik setelah snap supaya tile/label peta sempat render penuh
-    // sebelum kamera di-update lagi oleh watchPosition
-    lastNavCamTime = Date.now() + 1500;
-    lastNavCamLatLng = userLLraw;
   }
+  // Pakai myLocation dulu (tersedia dari saat rute dihitung, tidak ada delay)
   if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
-    // Sudah ada posisi segar dari saat rute dihitung — snap LANGSUNG, tanpa nunggu apa pun.
     snapCameraNow(myLocation.lat, myLocation.lng);
   } else if(navigator.geolocation){
-    // Hanya minta GPS baru kalau memang belum ada posisi sama sekali.
     navigator.geolocation.getCurrentPosition(
       (pos) => snapCameraNow(pos.coords.latitude, pos.coords.longitude),
-      (err) => console.warn('Snap kamera gagal ambil GPS:', err.message),
-      {enableHighAccuracy: true, timeout: 5000, maximumAge: 10000}
+      () => {},
+      {enableHighAccuracy: true, timeout: 5000, maximumAge: 5000}
     );
   }
 
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
+
+  // Throttle kamera: update maksimal 1x per 2 detik dan minimal gerak 10m
+  // Ini FIX utama nama jalan hilang: setView terlalu sering → tile terus di-reset sebelum sempat render label
+  let _lastNavCamTime = 0, _lastNavCamLat = null, _lastNavCamLng = null;
 
   navWatchId=navigator.geolocation.watchPosition((pos)=>{
     if(!navMode) return;
@@ -3073,29 +3055,23 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 200m, zoom 17.
-    // Pakai posisi yang sudah di-snap KE GARIS RUTE (bukan GPS mentah) supaya kamu kelihatan
-    // tepat berada DI ATAS jalur rute, bukan ngambang di samping garis karena offset GPS.
-    // Throttle ke maksimal 1x per 1.5 detik & minimal pergerakan 10m.
-    // KUNCI FIX NAMA JALAN: pakai panTo (bukan setView) saat zoom tidak berubah — panTo
-    // hanya menggeser viewport tanpa trigger reload tile, jadi nama jalan tidak hilang.
+    // Kamera: ikuti user dengan look-ahead 200m, throttle 2 detik + min 10m
+    // Throttle ini yang mencegah nama jalan hilang — setView tidak dipanggil setiap detik
     if(communityMap && !mapUserInteracting){
       const now = Date.now();
-      const userLLraw = L.latLng(lat,lng);
-      const movedEnough = !lastNavCamLatLng || userLLraw.distanceTo(lastNavCamLatLng) > 10;
-      if(now - lastNavCamTime > 1500 && movedEnough){
-        lastNavCamTime = now;
-        lastNavCamLatLng = userLLraw;
-        const userLL = (activeRouteCoords && activeRouteCoords.length>1)
-          ? snapToRoute(userLLraw, activeRouteCoords) : userLLraw;
+      const movedEnough = _lastNavCamLat === null ||
+        haversineM(lat, lng, _lastNavCamLat, _lastNavCamLng) > 10;
+      if(now - _lastNavCamTime > 2000 && movedEnough){
+        _lastNavCamTime = now;
+        _lastNavCamLat = lat; _lastNavCamLng = lng;
+        const userLL=L.latLng(lat,lng);
         let lookAhead=userLL;
         if(activeRouteCoords&&activeRouteCoords.length>1){
           lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
         }
-        const cLat=userLL.lat+(lookAhead.lat-userLL.lat)*0.5;
-        const cLng=userLL.lng+(lookAhead.lng-userLL.lng)*0.5;
-        // panTo (bukan setView) — tidak memicu tile reload saat zoom sudah benar
-        communityMap.panTo([cLat,cLng],{animate:true,duration:0.8,noMoveStart:true,easeLinearity:0.5});
+        const cLat=lat+(lookAhead.lat-lat)*0.5;
+        const cLng=lng+(lookAhead.lng-lng)*0.5;
+        communityMap.setView([cLat,cLng],17,{animate:true,duration:0.8,noMoveStart:true});
       }
     }
 
@@ -3113,32 +3089,6 @@ function startNavigation(){
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────
-// Cari titik TERDEKAT di ATAS garis rute dari posisi GPS user (snap-to-road visual).
-// GPS HP biasanya sedikit ngambang beberapa meter dari jalan asli — fungsi ini
-// "menempelkan" titik kamera ke garis rute persis, bukan ke koordinat GPS mentah,
-// supaya posisi kamu kelihatan benar-benar DI ATAS garis rute, bukan ngambang di sampingnya.
-function snapToRoute(userLatLng, routeCoords){
-  if(!userLatLng||!routeCoords||routeCoords.length<2) return userLatLng;
-  let minDist=Infinity, best=userLatLng;
-  for(let i=0;i<routeCoords.length-1;i++){
-    const a=routeCoords[i], b=routeCoords[i+1];
-    const segLen=a.distanceTo(b);
-    if(segLen===0) continue;
-    // Proyeksikan userLatLng ke segmen a-b (perhitungan sederhana di ruang lat/lng datar,
-    // cukup akurat untuk jarak antar-segmen rute yang pendek/lokal).
-    const t = Math.max(0, Math.min(1,
-      ((userLatLng.lat-a.lat)*(b.lat-a.lat)+(userLatLng.lng-a.lng)*(b.lng-a.lng)) /
-      ((b.lat-a.lat)**2+(b.lng-a.lng)**2 || 1)
-    ));
-    const proj = L.latLng(a.lat+(b.lat-a.lat)*t, a.lng+(b.lng-a.lng)*t);
-    const d = userLatLng.distanceTo(proj);
-    if(d<minDist){ minDist=d; best=proj; }
-  }
-  // Kalau user terlalu jauh dari rute (>60m, misal salah belok/keluar rute),
-  // jangan paksa snap — pakai posisi GPS asli supaya tidak menyesatkan.
-  return minDist<=60 ? best : userLatLng;
-}
-
 function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
   if(!userLatLng||!routeCoords||routeCoords.length<2) return userLatLng||L.latLng(0,0);
   let minDist=Infinity,minIdx=0;
@@ -3345,15 +3295,11 @@ function initCommunityMap(centerLat, centerLng){
   if(!lat){ lat = -6.2088; lng = 106.8456; }
   communityMap = L.map('leafletMap', {zoomControl: false}).setView([lat, lng], 17);
   // CartoDB Voyager — detail, colorful, clean
-  // keepBuffer:4 = simpan tile 4 grid di luar viewport, supaya nama jalan TIDAK hilang
-  // saat kamera di-pan sedikit (tile sudah pre-load, tidak perlu fetch ulang tiap detik)
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
     maxZoom: 20,
-    keepBuffer: 4,
-    updateWhenIdle: false,
-    updateWhenZooming: false
+    keepBuffer: 6
   }).addTo(communityMap);
 
   // Tombol kontrol sederhana seperti Google Maps

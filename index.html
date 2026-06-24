@@ -1278,6 +1278,22 @@
       <div class="user-directory" id="userDirectory">
         <div class="empty-state">Memuat daftar pengguna...</div>
       </div>
+
+      <!-- ===== PANEL ADMIN: MANAJEMEN PENGGUNA (hanya nagoyaflora@gmail.com) ===== -->
+      <div id="adminUserSection" style="display:none; margin-top:24px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div style="flex:1;height:1px;background:linear-gradient(to right,#F5C2C2,#FEE2E2);"></div>
+          <span style="font-size:12px;font-weight:700;color:#991B1B;letter-spacing:0.05em;white-space:nowrap;">👑 PANEL ADMIN</span>
+          <div style="flex:1;height:1px;background:linear-gradient(to left,#F5C2C2,#FEE2E2);"></div>
+        </div>
+        <div style="background:#FFF8F8;border:1.5px solid #FECACA;border-radius:14px;padding:16px;">
+          <div style="font-size:13.5px;font-weight:700;color:#991B1B;margin-bottom:4px;">Manajemen Pengguna Terdaftar</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-bottom:14px;">Semua akun yang terdaftar di komunitas. Hapus akan menghapus profil & koordinat toko mereka dari database (akun login tetap ada).</div>
+          <div id="adminUserList">
+            <div class="empty-state">Memuat data pengguna...</div>
+          </div>
+        </div>
+      </div>
     </section>
     <!-- ===== SETTINGS PANEL ===== -->
     <section class="panel" id="panel-settings">
@@ -1829,6 +1845,7 @@ function initAuthGate(){
       if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
       applyNameLockUI();
       if(typeof renderUserDirectory === 'function') renderUserDirectory();
+      if(typeof renderAdminUserList === 'function') renderAdminUserList();
       if(typeof renderGalleryFromCache === 'function') renderGalleryFromCache();
       if(typeof renderVideoGalleryFromCache === 'function') renderVideoGalleryFromCache();
     } else {
@@ -3798,29 +3815,36 @@ document.addEventListener('click', async (e) => {
 
   btn.disabled = true; btn.textContent = '⏳ Menghapus...';
   try{
-    // Hapus storeCoords dan address dari Firebase
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/'+uid), {
-      storeCoords: null,
-      address: null
-    });
-    // Jika owner menghapus sendiri, bersihkan juga profil lokal dan form
-    if(isOwner){
-      myProfile.address = '';
-      if(document.getElementById('profAddress')) document.getElementById('profAddress').value = '';
-    }
-    // Hapus dari cache lokal
+    // ── LANGKAH 1: Bersihkan cache lokal SEBELUM await Firebase ─────────────
+    // Ini penting agar render yang dipicu oleh Firebase onValue listener
+    // (yang bisa terjadi SELAMA await) tidak sempat menambah ulang marker lama.
     if(allUsersCache[uid]){
       delete allUsersCache[uid].storeCoords;
       delete allUsersCache[uid].address;
     }
     delete storeGeoCache[uid];
+
+    // ── LANGKAH 2: Hapus marker dari peta & tutup popup SEBELUM await ───────
     if(communityMap) communityMap.closePopup();
-    // Hapus marker toko dari peta langsung
     const mk = communityMapMarkers['store_'+uid];
     if(mk && communityMap){ try{ communityMap.removeLayer(mk); }catch(e){} }
     delete communityMapMarkers['store_'+uid];
-    // Re-render peta agar marker benar-benar hilang dari tampilan
+
+    // ── LANGKAH 3: Update profil lokal jika owner hapus sendiri ─────────────
+    if(isOwner){
+      myProfile.address = '';
+      if(document.getElementById('profAddress')) document.getElementById('profAddress').value = '';
+    }
+
+    // ── LANGKAH 4: Kirim ke Firebase (setelah UI sudah bersih) ──────────────
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/'+uid), {
+      storeCoords: null,
+      address: null
+    });
+
+    // ── LANGKAH 5: Re-render final untuk memastikan konsistensi ─────────────
     if(typeof renderCommunityMap === 'function') renderCommunityMap();
+    if(typeof renderAdminUserList === 'function') renderAdminUserList();
   } catch(err){
     alert('Gagal menghapus toko dari peta: '+err.message);
     btn.disabled = false;
@@ -4067,7 +4091,9 @@ $('saveProfileBtn').addEventListener('click', async () => {
     // tanpa menunggu Firebase onValue propagate (bisa delay 100ms-2s).
     // Firebase onValue akan override allUsersCache setelah propagate, tapi sudah OK
     // karena render pertama sudah pakai koordinat baru.
-    if(communityMap && !activeRoute && !routePending && coordsToSave.storeCoords){
+    // Re-render peta selalu — baik saat geocoding berhasil (tambah marker baru)
+    // maupun gagal (hapus marker lama yang mungkin masih tampil dengan koordinat usang).
+    if(communityMap && !activeRoute && !routePending){
       setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 200);
     }
   } catch(err){
@@ -4306,8 +4332,8 @@ function renderUserDirectory(){
 
 function startUserDirectoryListeners(){
   if(!window.firebaseReady){ $('userDirectory').innerHTML = '<div class="empty-state">Direktori pengguna butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); });
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); });
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); });
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); });
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
 
@@ -4489,17 +4515,104 @@ $('profileDetailClose').addEventListener('click', () => {
   $('pdRouteInfo').style.display = 'none';
 });
 
-// ===== ADMIN: HAPUS PENGGUNA DARI KOMUNITAS (online maupun offline) =====
+// ===== ADMIN: RENDER DAFTAR PENGGUNA (Panel khusus nagoyaflora@gmail.com) =====
+function renderAdminUserList(){
+  const section = document.getElementById('adminUserSection');
+  if(!section) return;
+  if(!isAdmin){ section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  const container = document.getElementById('adminUserList');
+  if(!container) return;
+  const entries = Object.entries(allUsersCache);
+  if(entries.length === 0){
+    container.innerHTML = '<div class="empty-state">Belum ada pengguna terdaftar.</div>';
+    return;
+  }
+  // Urutkan: diri sendiri di atas, sisanya urut nama
+  entries.sort(([aUid],[bUid]) => (aUid===MY_UID?-1:bUid===MY_UID?1:0));
+  container.innerHTML = entries.map(([uid, u]) => {
+    const isSelf = uid === MY_UID;
+    const name = escapeHtml(u.displayName || u.storeName || '(Belum isi nama)');
+    const email = escapeHtml(u.email || '(email tidak tersedia)');
+    const p = allPresenceCache[uid] || {};
+    const online = !!p.online;
+    const statusDot = `<span class="status-dot ${online?'on':'off'}" style="flex-shrink:0;"></span>`;
+    const selfBadge = isSelf ? ' <span style="font-size:10px;background:var(--teal);color:#fff;border-radius:20px;padding:1px 7px;vertical-align:middle;font-weight:700;">Saya</span>' : '';
+    const storeLine = u.storeName ? `<div style="font-size:11.5px;color:var(--ink-soft);">🏪 ${escapeHtml(u.storeName)}</div>` : '';
+    const addressLine = u.address ? `<div style="font-size:11px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escapeHtml(u.address)}</div>` : '';
+    const delBtn = !isSelf
+      ? `<button class="admin-del-user-btn" data-uid="${uid}" data-name="${escapeAttr(u.displayName||u.email||uid)}"
+           style="flex-shrink:0;padding:7px 12px;border:none;border-radius:9px;background:#FDEAEA;color:#C84F2F;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">🗑️ Hapus</button>`
+      : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #FEE2E2;min-width:0;">
+      ${statusDot}
+      <div style="flex:1;min-width:0;overflow:hidden;">
+        <div style="font-weight:700;font-size:13px;color:var(--ink);">${name}${selfBadge}</div>
+        <div style="font-size:12px;color:#2563EB;font-weight:500;margin-top:1px;">📧 ${email}</div>
+        ${storeLine}${addressLine}
+      </div>
+      ${delBtn}
+    </div>`;
+  }).join('');
+}
+
+// ===== ADMIN: HAPUS PENGGUNA DARI PANEL ADMIN =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.admin-del-user-btn');
+  if(!btn || !isAdmin) return;
+  const uid = btn.dataset.uid;
+  const name = btn.dataset.name || uid;
+  if(!uid || uid === MY_UID) return;
+  if(!confirm(`Hapus pengguna "${name}" dari komunitas?\n\nIni akan menghapus profil, lokasi, dan koordinat toko mereka dari database.\n(Akun login mereka tidak ikut terhapus.)`)) return;
+  btn.disabled = true; btn.textContent = '⏳...';
+  try{
+    // Bersihkan lokal dulu agar map & UI langsung reaktif
+    delete allUsersCache[uid];
+    delete storeGeoCache[uid];
+    if(communityMap){
+      ['store_', 'user_'].forEach(prefix => {
+        const mk = communityMapMarkers[prefix+uid];
+        if(mk){ try{ communityMap.removeLayer(mk); }catch(ee){} delete communityMapMarkers[prefix+uid]; }
+      });
+    }
+    renderAdminUserList();
+    renderUserDirectory();
+    if(typeof renderCommunityMap === 'function') renderCommunityMap();
+    // Hapus dari Firebase
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+uid));
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'presence/'+uid));
+  } catch(err){
+    alert('Gagal menghapus pengguna: '+err.message);
+    btn.disabled = false; btn.textContent = '🗑️ Hapus';
+  }
+});
+
+// ===== ADMIN: HAPUS PENGGUNA DARI DIREKTORI (tombol 🗑️ kecil di user-card) =====
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.ud-admin-del');
   if(!btn) return;
   if(!isAdmin || !window.firebaseReady) return;
   const uid = btn.dataset.uid;
   if(!confirm('Hapus pengguna ini dari Komunitas? Tindakan ini tidak bisa dibatalkan.')) return;
+  btn.disabled = true;
   try{
+    delete allUsersCache[uid];
+    delete storeGeoCache[uid];
+    if(communityMap){
+      ['store_', 'user_'].forEach(prefix => {
+        const mk = communityMapMarkers[prefix+uid];
+        if(mk){ try{ communityMap.removeLayer(mk); }catch(ee){} delete communityMapMarkers[prefix+uid]; }
+      });
+    }
+    renderAdminUserList();
+    renderUserDirectory();
+    if(typeof renderCommunityMap === 'function') renderCommunityMap();
     await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+uid));
     await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'presence/'+uid));
-  }catch(err){ alert('Gagal menghapus pengguna: '+err.message); }
+  } catch(err){
+    alert('Gagal menghapus pengguna: '+err.message);
+    btn.disabled = false;
+  }
 });
 
 // ============ LIVE STREAM (HOST + REAL VIEWERS VIA LIVEKIT) ============

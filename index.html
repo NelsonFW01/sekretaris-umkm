@@ -3668,7 +3668,7 @@ async function renderCommunityMap(){
   }
 
   // ── 7. Geocode toko satu per satu, tambahkan marker saat dapat hasil ─────────
-  for(const [uid, u] of storeEntries.slice(0, 8)){
+  for(const [uid, u] of storeEntries.slice(0, 50)){
     // Cek dulu kalau koordinat sudah tersimpan di Firebase
     let coords = u.storeCoords || null;
     if(!coords) coords = await geocodeAddress(uid, u.address);
@@ -3716,7 +3716,7 @@ async function renderCommunityMap(){
       +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'
       +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
       +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
-      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Navigasi ke Toko Saya':'🗺️ Rute ke sini')+'</button>'
+      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" data-ownstore="'+(isMyStore?'true':'false')+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Lihat Lokasi Toko Saya':'🗺️ Rute ke sini')+'</button>'
       +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
       +adminDelBtn
       +'</div>';
@@ -3730,8 +3730,8 @@ async function renderCommunityMap(){
       if(coords2){
         const _s2Name = escapeHtml(u.store2Name || ((u.storeName||u.displayName||'Toko')+' 2'));
         const routeBtn2 = !isMyStore
-          ? '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
-          : '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Navigasi ke Toko 2</button>';
+          ? '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" data-ownstore="false" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
+          : '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" data-ownstore="true" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Lihat Lokasi Toko 2</button>';
         const popup2 = '<div style="min-width:180px;font-family:inherit;">'
           +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_s2Name+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko 2 Saya</span>':'')+'</div>'
           +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.store2Address)+'</div>'
@@ -3971,18 +3971,19 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-// Event delegation untuk tombol "Rute ke sini" di popup marker
+  // Event delegation untuk tombol "Rute ke sini" di popup marker
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.map-route-btn');
   if(!btn) return;
   const lat = parseFloat(btn.dataset.lat);
   const lng = parseFloat(btn.dataset.lng);
   const name = btn.dataset.name || 'Tujuan';
+  const isOwnStore = btn.dataset.ownstore === 'true';
   
   console.log('[v0] Route button clicked:', {
     rawLat: btn.dataset.lat,
     rawLng: btn.dataset.lng,
-    lat, lng, name,
+    lat, lng, name, isOwnStore,
     isValid: !isNaN(lat) && !isNaN(lng)
   });
   
@@ -3992,8 +3993,18 @@ document.addEventListener('click', (e) => {
     if(communityTab && !communityTab.classList.contains('active')){
       communityTab.click();
     }
-    // Trigger rute setelah tab switch (berikan waktu untuk render)
     setTimeout(() => {
+      // Kalau ini toko sendiri, cukup fly ke lokasi — tidak perlu routing
+      if(isOwnStore){
+        if(communityMap){
+          communityMap.flyTo([lat, lng], 17, {duration:1});
+          setTimeout(() => {
+            const mk = communityMapMarkers['store_'+MY_UID] || communityMapMarkers['store2_'+MY_UID] || communityMapMarkers['user_'+MY_UID];
+            if(mk) mk.openPopup();
+          }, 1200);
+        }
+        return;
+      }
       routeToCoords(lat, lng, name);
     }, 100);
   } else {
@@ -4495,7 +4506,51 @@ document.addEventListener('click', (e) => {
   if(e.target.closest('.ud-admin-del')) return; // ditangani handler terpisah di bawah
   const card = e.target.closest('.user-card');
   if(card){
-    if(card.dataset.self) return; // ini card diri sendiri, jangan buka popup
+    // Card diri sendiri — buka profil sendiri di modal (tanpa tombol rute ke diri sendiri)
+    if(card.dataset.self){
+      const myU = allUsersCache[MY_UID] || {};
+      const myP = allPresenceCache[MY_UID] || {};
+      $('pdName').textContent = myU.displayName || myU.storeName || 'Saya';
+      $('pdStatus').innerHTML = '<span class="status-dot on"></span>Online sekarang (Saya)';
+      if(myU.storeName){ $('pdStoreRow').style.display='flex'; $('pdStore').textContent=myU.storeName; } else { $('pdStoreRow').style.display='none'; }
+      if(myU.paymentId){ $('pdPaymentRow').style.display='flex'; $('pdPayment').textContent=myU.paymentId; } else { $('pdPaymentRow').style.display='none'; }
+      if(myU.paymentLink){ $('pdPaymentLinkRow').style.display='flex'; $('pdPaymentLink').textContent=myU.paymentLink; $('pdPaymentLink').href=myU.paymentLink; } else { $('pdPaymentLinkRow').style.display='none'; }
+      if(myU.address){ $('pdAddressRow').style.display='flex'; $('pdAddress').textContent=myU.address; } else { $('pdAddressRow').style.display='none'; }
+      // Sembunyikan tombol rute (tidak perlu navigasi ke toko sendiri)
+      const routeBtn = $('pdRouteBtn');
+      if(routeBtn) routeBtn.style.display = 'none';
+      (async () => {
+        let destLoc = myU.storeCoords || null;
+        if(!destLoc && myU.address && myU.address.length > 5){
+          try{ destLoc = await geocodeAddress(MY_UID, myU.address); }catch(e){}
+        }
+        if(destLoc && destLoc.lat){
+          $('pdMapWrap').style.display = 'block';
+          $('pdRouteInfo').style.display = 'none';
+          const gmUrl = 'https://www.google.com/maps/search/?api=1&query='+destLoc.lat+','+destLoc.lng;
+          $('pdOpenMapsBtn').href = gmUrl; $('pdOpenMapsBtn').style.display = 'flex';
+          setTimeout(() => {
+            const mapEl = $('pdLeafletMap');
+            if(!mapEl) return;
+            if(mapEl._leaflet_id){ try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){} }
+            mapEl.innerHTML = '';
+            const pMap = L.map(mapEl, {zoomControl:true}).setView([destLoc.lat, destLoc.lng], 17);
+            mapEl._leaflet_map = pMap;
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+              attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:20
+            }).addTo(pMap);
+            const storeName = myU.storeName || myU.displayName || 'Toko Saya';
+            L.marker([destLoc.lat, destLoc.lng], {icon: makeStoreIcon()})
+              .bindPopup('<div style="font-weight:700;font-size:13px;">🏪 '+escapeHtml(storeName)+'</div>'
+                +'<div style="font-size:11px;color:#6B645A;margin-top:2px;">📍 '+escapeHtml(myU.address||'')+'</div>'
+                +'<div style="font-size:10.5px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:2px 6px;margin-top:4px;display:inline-block;font-weight:700;">Toko Saya</div>', {maxWidth:220})
+              .addTo(pMap).openPopup();
+          }, 120);
+        } else { $('pdMapWrap').style.display = 'none'; }
+      })();
+      $('profileDetailModal').classList.add('show');
+      return;
+    }
     const uid = card.dataset.uid;
     if(!uid) return; // tidak ada uid, skip
     const u = allUsersCache[uid] || {};
@@ -4654,7 +4709,7 @@ $('profileDetailClose').addEventListener('click', () => {
   $('profileDetailModal').classList.remove('show');
   // Reset tombol rute agar siap dipakai di modal berikutnya
   const btn = $('pdRouteBtn');
-  if(btn){ btn.textContent = '📍 Arahkan ke Sini'; btn.disabled = false; }
+  if(btn){ btn.textContent = '📍 Arahkan ke Sini'; btn.disabled = false; btn.style.display = ''; }
   $('pdRouteInfo').style.display = 'none';
 });
 

@@ -2978,6 +2978,28 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
+  // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
+  // (tanpa nunggu callback watchPosition pertama, supaya tidak ada delay/diam dulu seperti Google Maps)
+  function snapCameraNow(lat, lng){
+    if(!communityMap) return;
+    let lookAhead = L.latLng(lat, lng);
+    if(activeRouteCoords && activeRouteCoords.length > 1){
+      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
+    }
+    const cLat = lat + (lookAhead.lat - lat) * 0.5;
+    const cLng = lng + (lookAhead.lng - lng) * 0.5;
+    communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
+  }
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      (pos) => snapCameraNow(pos.coords.latitude, pos.coords.longitude),
+      () => { if(myLocation && myLocation.lat) snapCameraNow(myLocation.lat, myLocation.lng); },
+      {enableHighAccuracy: true, timeout: 5000, maximumAge: 5000}
+    );
+  } else if(myLocation && myLocation.lat){
+    snapCameraNow(myLocation.lat, myLocation.lng);
+  }
+
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
 
   navWatchId=navigator.geolocation.watchPosition((pos)=>{
@@ -4065,7 +4087,19 @@ document.addEventListener('click', (e) => {
     if(u.paymentId){ $('pdPaymentRow').style.display='flex'; $('pdPayment').textContent=u.paymentId; } else { $('pdPaymentRow').style.display='none'; }
     if(u.paymentLink){ $('pdPaymentLinkRow').style.display='flex'; $('pdPaymentLink').textContent=u.paymentLink; $('pdPaymentLink').href=u.paymentLink; } else { $('pdPaymentLinkRow').style.display='none'; }
     if(u.address){ $('pdAddressRow').style.display='flex'; $('pdAddress').textContent=u.address; } else { $('pdAddressRow').style.display='none'; }
-    if(u.location){
+    // PENTING: lokasi TUJUAN harus pakai alamat toko (storeCoords), BUKAN u.location
+    // (u.location = posisi GPS live "Bagikan Lokasi" milik orang itu sendiri, beda dengan alamat tokonya).
+    // Kalau storeCoords belum ada tapi alamat ada, geocode dulu dari alamat.
+    (async () => {
+      let destLoc = u.storeCoords || null;
+      if(!destLoc && u.address && u.address.length > 5){
+        try{ destLoc = await geocodeAddress(uid, u.address); }catch(e){}
+      }
+      // Fallback terakhir: kalau memang tidak ada storeCoords/alamat sama sekali,
+      // baru gunakan u.location (lebih baik daripada tidak menampilkan apa-apa).
+      if(!destLoc && u.location && u.location.lat) destLoc = u.location;
+
+    if(destLoc && destLoc.lat){
       $('pdMapWrap').style.display='block';
       // Render mini Leaflet map in profile detail
       setTimeout(()=>{
@@ -4077,7 +4111,7 @@ document.addEventListener('click', (e) => {
           try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){}
         }
         mapEl.innerHTML = '';
-        const pMap = L.map(mapEl).setView([u.location.lat, u.location.lng], 18);
+        const pMap = L.map(mapEl).setView([destLoc.lat, destLoc.lng], 18);
         mapEl._leaflet_map = pMap;
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
           attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -4085,7 +4119,7 @@ document.addEventListener('click', (e) => {
         }).addTo(pMap);
         const icon = makeUserIcon(false);
         // Google Maps link (fallback, buka app eksternal)
-        const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+u.location.lat+','+u.location.lng;
+        const gmUrl = 'https://www.google.com/maps/dir/?api=1&destination='+destLoc.lat+','+destLoc.lng;
         $('pdOpenMapsBtn').href = gmUrl;
         $('pdOpenMapsBtn').style.display = 'block';
         const routeDiv = $('pdRouteInfo');
@@ -4093,8 +4127,8 @@ document.addEventListener('click', (e) => {
         // Selalu ambil GPS segar, lalu pakai OSRM fetch langsung (lebih reliable dari L.Routing.control)
         routeDiv.style.display = 'block';
         routeDiv.innerHTML = '📍 Mendeteksi lokasi kamu...';
-        // Marker tujuan dulu (langsung tampil)
-        L.marker([u.location.lat, u.location.lng], {icon: makeStoreIcon()})
+        // Marker tujuan dulu (langsung tampil) — ini lokasi TOKO, bukan lokasi GPS live orangnya
+        L.marker([destLoc.lat, destLoc.lng], {icon: makeStoreIcon()})
           .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').addTo(pMap).openPopup();
 
         async function _doPdRoute(fromLat, fromLng){
@@ -4112,7 +4146,7 @@ document.addEventListener('click', (e) => {
           routeDiv.innerHTML = '⏳ Menghitung rute...';
           try{
             const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/'
-              +fromLng+','+fromLat+';'+u.location.lng+','+u.location.lat
+              +fromLng+','+fromLat+';'+destLoc.lng+','+destLoc.lat
               +'?overview=full&geometries=geojson&steps=false';
             const resp = await fetch(osrmUrl, {signal: AbortSignal.timeout(10000)});
             const data = await resp.json();
@@ -4131,10 +4165,10 @@ document.addEventListener('click', (e) => {
           } catch(err){
             console.warn('OSRM profile detail failed:', err.message);
             // Fallback garis lurus
-            const poly = L.polyline([[fromLat,fromLng],[u.location.lat,u.location.lng]],
+            const poly = L.polyline([[fromLat,fromLng],[destLoc.lat,destLoc.lng]],
               {color:'#1B4D4A', weight:4, opacity:0.7, dashArray:'10,7'}).addTo(pMap);
             pMap.fitBounds(poly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
-            const dist = haversineKm(fromLat, fromLng, u.location.lat, u.location.lng);
+            const dist = haversineKm(fromLat, fromLng, destLoc.lat, destLoc.lng);
             const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+' km';
             routeDiv.innerHTML = '⚠️ Rute jalan gagal dimuat · ≈'+distStr+' (garis lurus)'
               +' &nbsp;<a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
@@ -4160,6 +4194,7 @@ document.addEventListener('click', (e) => {
         }
       }, 120);
     } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }
+    })(); // tutup IIFE async pencarian destLoc (storeCoords/geocode)
     $('profileDetailModal').classList.add('show');
   }
 });

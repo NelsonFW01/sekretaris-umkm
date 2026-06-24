@@ -2971,6 +2971,7 @@ let myMarkerLive      = null;
 let lastFirebaseUpdate= 0;
 let routePending      = false;
 let activeSnapNonce   = 0;    // nonce untuk cancel snap yang sudah stale
+let activeRouteInfo   = null; // { km, dur, destName, gmUrl, fromLat, fromLng }
 
 // ── Utilitas ──────────────────────────────────────────────────────────────────
 
@@ -3072,11 +3073,21 @@ function stopNavigation(){
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const p=document.getElementById('navPanel');
   if(p) p.innerHTML='';
-  // Kembalikan tombol navigasi di bar
+  // Kembalikan bar bawah dengan info rute lengkap
   const bar=document.getElementById('routeInfoBar');
-  if(bar){
-    const nb=bar.querySelector('.nav-start-btn');
-    if(nb){ nb.textContent='▶ Navigasi'; nb.disabled=false; }
+  if(bar && activeRouteInfo){
+    const {km, dur, destName, gmUrl} = activeRouteInfo;
+    bar.style.display = '';
+    bar.innerHTML = '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">'
+      + '<div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span>'
+      + '<span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div>'
+      + '<button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div>'
+      + '<div style="display:flex;gap:8px;">'
+      + '<button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button>'
+      + '<a href="'+escapeHtml(gmUrl)+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a>'
+      + '</div>';
   }
 }
 
@@ -3088,8 +3099,24 @@ function startNavigation(){
   lastSpokenStep=-1;
   mapUserInteracting=false;
 
+  // ── LANGSUNG sembunyikan bar bawah & tampilkan nav panel atas ──────────────
+  const _navBar = document.getElementById('routeInfoBar');
+  if(_navBar) _navBar.style.display = 'none';
+
+  const _initPanel = getOrCreateNavPanel();
+  const _totalKm = (activeRouteInfo && activeRouteInfo.km) ? activeRouteInfo.km + ' km' : '...';
+  const _dest = escapeHtml(activeDestName || 'tujuan');
+  _initPanel.innerHTML = `
+  <div style="pointer-events:auto;margin:10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:14px 16px;box-shadow:0 4px 18px rgba(0,0,0,0.35);font-family:'Plus Jakarta Sans',sans-serif;">
+    <div style="font-size:16px;font-weight:800;line-height:1.3;margin-bottom:6px;">📍 Mendeteksi posisi GPS...</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+      <div><div style="font-size:11px;opacity:0.7;margin-bottom:1px;">Menuju</div><div style="font-size:13px;font-weight:700;">${_dest}</div><div style="font-size:12px;opacity:0.75;margin-top:2px;">🏁 Sisa ~${_totalKm}</div></div>
+      <button onclick="stopNavigation();" style="border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;">■ Stop</button>
+    </div>
+  </div>`;
+
   // Umumkan mulai
-  speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
+  speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
 
   // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
   // Mode navigasi: zoom 18, user di bagian bawah layar (center digeser ke depan)
@@ -3235,6 +3262,7 @@ function clearActiveRoute(){
   activeRouteCoords=null;
   activeRouteSteps=[];
   activeDestName=''; activeDestLat=null; activeDestLng=null;
+  activeRouteInfo=null;
   routePending=false;
   activeSnapNonce++; // invalidate any pending snap
   setMapBusy(false); // pastikan overlay selalu hilang ketika rute dibatalkan
@@ -3436,6 +3464,9 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   }, 200);
 
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
+
+  // Simpan info rute agar bisa dipakai ulang setelah stop navigasi
+  activeRouteInfo = { km, dur, destName, gmUrl, fromLat, fromLng };
 
   bar.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div><div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div><div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div><div style="display:flex;gap:8px;"><button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button><a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a></div>';
 

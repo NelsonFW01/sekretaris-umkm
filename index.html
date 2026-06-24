@@ -3092,16 +3092,16 @@ function startNavigation(){
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
   // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
-  // Mode navigasi: zoom 18, user di bagian bawah layar (center digeser ke depan)
+  // Mode navigasi: zoom 18, user terlihat di ~70% bawah layar, rute membentang ke depan
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     let lookAhead = L.latLng(lat, lng);
     if(activeRouteCoords && activeRouteCoords.length > 1){
       lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
     }
-    // Geser center ke look-ahead point (1.0x) agar user muncul di bawah layar
-    const cLat = lat + (lookAhead.lat - lat) * 1.0;
-    const cLng = lng + (lookAhead.lng - lng) * 1.0;
+    // 0.4x → center ~100m di depan user → user muncul di bawah layar, rute terlihat di atas
+    const cLat = lat + (lookAhead.lat - lat) * 0.4;
+    const cLng = lng + (lookAhead.lng - lng) * 0.4;
     communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
   }
   if(navigator.geolocation){
@@ -3165,16 +3165,16 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 250m, zoom 18, user muncul di bawah layar
+    // Kamera: ikuti user dengan look-ahead 250m, zoom 18
+    // 0.4x → center ~100m di depan user → user icon terlihat di ~70% bawah layar
     if(communityMap && !mapUserInteracting){
       const userLL=L.latLng(lat,lng);
       let lookAhead=userLL;
       if(activeRouteCoords&&activeRouteCoords.length>1){
         lookAhead=findLookAheadPoint(userLL,activeRouteCoords,250);
       }
-      // Center di look-ahead (1.0x) → user terlihat di bagian bawah layar seperti nav POV
-      const cLat=lat+(lookAhead.lat-lat)*1.0;
-      const cLng=lng+(lookAhead.lng-lng)*1.0;
+      const cLat=lat+(lookAhead.lat-lat)*0.4;
+      const cLng=lng+(lookAhead.lng-lng)*0.4;
       communityMap.setView([cLat,cLng],18,{animate:true,duration:0.6,noMoveStart:true});
     }
 

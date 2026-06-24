@@ -2933,12 +2933,12 @@ function routeToCoords(destLat, destLng, destName){
         const userLat = pos.coords.latitude;
         const userLng = pos.coords.longitude;
         console.log('[v0] GPS acquired:', {userLat, userLng, destLat, destLng});
-        routePending = false; // GPS dapat, rute akan digambar sekarang
+        // routePending di-clear di dalam _doRoute setelah rute selesai digambar
         _doRoute(userLat, userLng, destLat, destLng, destName);
       },
       (err) => {
         console.warn('[v0] GPS failed:', err);
-        routePending = false; // GPS gagal, clear flag
+        routePending = false; // GPS gagal total, clear flag
         // Jika myLocation sudah tersimpan dari share sebelumnya, gunakan itu
         if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
           console.log('[v0] Using cached myLocation:', myLocation);
@@ -3021,6 +3021,7 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
     activeRouteCoords = pts;
 
     communityMap.fitBounds(L.latLngBounds(pts), {padding:[60,60]});
+    routePending = false; // clear SETELAH fitBounds agar kamera tidak di-override
 
     const barEl = getOrCreateBar();
     barEl.innerHTML = '⚠️ Rute jalan gagal · <span style="color:#1B4D4A;">'+destName+'</span> ~'+km+' km (garis lurus)'
@@ -3086,7 +3087,6 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
   tryAllOSRM().then(function(route){
     if(routeResolved) return;
     routeResolved = true;
-    routePending = false; // rute sudah digambar
     clearTimeout(routeTimeout);
 
     const coords = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
@@ -3105,6 +3105,8 @@ function _doRoute(fromLat, fromLng, destLat, destLng, destName){
 
     const bounds = L.latLngBounds(coords);
     communityMap.fitBounds(bounds, { padding: [60, 60], maxZoom: 14, animate: true });
+    // Clear routePending SETELAH fitBounds dipanggil agar kamera tidak di-override watchPosition
+    routePending = false;
 
     const km = (route.distance/1000).toFixed(1);
     const mins = Math.round(route.duration/60);
@@ -4035,69 +4037,73 @@ document.addEventListener('click', (e) => {
         $('pdOpenMapsBtn').style.display = 'block';
         const routeDiv = $('pdRouteInfo');
 
-        // Selalu ambil GPS segar untuk menghindari jarak 0 atau lokasi stale
+        // Selalu ambil GPS segar, lalu pakai OSRM fetch langsung (lebih reliable dari L.Routing.control)
         routeDiv.style.display = 'block';
         routeDiv.innerHTML = '📍 Mendeteksi lokasi kamu...';
+        // Marker tujuan dulu (langsung tampil)
+        L.marker([u.location.lat, u.location.lng], {icon: makeStoreIcon()})
+          .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').addTo(pMap).openPopup();
 
-        function _doPdRoute(fromLat, fromLng){
-          const pdRoute = L.Routing.control({
-            waypoints: [L.latLng(fromLat, fromLng), L.latLng(u.location.lat, u.location.lng)],
-            router: L.Routing.osrmv1({
-              serviceUrl: 'https://router.project-osrm.org/route/v1',
-              language: 'id'
-            }),
-            lineOptions: { styles: [{ color: '#1B4D4A', weight: 5, opacity: 0.85 }] },
-            show: false,
-            fitSelectedRoutes: true,
-            showAlternatives: false,
-            addWaypoints: false,
-            draggableWaypoints: false,
-            createMarker: function(i, wp){
-              return L.marker(wp.latLng, { icon: i===0 ? makeUserIcon(true) : icon })
-                .bindPopup(i===0 ? 'Lokasi kamu' : '<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>');
-            }
-          }).addTo(pMap);
-          mapEl._leaflet_route = pdRoute;
+        async function _doPdRoute(fromLat, fromLng){
+          // Marker user
+          L.marker([fromLat, fromLng], {icon: makeUserIcon(true)})
+            .bindPopup('📍 Lokasi Kamu').addTo(pMap);
 
-          pdRoute.on('routesfound', function(ev){
-            const r = ev.routes[0];
-            const km = (r.summary.totalDistance/1000).toFixed(1);
-            const mins = Math.round(r.summary.totalTime/60);
-            routeDiv.innerHTML = '🚗 <b>'+km+' km</b> &nbsp;·&nbsp; ⏱ '+mins+' mnt &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
-          });
-          pdRoute.on('routingerror', function(){
-            // Fallback: jarak garis lurus
-            const R = 6371;
-            const dLat = (u.location.lat - fromLat)*Math.PI/180;
-            const dLng = (u.location.lng - fromLng)*Math.PI/180;
-            const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
-            const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+'km';
-            routeDiv.innerHTML = '⚠️ Gagal memuat rute jalan (≈'+distStr+' garis lurus). <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
-            L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
-              .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
-          });
+          // Haversine jarak lurus sebagai baseline
+          function haversineKm(la1,lo1,la2,lo2){
+            const R=6371, dLa=(la2-la1)*Math.PI/180, dLo=(lo2-lo1)*Math.PI/180;
+            const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+            return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+          }
+
+          routeDiv.innerHTML = '⏳ Menghitung rute...';
+          try{
+            const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/'
+              +fromLng+','+fromLat+';'+u.location.lng+','+u.location.lat
+              +'?overview=full&geometries=geojson&steps=false';
+            const resp = await fetch(osrmUrl, {signal: AbortSignal.timeout(10000)});
+            const data = await resp.json();
+            if(data.code !== 'Ok' || !data.routes || !data.routes[0]) throw new Error('no route');
+            const route = data.routes[0];
+            const coords = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
+            // Gambar polyline rute
+            const poly = L.polyline(coords, {color:'#1B4D4A', weight:5, opacity:0.88}).addTo(pMap);
+            // Fit bounds agar rute terlihat penuh
+            pMap.fitBounds(poly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            const km = (route.distance/1000).toFixed(1);
+            const mins = Math.round(route.duration/60);
+            const hrs = mins>=60 ? Math.floor(mins/60)+' jam '+(mins%60)+' mnt' : mins+' mnt';
+            routeDiv.innerHTML = '🚗 <b>'+km+' km</b> &nbsp;·&nbsp; ⏱ '+hrs
+              +' &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+          } catch(err){
+            console.warn('OSRM profile detail failed:', err.message);
+            // Fallback garis lurus
+            const poly = L.polyline([[fromLat,fromLng],[u.location.lat,u.location.lng]],
+              {color:'#1B4D4A', weight:4, opacity:0.7, dashArray:'10,7'}).addTo(pMap);
+            pMap.fitBounds(poly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            const dist = haversineKm(fromLat, fromLng, u.location.lat, u.location.lng);
+            const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+' km';
+            routeDiv.innerHTML = '⚠️ Rute jalan gagal dimuat · ≈'+distStr+' (garis lurus)'
+              +' &nbsp;<a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
+          }
         }
 
         if(navigator.geolocation){
           navigator.geolocation.getCurrentPosition(
             (pos) => { _doPdRoute(pos.coords.latitude, pos.coords.longitude); },
             () => {
-              // GPS gagal — coba pakai myLocation sebagai fallback
               if(myLocation && myLocation.lat){
                 _doPdRoute(myLocation.lat, myLocation.lng);
               } else {
-                routeDiv.innerHTML = '📍 Aktifkan izin lokasi di browser untuk melihat rute. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
-                L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
-                  .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+                routeDiv.innerHTML = '📍 Aktifkan izin lokasi di browser untuk melihat rute.'
+                  +' <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
               }
             },
             {timeout: 8000, maximumAge: 0}
           );
         } else {
-          routeDiv.innerHTML = '📍 Browser tidak mendukung GPS. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
-          L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
-            .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+          routeDiv.innerHTML = '📍 Browser tidak mendukung GPS.'
+            +' <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
         }
       }, 120);
     } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }

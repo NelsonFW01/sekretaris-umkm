@@ -1179,6 +1179,17 @@
         <div id="profileCompleteReminder" style="display:none;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#7B5E00;margin-bottom:12px;font-weight:500;">
           ⚠️ Nama kamu belum diisi — pengguna lain hanya melihat <em>"(Belum isi nama)"</em>. Isi <strong>Nama Tampilan</strong> lalu klik Simpan Profil.
         </div>
+        <!-- Foto Profil -->
+        <div style="margin-bottom:14px;display:flex;align-items:center;gap:13px;">
+          <div id="profilePhotoPreview" style="width:60px;height:60px;border-radius:50%;background:var(--sand);border:2.5px solid var(--teal);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;cursor:pointer;" onclick="document.getElementById('profilePhotoInput').click()">😊</div>
+          <div style="flex:1;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:5px;">📷 Foto Profil</div>
+            <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;">
+            <button type="button" id="profilePhotoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Ganti Foto</button>
+            <div id="profilePhotoStatus" style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">Foto tampil di direktori komunitas & peta</div>
+          </div>
+        </div>
+
         <div class="field-group">
           <label>Nama Tampilan</label>
           <input type="text" id="profDisplayName" placeholder="contoh: Sari Wijaya">
@@ -1206,6 +1217,19 @@
         </div>
         <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;padding:0 2px;">
           💡 Butuh lebih dari 2 toko? <a href="https://wa.me/6282117573435?text=Halo+admin,+saya+mau+upgrade+toko+premium+di+Sekretaris+UMKM" target="_blank" style="color:var(--teal);font-weight:600;">Hubungi admin (WA)</a> — <strong>Rp 15.000/bln</strong>
+        </div>
+
+        <!-- Logo Toko -->
+        <div style="margin-top:12px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
+          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:9px;">🖼️ Logo Toko di Peta <span style="font-size:10.5px;font-weight:500;color:var(--ink-soft);">(opsional)</span></div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="storeLogoPreview" style="width:52px;height:52px;border-radius:10px;background:#E8633F20;border:2px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;cursor:pointer;" onclick="document.getElementById('storeLogoInput').click()">🏪</div>
+            <div style="flex:1;">
+              <input type="file" id="storeLogoInput" accept="image/*" style="display:none;">
+              <button type="button" id="storeLogoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid #E8633F;background:transparent;color:#E8633F;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Upload Logo</button>
+              <div id="storeLogoStatus" style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">Logo tampil di marker peta komunitas</div>
+            </div>
+          </div>
         </div>
 
         <div class="field-group" style="margin-top:10px;">
@@ -3495,15 +3519,31 @@ function initCommunityMap(centerLat, centerLng){
   });
 }
 
-function makeUserIcon(isMe){
+function makeUserIcon(isMe, photoUrl){
+  const border = isMe ? '#1B4D4A' : '#2563EB';
+  const fallback = isMe ? '&#x1F60A;' : '&#x1F464;';
+  if(photoUrl){
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:36px;height:36px;border-radius:50%;border:3px solid '+border+';box-shadow:0 2px 8px rgba(0,0,0,0.35);overflow:hidden;background:#fff;"><img src="'+photoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\''+fallback+'\'"></div>',
+      iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-20]
+    });
+  }
   return L.divIcon({
     className: '',
-    html: '<div style="width:34px;height:34px;border-radius:50%;background:'+(isMe?'#1B4D4A':'#2563EB')+';border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">'+(isMe?'&#x1F60A;':'&#x1F464;')+'</div>',
+    html: '<div style="width:34px;height:34px;border-radius:50%;background:'+border+';border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">'+fallback+'</div>',
     iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-18]
   });
 }
 
-function makeStoreIcon(){
+function makeStoreIcon(logoUrl){
+  if(logoUrl){
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:38px;height:38px;border-radius:8px;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);overflow:hidden;background:#E8633F;"><img src="'+logoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'&#x1F3EA;\'"></div>',
+      iconSize: [38,38], iconAnchor: [19,38], popupAnchor: [0,-40]
+    });
+  }
   return L.divIcon({
     className: '',
     html: '<div style="width:34px;height:34px;border-radius:8px;background:#E8633F;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">&#x1F3EA;</div>',
@@ -3535,20 +3575,10 @@ async function geocodeAddress(uid, address){
     return storeGeoCache[uid];
   }
 
-  // Deteksi apakah alamat sudah mengandung negara/kota luar Indonesia
-  const foreignKeywords = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis|bali|lombok|sumedang|bandung|jakarta|surabaya|medan|makassar|yogyakarta|semarang|palembang|pekanbaru|manado|denpasar)\b/i;
-
-  // Heuristik: apakah ini kemungkinan luar Indonesia?
-  const looksOverseas = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis)\b/i.test(address);
-
-  // makeQ: kalau sudah ada nama negara/kota di alamat, pakai apa adanya; kalau tidak, append Indonesia
-  const makeQ = (s) => {
-    if(/indonesia/i.test(s) || looksOverseas) return s;
-    return s + ', Indonesia';
-  };
-
-  // countrycodes: kalau luar Indonesia, jangan batasi — kosong = semua negara
-  const countryParam = looksOverseas ? '' : '&countrycodes=id';
+  // Buat daftar query dari paling spesifik ke paling umum.
+  // Nominatim tidak bisa geocode detail mikro seperti "blok C 2 no 2",
+  // tapi bisa menemukan nama kompleks/perumahan-nya.
+  const makeQ = (s) => /indonesia/i.test(s) ? s : s + ', Indonesia';
 
   // Normalisasi: buang karakter ganda
   const norm = (s) => s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
@@ -3574,13 +3604,13 @@ async function geocodeAddress(uid, address){
   // Lebih baik return null (marker tidak muncul) daripada menampilkan lokasi yang SALAH.
 
   const queries = [q0, q1, q2].filter(Boolean);
-  console.log('[v0] Geocode queries for', uid, ':', queries, '| overseas:', looksOverseas);
+  console.log('[v0] Geocode queries for', uid, ':', queries);
 
   for(const q of queries){
     try{
       const resp = await fetch(
         'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)
-          +'&format=json&limit=1&addressdetails=1'+countryParam,
+          +'&format=json&limit=1&addressdetails=1&countrycodes=id',
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -3592,7 +3622,9 @@ async function geocodeAddress(uid, address){
         console.log('[v0] Geocode success with query "'+q+'":', coords);
         storeGeoCache[uid] = coords;
         // Simpan ke Firebase agar render berikutnya langsung pakai storeCoords
-        if(window.firebaseReady){
+        // Jangan simpan jika uid adalah kunci toko ke-2 (suffix _s2) — penyimpanan
+        // dilakukan oleh saveProfileBtn dengan field store2Coords yang benar.
+        if(window.firebaseReady && !uid.endsWith('_s2')){
           window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
         }
         return coords;
@@ -3667,7 +3699,8 @@ async function renderCommunityMap(){
       +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
       +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '')
       +'</div>';
-    communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
+    const _uPhotoUrl = (allUsersCache[p.uid] || {}).profilePhotoUrl || null;
+    communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe, _uPhotoUrl)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
   });
 
   // ── 6. Fit bounds ke marker GPS — FIX BUG: hanya saat pertama render, bukan tiap update ───
@@ -3678,7 +3711,7 @@ async function renderCommunityMap(){
   }
 
   // ── 7. Geocode toko satu per satu, tambahkan marker saat dapat hasil ─────────
-  for(const [uid, u] of storeEntries.slice(0, 50)){
+  for(const [uid, u] of storeEntries.slice(0, 8)){
     // Cek dulu kalau koordinat sudah tersimpan di Firebase
     let coords = u.storeCoords || null;
     if(!coords) coords = await geocodeAddress(uid, u.address);
@@ -3726,11 +3759,11 @@ async function renderCommunityMap(){
       +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'
       +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
       +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
-      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" data-ownstore="'+(isMyStore?'true':'false')+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Lihat Lokasi Toko Saya':'🗺️ Rute ke sini')+'</button>'
+      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Navigasi ke Toko Saya':'🗺️ Rute ke sini')+'</button>'
       +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
       +adminDelBtn
       +'</div>';
-    const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
+    const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon(u.storeLogoUrl||null)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
     communityMapMarkers['store_'+uid] = mk;
 
     // ── Toko ke-2 (jika ada) ─────────────────────────────────────────────────
@@ -3740,8 +3773,8 @@ async function renderCommunityMap(){
       if(coords2){
         const _s2Name = escapeHtml(u.store2Name || ((u.storeName||u.displayName||'Toko')+' 2'));
         const routeBtn2 = !isMyStore
-          ? '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" data-ownstore="false" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
-          : '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" data-ownstore="true" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Lihat Lokasi Toko 2</button>';
+          ? '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
+          : '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Navigasi ke Toko 2</button>';
         const popup2 = '<div style="min-width:180px;font-family:inherit;">'
           +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_s2Name+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko 2 Saya</span>':'')+'</div>'
           +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.store2Address)+'</div>'
@@ -3749,7 +3782,7 @@ async function renderCommunityMap(){
           +routeBtn2
           +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords2.lat+','+coords2.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
           +'</div>';
-        const mk2 = L.marker([coords2.lat, coords2.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup2, {maxWidth: 220});
+        const mk2 = L.marker([coords2.lat, coords2.lng], {icon: makeStoreIcon(u.storeLogoUrl||null)}).addTo(communityMap).bindPopup(popup2, {maxWidth: 220});
         communityMapMarkers['store2_'+uid] = mk2;
       }
     }
@@ -3864,12 +3897,8 @@ async function doMapSearch(){
     // Geocode query via Nominatim kalau tidak ada hasil lokal
     resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
     try{
-      // Deteksi apakah query menyebut negara/kota luar Indonesia
-      const looksOverseas = /\b(singapore|singapura|malaysia|australia|japan|jepang|america|amerika|usa|uk|united\s*kingdom|inggris|china|tiongkok|korea|thailand|vietnam|india|belanda|netherlands|germany|jerman|france|perancis|bali|lombok)\b/i.test(q);
-      const searchQ = (!looksOverseas && !/indonesia/i.test(q)) ? q + ', Indonesia' : q;
-      const countryFilter = looksOverseas ? '' : '&countrycodes=id';
       const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(searchQ)+'&format=json&limit=5&addressdetails=1'+countryFilter,
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q+', Indonesia')+'&format=json&limit=5&addressdetails=1&countrycodes=id',
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -3985,19 +4014,18 @@ document.addEventListener('click', async (e) => {
   }
 });
 
-  // Event delegation untuk tombol "Rute ke sini" di popup marker
+// Event delegation untuk tombol "Rute ke sini" di popup marker
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.map-route-btn');
   if(!btn) return;
   const lat = parseFloat(btn.dataset.lat);
   const lng = parseFloat(btn.dataset.lng);
   const name = btn.dataset.name || 'Tujuan';
-  const isOwnStore = btn.dataset.ownstore === 'true';
   
   console.log('[v0] Route button clicked:', {
     rawLat: btn.dataset.lat,
     rawLng: btn.dataset.lng,
-    lat, lng, name, isOwnStore,
+    lat, lng, name,
     isValid: !isNaN(lat) && !isNaN(lng)
   });
   
@@ -4007,18 +4035,8 @@ document.addEventListener('click', (e) => {
     if(communityTab && !communityTab.classList.contains('active')){
       communityTab.click();
     }
+    // Trigger rute setelah tab switch (berikan waktu untuk render)
     setTimeout(() => {
-      // Kalau ini toko sendiri, cukup fly ke lokasi — tidak perlu routing
-      if(isOwnStore){
-        if(communityMap){
-          communityMap.flyTo([lat, lng], 17, {duration:1});
-          setTimeout(() => {
-            const mk = communityMapMarkers['store_'+MY_UID] || communityMapMarkers['store2_'+MY_UID] || communityMapMarkers['user_'+MY_UID];
-            if(mk) mk.openPopup();
-          }, 1200);
-        }
-        return;
-      }
       routeToCoords(lat, lng, name);
     }, 100);
   } else {
@@ -4142,7 +4160,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -4159,6 +4177,15 @@ async function loadMyProfile(){
         showMyLocationOnMap(d.location, d.location.visibility || 'public');
       }
       if(typeof applyNameLockUI === 'function') applyNameLockUI();
+      // Tampilkan preview foto profil & logo toko jika sudah ada
+      if(d.profilePhotoUrl){
+        const prev = document.getElementById('profilePhotoPreview');
+        if(prev) prev.innerHTML = '<img src="'+d.profilePhotoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'😊\'">';
+      }
+      if(d.storeLogoUrl){
+        const prev2 = document.getElementById('storeLogoPreview');
+        if(prev2) prev2.innerHTML = '<img src="'+d.storeLogoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'🏪\'">';
+      }
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
 }
@@ -4184,7 +4211,9 @@ $('saveProfileBtn').addEventListener('click', async () => {
     store2Address: ($('profStore2Address')?.value||'').trim(),
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim(),
-    email: currentAuthEmail || myProfile.email || ''
+    email: currentAuthEmail || myProfile.email || '',
+    profilePhotoUrl: myProfile.profilePhotoUrl || '',
+    storeLogoUrl: myProfile.storeLogoUrl || ''
   };
   // Sync nama ke localStorage untuk fallback cepat
   if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
@@ -4271,6 +4300,129 @@ $('saveProfileBtn').addEventListener('click', async () => {
     $('saveProfileBtn').disabled = false;
     setTimeout(()=>{ $('profileSaveStatus').textContent=''; }, 2500);
   }
+});
+
+// ===== UPLOAD FOTO PROFIL =====
+document.getElementById('profilePhotoUploadBtn').addEventListener('click', () => {
+  document.getElementById('profilePhotoInput').click();
+});
+document.getElementById('profilePhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!window.firebaseReady || !window.firebaseStorage){
+    alert('Firebase Storage belum siap. Coba lagi sebentar.');
+    return;
+  }
+  const statusEl = document.getElementById('profilePhotoStatus');
+  const previewEl = document.getElementById('profilePhotoPreview');
+  statusEl.textContent = '⏳ Mengupload foto...';
+  statusEl.style.color = 'var(--ink-soft)';
+  try{
+    // Kompres gambar agar tidak terlalu besar
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    const reader = new FileReader();
+    const dataUrl = await new Promise((res, rej) => {
+      reader.onload = (ev) => {
+        img.onload = () => {
+          const MAX = 400;
+          let w = img.width, h = img.height;
+          if(w > h){ if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; } }
+          else { if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; } }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          res(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = rej;
+        img.src = ev.target.result;
+      };
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    // Convert dataUrl ke Blob
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    const ref = window.storageRef(window.firebaseStorage, 'profilePhotos/' + MY_UID);
+    await window.storageUploadBytes(ref, blob);
+    const url = await window.storageGetDownloadURL(ref);
+    // Simpan ke Firebase RTDB
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {profilePhotoUrl: url});
+    // Update lokal
+    if(!myProfile) myProfile = {};
+    myProfile.profilePhotoUrl = url;
+    if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+    allUsersCache[MY_UID].profilePhotoUrl = url;
+    // Tampilkan preview
+    previewEl.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'😊\'">';
+    statusEl.textContent = '✅ Foto berhasil disimpan!';
+    statusEl.style.color = 'var(--good)';
+    // Refresh direktori
+    if(typeof renderUserDirectory === 'function') renderUserDirectory();
+    if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
+  } catch(err){
+    statusEl.textContent = '❌ Gagal upload: ' + err.message;
+    statusEl.style.color = 'var(--bad)';
+  }
+  e.target.value = '';
+  setTimeout(() => { statusEl.textContent = 'Foto tampil di direktori komunitas & peta'; statusEl.style.color = 'var(--ink-soft)'; }, 3000);
+});
+
+// ===== UPLOAD LOGO TOKO =====
+document.getElementById('storeLogoUploadBtn').addEventListener('click', () => {
+  document.getElementById('storeLogoInput').click();
+});
+document.getElementById('storeLogoInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!window.firebaseReady || !window.firebaseStorage){
+    alert('Firebase Storage belum siap. Coba lagi sebentar.');
+    return;
+  }
+  const statusEl = document.getElementById('storeLogoStatus');
+  const previewEl = document.getElementById('storeLogoPreview');
+  statusEl.textContent = '⏳ Mengupload logo...';
+  statusEl.style.color = 'var(--ink-soft)';
+  try{
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    const reader = new FileReader();
+    const dataUrl = await new Promise((res, rej) => {
+      reader.onload = (ev) => {
+        img.onload = () => {
+          const MAX = 300;
+          let w = img.width, h = img.height;
+          if(w > h){ if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; } }
+          else { if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; } }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          res(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = rej;
+        img.src = ev.target.result;
+      };
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+    const blobRes = await fetch(dataUrl);
+    const blob = await blobRes.blob();
+    const ref = window.storageRef(window.firebaseStorage, 'storeLogos/' + MY_UID);
+    await window.storageUploadBytes(ref, blob);
+    const url = await window.storageGetDownloadURL(ref);
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {storeLogoUrl: url});
+    if(!myProfile) myProfile = {};
+    myProfile.storeLogoUrl = url;
+    if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+    allUsersCache[MY_UID].storeLogoUrl = url;
+    previewEl.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'🏪\'">';
+    statusEl.textContent = '✅ Logo berhasil disimpan!';
+    statusEl.style.color = 'var(--good)';
+    if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
+  } catch(err){
+    statusEl.textContent = '❌ Gagal upload: ' + err.message;
+    statusEl.style.color = 'var(--bad)';
+  }
+  e.target.value = '';
+  setTimeout(() => { statusEl.textContent = 'Logo tampil di marker peta komunitas'; statusEl.style.color = 'var(--ink-soft)'; }, 3000);
 });
 
 // ===== VISIBILITY LOCATION SYSTEM =====
@@ -4383,7 +4535,7 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
           : '<div style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🌍 Publik</div>';
         const popup = '<div style="min-width:160px;font-family:inherit;"><div style="font-weight:700;font-size:13px;margin-bottom:2px;"><span style="color:#1B4D4A;">Saya</span></div>'+visBadge+'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 Live</div></div>';
-        myMarkerLive = L.marker([loc.lat, loc.lng], {icon: makeUserIcon(true)}).addTo(communityMap).bindPopup(popup, {maxWidth:200});
+        myMarkerLive = L.marker([loc.lat, loc.lng], {icon: makeUserIcon(true, myProfile?.profilePhotoUrl||null)}).addTo(communityMap).bindPopup(popup, {maxWidth:200});
         communityMapMarkers['user_'+MY_UID] = myMarkerLive;
       }
 
@@ -4460,8 +4612,12 @@ function renderUserDirectory(){
   const mySelfDiv = document.getElementById('mySelfCard');
   if(mySelfDiv){
     const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
-    mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:default;" data-self="true">
-      <span class="status-dot on"></span>
+    const myPhotoUrl = myU.profilePhotoUrl || '';
+    const myAvatarHtml = myPhotoUrl
+      ? `<img src="${myPhotoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">`
+      : `<span style="font-size:22px;">😊</span>`;
+    mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:pointer;" data-self="true" data-uid="${MY_UID}">
+      <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${myAvatarHtml}</div>
       <div>
         <div class="uc-name">${escapeHtml(myName)}${adminBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
         <div class="uc-sub">${myU.storeName?('🏪 '+escapeHtml(myU.storeName)):'UMKM'}</div>
@@ -4486,9 +4642,13 @@ function renderUserDirectory(){
     const noName = !u.displayName && !u.storeName;
     // Admin hanya bisa hapus user LAIN, tidak bisa hapus dirinya sendiri
     const delBtn = (isAdmin && u.uid !== MY_UID)?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
+    const photoUrl = u.profilePhotoUrl || '';
+    const avatarHtml = photoUrl
+      ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`
+      : `<span style="font-size:20px;">👤</span>`;
     return `<div class="user-card" data-uid="${u.uid}">
-      <span class="status-dot ${u.online?'on':'off'}"></span>
-      <div>
+      <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${avatarHtml}</div>
+      <div style="flex:1;min-width:0;">
         <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}</div>
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>
       </div>
@@ -4520,52 +4680,8 @@ document.addEventListener('click', (e) => {
   if(e.target.closest('.ud-admin-del')) return; // ditangani handler terpisah di bawah
   const card = e.target.closest('.user-card');
   if(card){
-    // Card diri sendiri — buka profil sendiri di modal (tanpa tombol rute ke diri sendiri)
-    if(card.dataset.self){
-      const myU = allUsersCache[MY_UID] || {};
-      const myP = allPresenceCache[MY_UID] || {};
-      $('pdName').textContent = myU.displayName || myU.storeName || 'Saya';
-      $('pdStatus').innerHTML = '<span class="status-dot on"></span>Online sekarang (Saya)';
-      if(myU.storeName){ $('pdStoreRow').style.display='flex'; $('pdStore').textContent=myU.storeName; } else { $('pdStoreRow').style.display='none'; }
-      if(myU.paymentId){ $('pdPaymentRow').style.display='flex'; $('pdPayment').textContent=myU.paymentId; } else { $('pdPaymentRow').style.display='none'; }
-      if(myU.paymentLink){ $('pdPaymentLinkRow').style.display='flex'; $('pdPaymentLink').textContent=myU.paymentLink; $('pdPaymentLink').href=myU.paymentLink; } else { $('pdPaymentLinkRow').style.display='none'; }
-      if(myU.address){ $('pdAddressRow').style.display='flex'; $('pdAddress').textContent=myU.address; } else { $('pdAddressRow').style.display='none'; }
-      // Sembunyikan tombol rute (tidak perlu navigasi ke toko sendiri)
-      const routeBtn = $('pdRouteBtn');
-      if(routeBtn) routeBtn.style.display = 'none';
-      (async () => {
-        let destLoc = myU.storeCoords || null;
-        if(!destLoc && myU.address && myU.address.length > 5){
-          try{ destLoc = await geocodeAddress(MY_UID, myU.address); }catch(e){}
-        }
-        if(destLoc && destLoc.lat){
-          $('pdMapWrap').style.display = 'block';
-          $('pdRouteInfo').style.display = 'none';
-          const gmUrl = 'https://www.google.com/maps/search/?api=1&query='+destLoc.lat+','+destLoc.lng;
-          $('pdOpenMapsBtn').href = gmUrl; $('pdOpenMapsBtn').style.display = 'flex';
-          setTimeout(() => {
-            const mapEl = $('pdLeafletMap');
-            if(!mapEl) return;
-            if(mapEl._leaflet_id){ try{ mapEl._leaflet_map && mapEl._leaflet_map.remove(); }catch(e){} }
-            mapEl.innerHTML = '';
-            const pMap = L.map(mapEl, {zoomControl:true}).setView([destLoc.lat, destLoc.lng], 17);
-            mapEl._leaflet_map = pMap;
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-              attribution:'&copy; OpenStreetMap &copy; CARTO', subdomains:'abcd', maxZoom:20
-            }).addTo(pMap);
-            const storeName = myU.storeName || myU.displayName || 'Toko Saya';
-            L.marker([destLoc.lat, destLoc.lng], {icon: makeStoreIcon()})
-              .bindPopup('<div style="font-weight:700;font-size:13px;">🏪 '+escapeHtml(storeName)+'</div>'
-                +'<div style="font-size:11px;color:#6B645A;margin-top:2px;">📍 '+escapeHtml(myU.address||'')+'</div>'
-                +'<div style="font-size:10.5px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:2px 6px;margin-top:4px;display:inline-block;font-weight:700;">Toko Saya</div>', {maxWidth:220})
-              .addTo(pMap).openPopup();
-          }, 120);
-        } else { $('pdMapWrap').style.display = 'none'; }
-      })();
-      $('profileDetailModal').classList.add('show');
-      return;
-    }
-    const uid = card.dataset.uid;
+    // Jika ini card diri sendiri (data-self), tetap buka modal dengan data profil sendiri
+    const uid = card.dataset.self ? MY_UID : card.dataset.uid;
     if(!uid) return; // tidak ada uid, skip
     const u = allUsersCache[uid] || {};
     const p = allPresenceCache[uid] || {};
@@ -4723,7 +4839,7 @@ $('profileDetailClose').addEventListener('click', () => {
   $('profileDetailModal').classList.remove('show');
   // Reset tombol rute agar siap dipakai di modal berikutnya
   const btn = $('pdRouteBtn');
-  if(btn){ btn.textContent = '📍 Arahkan ke Sini'; btn.disabled = false; btn.style.display = ''; }
+  if(btn){ btn.textContent = '📍 Arahkan ke Sini'; btn.disabled = false; }
   $('pdRouteInfo').style.display = 'none';
 });
 

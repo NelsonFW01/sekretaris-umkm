@@ -484,6 +484,25 @@
 
   @media (max-width:380px){ .switch{ width:96px; } .switch .knob{ width:46px; } }
 
+  /* ===== MAP BUSY OVERLAY — blocks click saat sedang fetch GPS / routing ===== */
+  #mapBusyOverlay {
+    display:none; position:absolute; inset:0; z-index:600; cursor:wait;
+    background:rgba(0,0,0,0.06); border-radius:14px;
+    align-items:center; justify-content:center;
+  }
+  #mapBusyOverlay.show { display:flex; }
+  #mapBusyOverlay .mbo-pill {
+    background:white; border-radius:12px; padding:10px 18px; font-size:13px;
+    font-weight:600; color:#1B4D4A; box-shadow:0 4px 20px rgba(0,0,0,0.18);
+    display:flex; align-items:center; gap:8px; pointer-events:none;
+    animation: fadeUp 0.2s ease;
+  }
+  #mapBusyOverlay .mbo-spin {
+    width:16px; height:16px; border:2.5px solid #E3D9C8; border-top-color:#1B4D4A;
+    border-radius:50%; animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
   .boost-btn{
     width:100%; margin-top:10px; padding:10px; border-radius:10px; border:1.5px solid var(--coral);
     background:#FFF1EC; color:var(--coral-dark); font-weight:700; font-size:12.5px; cursor:pointer;
@@ -1239,6 +1258,10 @@
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
         <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;position:relative;">
+          <!-- Overlay mencegah klik user saat sedang proses GPS / routing -->
+          <div id="mapBusyOverlay">
+            <div class="mbo-pill"><div class="mbo-spin"></div><span id="mapBusyMsg">Mendeteksi lokasi...</span></div>
+          </div>
           <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
             <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
             <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Peta Komunitas</div>
@@ -2862,6 +2885,7 @@ let mapUserInteracting= false;
 let myMarkerLive      = null;
 let lastFirebaseUpdate= 0;
 let routePending      = false;
+let activeSnapNonce   = 0;    // nonce untuk cancel snap yang sudah stale
 
 // ── Utilitas ──────────────────────────────────────────────────────────────────
 
@@ -3121,6 +3145,8 @@ function clearActiveRoute(){
   activeRouteSteps=[];
   activeDestName=''; activeDestLat=null; activeDestLng=null;
   routePending=false;
+  activeSnapNonce++; // invalidate any pending snap
+  setMapBusy(false); // pastikan overlay selalu hilang ketika rute dibatalkan
   const bar=document.getElementById('routeInfoBar');
   if(bar) bar.remove();
   const np=document.getElementById('navPanel');
@@ -3166,10 +3192,16 @@ function routeToCoords(destLat, destLng, destName){
     routePending=false; return;
   }
 
+  // FIX: tampilkan overlay agar user tidak bisa klik peta selama GPS fetch
+  setMapBusy(true, '📍 Mendeteksi lokasi kamu...');
   navigator.geolocation.getCurrentPosition(
-    (pos)=>{ _doRoute(pos.coords.latitude, pos.coords.longitude, destLat, destLng, destName, bar); },
+    (pos)=>{
+      setMapBusy(false);
+      _doRoute(pos.coords.latitude, pos.coords.longitude, destLat, destLng, destName, bar);
+    },
     (err)=>{
       console.warn('GPS failed:',err);
+      setMapBusy(false);
       // Fallback ke myLocation kalau ada
       if(myLocation&&myLocation.lat&&!isNaN(myLocation.lat)){
         _doRoute(myLocation.lat, myLocation.lng, destLat, destLng, destName, bar);
@@ -3264,8 +3296,10 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     activeRoute={_fallbackLine:poly};
     activeRouteCoords=[L.latLng(fromLat,fromLng),L.latLng(destLat,destLng)];
     activeRouteSteps=[];
-    communityMap.fitBounds(L.latLngBounds([[fromLat,fromLng],[destLat,destLng]]),{padding:[60,60]});
+    try { communityMap.stop(); } catch(e){}
+    communityMap.fitBounds(L.latLngBounds([[fromLat,fromLng],[destLat,destLng]]),{padding:[60,60],animate:false});
     routePending=false;
+    setMapBusy(false);
     bar.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:13px;font-weight:700;color:#C84F2F;">⚠️ Rute tidak tersedia</div><div style="font-size:12px;color:#888;margin-top:2px;">'+escapeHtml(destName)+' · ~'+fmtDist(straightM)+' garis lurus</div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;">✕</button></div><a href="https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Buka Google Maps ↗</a>';
     return;
   }
@@ -3285,14 +3319,20 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   const dur=fmtDur(route.duration);
 
   routePending=false;
+  setMapBusy(false);
 
-  // Tampilkan seluruh rute via fitBounds, lalu snap kamera ke posisi user.
-  // JANGAN pakai once('zoomend') — event itu bisa dikonsumsi oleh flyTo sebelumnya
-  // (flyTo dari search result click juga memicu zoomend, sehingga snap tidak pernah terpicu).
-  // Solusi: timer sederhana 1000ms setelah fitBounds — cukup untuk animasi selesai (~600ms).
-  communityMap.fitBounds(L.latLngBounds(coords),{padding:[60,60],maxZoom:15,animate:true});
+  // Tampilkan seluruh rute via fitBounds non-animasi agar instant dan tidak konflik
+  // dengan animasi sebelumnya (flyTo dari search result, dsb).
+  // FIX BUG SNAP: gunakan animate:false agar fitBounds selesai synchronous,
+  // kemudian snap kamera ke posisi user dengan setTimeout pendek (200ms).
+  // Ini lebih reliable daripada timer 1000ms yang bisa bentrok dengan flyTo aktif.
+  try { communityMap.stop(); } catch(e){} // batalkan animasi peta yang sedang berjalan
+  communityMap.fitBounds(L.latLngBounds(coords),{padding:[60,60],maxZoom:15,animate:false});
 
+  // Snap kamera ke posisi user + look-ahead setelah fitBounds selesai
+  const _snapNonce = ++activeSnapNonce;
   setTimeout(function(){
+    if(activeSnapNonce !== _snapNonce) return; // rute lebih baru sudah override
     if(navMode || !communityMap || !activeRouteCoords || activeRouteCoords.length<2) return;
     const userLL = L.latLng(fromLat, fromLng);
     const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 300);
@@ -3300,8 +3340,9 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     const cLat = fromLat + (lookAhead.lat - fromLat) * 0.35;
     const cLng = fromLng + (lookAhead.lng - fromLng) * 0.35;
     mapUserInteracting = false;
-    communityMap.setView([cLat, cLng], 16, {animate:true, duration:0.8, noMoveStart:true});
-  }, 1000);
+    try { communityMap.stop(); } catch(e){}
+    communityMap.setView([cLat, cLng], 16, {animate:true, duration:0.8});
+  }, 200);
 
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
 
@@ -3311,7 +3352,11 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
 function initCommunityMap(centerLat, centerLng){
   const container = document.getElementById('communityMapContainer');
   if(!container) return;
+  // FIX: simpan overlay sebelum innerHTML di-reset agar tidak hilang saat re-init
+  const savedOverlay = document.getElementById('mapBusyOverlay');
   container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;position:relative;z-index:0;"></div>';
+  // Re-append overlay ke container setelah innerHTML diganti
+  if(savedOverlay){ container.appendChild(savedOverlay); savedOverlay.classList.remove('show'); }
   if(communityMap){ try{ communityMap.remove(); }catch(e){} communityMap=null; }
   communityMapMarkers = {};
   communityMapFirstRender = true; // FIX BUG: reset agar fitBounds jalan sekali di render berikutnya
@@ -3379,6 +3424,21 @@ function makeStoreIcon(){
   });
 }
 
+// ── Map busy overlay helper ────────────────────────────────────────────────────
+// Menampilkan overlay semi-transparan di atas peta agar user tidak bisa klik
+// selama proses async (geocode / GPS fetch / route calculation) berjalan.
+function setMapBusy(busy, msg){
+  const overlay = document.getElementById('mapBusyOverlay');
+  if(!overlay) return;
+  if(busy){
+    const msgEl = document.getElementById('mapBusyMsg');
+    if(msgEl) msgEl.textContent = msg || 'Mendeteksi lokasi...';
+    overlay.classList.add('show');
+  } else {
+    overlay.classList.remove('show');
+  }
+}
+
 // Cache koordinat toko hasil geocode (supaya tidak geocode ulang setiap render)
 const storeGeoCache = {};
 
@@ -3408,8 +3468,9 @@ async function geocodeAddress(uid, address){
       }
       
       storeGeoCache[uid] = coords;
-      // Simpan ke Firebase supaya user lain tidak perlu geocode ulang
-      if(window.firebaseReady && uid === MY_UID){
+      // Simpan ke Firebase untuk SEMUA user supaya render berikutnya langsung pakai storeCoords
+      // tanpa geocode ulang ke Nominatim (hemat waktu dan kuota API).
+      if(window.firebaseReady){
         window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
       }
       return coords;
@@ -3505,12 +3566,44 @@ async function renderCommunityMap(){
     
     const isMyStore = uid === MY_UID;
     const _sName = escapeHtml(u.storeName||u.displayName||'Toko');
+
+    // Cari gambar toko terbaru dari galleryCache milik user ini
+    let latestGalleryId = null, latestGalleryImg = null;
+    if(galleryCache){
+      const userPosts = Object.entries(galleryCache)
+        .filter(([,d]) => d.uid === uid && d.imageBase64)
+        .sort(([,a],[,b]) => (b.createdAt||0) - (a.createdAt||0));
+      if(userPosts.length > 0){
+        latestGalleryId = userPosts[0][0];
+        latestGalleryImg = userPosts[0][1].imageBase64;
+      }
+    }
+
+    // Tombol admin — selalu tampil di setiap popup toko saat login sebagai admin
+    const adminDelImgBtn = (isAdmin && latestGalleryId)
+      ? '<button class="map-popup-del-img" data-gallery-id="'+latestGalleryId+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #C84F2F;border-radius:8px;background:#FFF0F0;color:#C84F2F;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Gambar (Admin)</button>'
+      : '';
+    // Tombol hapus TOKO dari peta — admin bisa hapus toko siapapun, owner bisa hapus tokonya sendiri
+    let adminDelStoreBtn = '';
+    if(isMyStore){
+      // Tombol untuk owner sendiri (hapus lokasinya dari peta)
+      adminDelStoreBtn = '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B5E00;border-radius:8px;background:#FFFBEA;color:#7B5E00;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Lokasimu dari Peta</button>';
+    } else if(isAdmin){
+      // Tombol untuk admin hapus toko orang lain
+      adminDelStoreBtn = '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B1E1E;border-radius:8px;background:#FFF0F0;color:#7B1E1E;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Toko dari Peta (Admin)</button>';
+    }
+    const adminDelBtn = adminDelImgBtn + adminDelStoreBtn;
+
     const popup = '<div style="min-width:180px;font-family:inherit;">'
+      +(latestGalleryImg
+        ? '<img src="data:image/jpeg;base64,'+latestGalleryImg+'" onclick="openImgFullscreen(this.src)" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-bottom:7px;cursor:zoom-in;" title="Klik untuk perbesar">'
+        : '')
       +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'
       +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
       +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
       +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:'+(isMyStore?'#2563EB':'#1B4D4A')+';color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">'+(isMyStore?'📍 Navigasi ke Toko Saya':'🗺️ Rute ke sini')+'</button>'
       +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
+      +adminDelBtn
       +'</div>';
     const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
     communityMapMarkers['store_'+uid] = mk;
@@ -3562,17 +3655,27 @@ document.getElementById('loadMapBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', async () => {
-  // Hapus seluruh geocode cache agar alamat yang diperbarui di-geocode ulang
+  const btn = document.getElementById('refreshMapBtn');
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Memperbarui...';
+
+  // 1. Ambil data terbaru dari Firebase agar tidak pakai allUsersCache yang stale
+  if(window.firebaseReady){
+    try{
+      const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'users'));
+      allUsersCache = snap.val() || {};
+    } catch(e){ console.error('[v0] refreshMapBtn: gagal fetch users:', e); }
+  }
+
+  // 2. Hapus seluruh geocode cache agar alamat yang berubah di-geocode ulang
   Object.keys(storeGeoCache).forEach(k => delete storeGeoCache[k]);
-  // Reset firstRender agar fitBounds ikut diperbarui
   communityMapFirstRender = true;
+
   if(!communityMap){
     if(myLocation && myLocation.lat) initCommunityMap(myLocation.lat, myLocation.lng);
     else initCommunityMap(-6.2088, 106.8456);
   }
-  const btn = document.getElementById('refreshMapBtn');
-  const origText = btn.textContent;
-  btn.disabled = true; btn.textContent = '⏳ Memperbarui...';
+
   await renderCommunityMap();
   btn.disabled = false; btn.textContent = origText;
   if(communityMap && myLocation && myLocation.lat){
@@ -3655,6 +3758,75 @@ document.getElementById('mapSearchInput').addEventListener('input', () => {
 });
 document.getElementById('mapSearchBtn').addEventListener('click', doMapSearch);
 document.getElementById('mapSearchInput').addEventListener('keydown', (e) => { if(e.key==='Enter') doMapSearch(); });
+
+// ===== ADMIN: Hapus gambar toko dari popup peta =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.map-popup-del-img');
+  if(!btn) return;
+  if(!isAdmin || !window.firebaseReady){ alert('Hanya admin yang bisa menghapus gambar ini.'); return; }
+  const galleryId = btn.dataset.galleryId;
+  if(!galleryId) return;
+  if(!confirm('Hapus gambar toko ini dari galeri? Tindakan tidak bisa dibatalkan.')) return;
+  btn.disabled = true; btn.textContent = '⏳ Menghapus...';
+  try{
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb, 'gallery/'+galleryId));
+    if(communityMap) communityMap.closePopup();
+    setTimeout(() => { if(communityMap && !activeRoute && !routePending) renderCommunityMap(); }, 600);
+  } catch(err){
+    alert('Gagal menghapus gambar: '+err.message);
+    btn.disabled = false; btn.textContent = '🗑️ Hapus Gambar (Admin)';
+  }
+});
+
+// ===== Hapus TOKO dari peta — owner bisa hapus lokasi sendiri, admin bisa hapus siapapun =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.map-popup-del-store');
+  if(!btn) return;
+  if(!window.firebaseReady){ alert('Koneksi Firebase tidak tersedia.'); return; }
+  const uid = btn.dataset.uid;
+  const name = btn.dataset.name || 'toko ini';
+  if(!uid) return;
+
+  // Cek izin: harus admin ATAU pemilik toko itu sendiri
+  const isOwner = uid === MY_UID;
+  if(!isAdmin && !isOwner){ alert('Hanya pemilik atau admin yang bisa melakukan ini.'); return; }
+
+  const konfirmMsg = isOwner
+    ? 'Hapus lokasimu dari peta komunitas? Alamat di profil juga akan dihapus. Kamu bisa isi ulang kapan saja.'
+    : 'Hapus lokasi toko "'+name+'" dari peta? Ini akan menghapus alamat & koordinat toko dari akun mereka.';
+  if(!confirm(konfirmMsg)) return;
+
+  btn.disabled = true; btn.textContent = '⏳ Menghapus...';
+  try{
+    // Hapus storeCoords dan address dari Firebase
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/'+uid), {
+      storeCoords: null,
+      address: null
+    });
+    // Jika owner menghapus sendiri, bersihkan juga profil lokal dan form
+    if(isOwner){
+      myProfile.address = '';
+      if(document.getElementById('profAddress')) document.getElementById('profAddress').value = '';
+    }
+    // Hapus dari cache lokal
+    if(allUsersCache[uid]){
+      delete allUsersCache[uid].storeCoords;
+      delete allUsersCache[uid].address;
+    }
+    delete storeGeoCache[uid];
+    if(communityMap) communityMap.closePopup();
+    // Hapus marker toko dari peta langsung
+    const mk = communityMapMarkers['store_'+uid];
+    if(mk && communityMap){ try{ communityMap.removeLayer(mk); }catch(e){} }
+    delete communityMapMarkers['store_'+uid];
+    // Re-render peta agar marker benar-benar hilang dari tampilan
+    if(typeof renderCommunityMap === 'function') renderCommunityMap();
+  } catch(err){
+    alert('Gagal menghapus toko dari peta: '+err.message);
+    btn.disabled = false;
+    btn.textContent = isOwner ? '🗑️ Hapus Lokasimu dari Peta' : '🗑️ Hapus Toko dari Peta (Admin)';
+  }
+});
 
 // Event delegation untuk tombol "Rute ke sini" di popup marker
 document.addEventListener('click', (e) => {
@@ -3852,20 +4024,37 @@ $('saveProfileBtn').addEventListener('click', async () => {
       $('profileSaveStatus').textContent = '🌍 Geocoding lokasi toko...';
       $('profileSaveStatus').style.color = 'var(--ink)';
       try{
+        // FIX: hapus cache SEBELUM geocode agar alamat baru benar-benar di-fetch ulang
+        delete storeGeoCache[MY_UID];
         const geoResult = await geocodeAddress(MY_UID, myProfile.address);
         if(geoResult && geoResult.lat && geoResult.lng){
           coordsToSave.storeCoords = geoResult;
           console.log('[v0] Auto-geocoded store address:', myProfile.address, '→', geoResult);
+          // FIX: update allUsersCache lokal langsung agar peta render pakai koordinat baru
+          // sebelum Firebase onValue sempat propagate (bisa ada delay 100ms-2s)
+          if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+          allUsersCache[MY_UID].storeCoords = geoResult;
+          allUsersCache[MY_UID].address = myProfile.address;
         } else {
           console.warn('[v0] Geocoding failed for address:', myProfile.address);
+          // FIX BUG 2: geocoding gagal → hapus koordinat lama agar tidak tersisa di DB
+          coordsToSave.storeCoords = null;
+          if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+          allUsersCache[MY_UID].storeCoords = null;
+          allUsersCache[MY_UID].address = myProfile.address;
         }
       } catch(geoErr){
         console.error('[v0] Geocode error during profile save:', geoErr);
+        // FIX BUG 2: exception saat geocoding → hapus koordinat lama agar tidak tersisa di DB
+        coordsToSave.storeCoords = null;
+        if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+        allUsersCache[MY_UID].storeCoords = null;
+        allUsersCache[MY_UID].address = myProfile.address;
       }
     }
     
-    // Hapus geocode cache agar peta langsung pakai alamat terbaru saat Perbarui
-    delete storeGeoCache[MY_UID];
+    // JANGAN hapus storeGeoCache di sini — hasil geocode baru sudah tersimpan di cache
+    // dan dibutuhkan agar renderCommunityMap tidak perlu geocode ulang ke Nominatim.
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
     $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (coordsToSave.storeCoords ? ' + Lokasi ter-geocode' : '') + '.';
     $('profileSaveStatus').style.color = 'var(--good)';
@@ -3874,6 +4063,13 @@ $('saveProfileBtn').addEventListener('click', async () => {
     if(reminder) reminder.style.display = 'none';
     $('profDisplayName').value = myProfile.displayName;
     applyNameLockUI();
+    // FIX LOKASI: re-render peta langsung pakai allUsersCache yang sudah diupdate lokal,
+    // tanpa menunggu Firebase onValue propagate (bisa delay 100ms-2s).
+    // Firebase onValue akan override allUsersCache setelah propagate, tapi sudah OK
+    // karena render pertama sudah pakai koordinat baru.
+    if(communityMap && !activeRoute && !routePending && coordsToSave.storeCoords){
+      setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 200);
+    }
   } catch(err){
     $('profileSaveStatus').textContent = 'Gagal menyimpan: '+err.message;
     $('profileSaveStatus').style.color = 'var(--bad)';

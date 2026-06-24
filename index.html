@@ -2894,6 +2894,7 @@ let activeDestLat     = null;
 let activeDestLng     = null;
 
 let locWatchId        = null;   // ID watchPosition untuk "Bagikan Lokasi"
+let routeWatchId      = null;   // ID watchPosition saat rute aktif (live marker, belum navigasi penuh)
 let navWatchId        = null;   // ID watchPosition khusus NAVIGASI (terpisah)
 let navMode           = false;  // true = mode navigasi aktif
 let lastSpokenStep    = -1;     // index step terakhir yang sudah diucapkan
@@ -3045,6 +3046,8 @@ function startNavigation(){
     snapCameraNow(myLocation.lat, myLocation.lng);
   }
 
+  // Hentikan live tracking ringan — navWatchId akan ambil alih sepenuhnya
+  if(routeWatchId !== null){ navigator.geolocation.clearWatch(routeWatchId); routeWatchId = null; }
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
 
   navWatchId=navigator.geolocation.watchPosition((pos)=>{
@@ -3142,6 +3145,8 @@ function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
 
 // ── clearActiveRoute ──────────────────────────────────────────────────────────
 function clearActiveRoute(){
+  // Hentikan live tracking ringan (sebelum navMode) jika masih aktif
+  if(routeWatchId !== null){ navigator.geolocation.clearWatch(routeWatchId); routeWatchId = null; }
   stopNavigation();
   if(activeRoute){
     if(typeof activeRoute.getPlan==='function'){
@@ -3364,6 +3369,34 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
 
   bar.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div><div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div><div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div><div style="display:flex;gap:8px;"><button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button><a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a></div>';
+
+  // ── Live tracking ringan: marker user ikut bergerak GPS tanpa navigasi penuh ──
+  // Dimulai begitu rute selesai digambar, sebelum user menekan "▶ Mulai Navigasi".
+  // Saat Mulai Navigasi diklik, routeWatchId dihentikan dan navWatchId mengambil alih.
+  if(navigator.geolocation && routeWatchId === null){
+    routeWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if(!activeRoute) return;                         // rute sudah dibatalkan
+        if(navMode) return;                             // navWatchId yang mengelola saat ini
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        if(!myLocation) myLocation = {};
+        myLocation.lat = lat; myLocation.lng = lng;
+        // Update marker user (route_user atau myMarkerLive jika location-sharing ON)
+        if(communityMap){
+          const mk = communityMapMarkers['route_user'] || myMarkerLive;
+          if(mk){
+            mk.setLatLng([lat, lng]);
+          } else {
+            const newMk = L.marker([lat, lng], {icon: makeUserIcon(true)})
+              .bindPopup('📍 Lokasi Kamu').addTo(communityMap);
+            communityMapMarkers['route_user'] = newMk;
+          }
+        }
+      },
+      (err) => { console.warn('[routeWatch] GPS error:', err.code, err.message); },
+      {enableHighAccuracy: true, timeout: 15000, maximumAge: 3000}
+    );
+  }
 }
 
 function initCommunityMap(centerLat, centerLng){
@@ -3464,39 +3497,69 @@ async function geocodeAddress(uid, address){
     console.log('[v0] Geocode cache hit for', uid, ':', storeGeoCache[uid]);
     return storeGeoCache[uid];
   }
-  try{
-    // Tambahkan 'Indonesia' sebagai konteks negara supaya Nominatim tidak ambil hasil luar negeri.
-    // JANGAN hardcode kota tertentu (seperti Bandung) — user bisa dari kota mana saja.
-    const q = /indonesia/i.test(address) ? address : address + ', Indonesia';
-    console.log('[v0] Geocoding address:', q);
-    const resp = await fetch(
-      'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=1&addressdetails=1',
-      {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
-    );
-    const data = await resp.json();
-    if(data && data[0]){
-      const coords = {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
-      console.log('[v0] Geocode result for', address, ':', coords);
-      
-      // Validasi koordinat
-      if(isNaN(coords.lat) || isNaN(coords.lng) || Math.abs(coords.lat) > 90 || Math.abs(coords.lng) > 180){
-        console.error('[v0] Geocode returned invalid coordinates:', coords);
-        return null;
+
+  // Buat daftar query dari paling spesifik ke paling umum.
+  // Nominatim tidak bisa geocode detail mikro seperti "blok C 2 no 2",
+  // tapi bisa menemukan nama kompleks/perumahan-nya.
+  const makeQ = (s) => /indonesia/i.test(s) ? s : s + ', Indonesia';
+
+  // Normalisasi: buang karakter ganda
+  const norm = (s) => s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
+
+  // Variasi 1 — alamat asli
+  const q0 = makeQ(address);
+
+  // Variasi 2 — hapus nomor rumah (no. 5, no 5A, /5, / 5B)
+  const strip1 = norm(address
+    .replace(/\bno\.?\s*\d+\w*/gi, '')
+    .replace(/\s*\/\s*\d+\w*/gi, ''));
+  const q1 = strip1.length > 5 && strip1 !== address ? makeQ(strip1) : null;
+
+  // Variasi 3 — hapus juga blok (blok C 2, blok A, blk B3)
+  const strip2 = norm(address
+    .replace(/\bbl[ok]+\.?\s*\w+[\s\d]*/gi, '')
+    .replace(/\bno\.?\s*\d+\w*/gi, '')
+    .replace(/\s*\/\s*\d+\w*/gi, ''));
+  const q2 = strip2.length > 5 && strip2 !== strip1 && strip2 !== address ? makeQ(strip2) : null;
+
+  // Variasi 4 — hapus juga angka di nama kompleks (taman kopo indah 2 → taman kopo indah)
+  const strip3 = norm(strip2.replace(/\s+\d+(?=\s|,|$)/g, ''));
+  const q3 = strip3.length > 5 && strip3 !== strip2 ? makeQ(strip3) : null;
+
+  // Variasi 5 — ambil kata pertama+kedua+ketiga (nama utama kompleks saja)
+  const words = strip3.split(/[\s,]+/).filter(w => w.length > 2);
+  const strip4 = words.slice(0, 3).join(' ');
+  const q4 = strip4.length > 5 && strip4 !== strip3 ? makeQ(strip4) : null;
+
+  const queries = [q0, q1, q2, q3, q4].filter(Boolean);
+  console.log('[v0] Geocode queries for', uid, ':', queries);
+
+  for(const q of queries){
+    try{
+      const resp = await fetch(
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)
+          +'&format=json&limit=1&addressdetails=1&countrycodes=id',
+        {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
+      );
+      const data = await resp.json();
+      if(data && data[0]){
+        const coords = {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
+        if(isNaN(coords.lat)||isNaN(coords.lng)||Math.abs(coords.lat)>90||Math.abs(coords.lng)>180){
+          console.warn('[v0] Invalid coords from query:', q, coords); continue;
+        }
+        console.log('[v0] Geocode success with query "'+q+'":', coords);
+        storeGeoCache[uid] = coords;
+        // Simpan ke Firebase agar render berikutnya langsung pakai storeCoords
+        if(window.firebaseReady){
+          window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
+        }
+        return coords;
       }
-      
-      storeGeoCache[uid] = coords;
-      // Simpan ke Firebase untuk SEMUA user supaya render berikutnya langsung pakai storeCoords
-      // tanpa geocode ulang ke Nominatim (hemat waktu dan kuota API).
-      if(window.firebaseReady){
-        window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
-      }
-      return coords;
-    } else {
-      console.warn('[v0] Nominatim returned no results for:', address);
+    } catch(e){
+      console.error('[v0] Geocode error for query "'+q+'":', e.message);
     }
-  } catch(e){
-    console.error('[v0] Geocode error:', e.message);
   }
+  console.warn('[v0] Geocode failed for all queries:', queries);
   return null;
 }
 

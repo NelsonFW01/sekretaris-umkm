@@ -3578,10 +3578,16 @@ async function renderCommunityMap(){
       }
     }
 
-    // Tombol hapus gambar — hanya muncul untuk admin dan hanya jika ada gambar
-    const adminDelBtn = (isAdmin && latestGalleryId)
-      ? '<button class="map-popup-del-img" data-gallery-id="'+latestGalleryId+'" style="margin-top:5px;width:100%;padding:5px 0;border:1.5px solid #C84F2F;border-radius:8px;background:#FFF0F0;color:#C84F2F;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Gambar Toko (Admin)</button>'
+    // Tombol admin — selalu tampil di setiap popup toko saat login sebagai admin
+    const adminDelImgBtn = (isAdmin && latestGalleryId)
+      ? '<button class="map-popup-del-img" data-gallery-id="'+latestGalleryId+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #C84F2F;border-radius:8px;background:#FFF0F0;color:#C84F2F;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Gambar (Admin)</button>'
       : '';
+    // Tombol hapus TOKO dari peta — menghapus storeCoords + address dari Firebase
+    // sehingga toko tidak muncul lagi di peta
+    const adminDelStoreBtn = (isAdmin && !isMyStore)
+      ? '<button class="map-popup-del-store" data-uid="'+uid+'" data-name="'+_sName+'" style="margin-top:4px;width:100%;padding:5px 0;border:1.5px solid #7B1E1E;border-radius:8px;background:#FFF0F0;color:#7B1E1E;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Toko dari Peta (Admin)</button>'
+      : '';
+    const adminDelBtn = adminDelImgBtn + adminDelStoreBtn;
 
     const popup = '<div style="min-width:180px;font-family:inherit;">'
       +(latestGalleryImg
@@ -3752,14 +3758,44 @@ document.addEventListener('click', async (e) => {
   btn.disabled = true; btn.textContent = '⏳ Menghapus...';
   try{
     await window.rtdbRemove(window.rtdbRef(window.firebaseDb, 'gallery/'+galleryId));
-    // Tutup popup dan re-render peta agar gambar hilang dari marker
     if(communityMap) communityMap.closePopup();
-    // galleryCache akan diperbarui oleh onValue listener secara otomatis
-    // Force re-render peta supaya popup terupdate
     setTimeout(() => { if(communityMap && !activeRoute && !routePending) renderCommunityMap(); }, 600);
   } catch(err){
     alert('Gagal menghapus gambar: '+err.message);
-    btn.disabled = false; btn.textContent = '🗑️ Hapus Gambar Toko (Admin)';
+    btn.disabled = false; btn.textContent = '🗑️ Hapus Gambar (Admin)';
+  }
+});
+
+// ===== ADMIN: Hapus TOKO dari peta (hapus storeCoords + address dari Firebase) =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.map-popup-del-store');
+  if(!btn) return;
+  if(!isAdmin || !window.firebaseReady){ alert('Hanya admin yang bisa melakukan ini.'); return; }
+  const uid = btn.dataset.uid;
+  const name = btn.dataset.name || 'toko ini';
+  if(!uid) return;
+  if(!confirm('Hapus lokasi toko "'+name+'" dari peta? Ini akan menghapus alamat & koordinat toko dari akun mereka.')) return;
+  btn.disabled = true; btn.textContent = '⏳ Menghapus...';
+  try{
+    // Hapus storeCoords dan address dari Firebase (field-level update dengan null)
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/'+uid), {
+      storeCoords: null,
+      address: null
+    });
+    // Hapus dari cache lokal juga agar tidak muncul lagi tanpa perlu reload
+    if(allUsersCache[uid]){
+      delete allUsersCache[uid].storeCoords;
+      delete allUsersCache[uid].address;
+    }
+    delete storeGeoCache[uid];
+    if(communityMap) communityMap.closePopup();
+    // Hapus marker toko dari peta langsung
+    const mk = communityMapMarkers['store_'+uid];
+    if(mk && communityMap){ try{ communityMap.removeLayer(mk); }catch(e){} }
+    delete communityMapMarkers['store_'+uid];
+  } catch(err){
+    alert('Gagal menghapus toko dari peta: '+err.message);
+    btn.disabled = false; btn.textContent = '🗑️ Hapus Toko dari Peta (Admin)';
   }
 });
 
@@ -3978,8 +4014,8 @@ $('saveProfileBtn').addEventListener('click', async () => {
       }
     }
     
-    // Hapus geocode cache agar peta langsung pakai alamat terbaru saat Perbarui
-    delete storeGeoCache[MY_UID];
+    // JANGAN hapus storeGeoCache di sini — hasil geocode baru sudah tersimpan di cache
+    // dan dibutuhkan agar renderCommunityMap tidak perlu geocode ulang ke Nominatim.
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
     $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (coordsToSave.storeCoords ? ' + Lokasi ter-geocode' : '') + '.';
     $('profileSaveStatus').style.color = 'var(--good)';
@@ -3988,6 +4024,13 @@ $('saveProfileBtn').addEventListener('click', async () => {
     if(reminder) reminder.style.display = 'none';
     $('profDisplayName').value = myProfile.displayName;
     applyNameLockUI();
+    // FIX LOKASI: re-render peta langsung pakai allUsersCache yang sudah diupdate lokal,
+    // tanpa menunggu Firebase onValue propagate (bisa delay 100ms-2s).
+    // Firebase onValue akan override allUsersCache setelah propagate, tapi sudah OK
+    // karena render pertama sudah pakai koordinat baru.
+    if(communityMap && !activeRoute && !routePending && coordsToSave.storeCoords){
+      setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 200);
+    }
   } catch(err){
     $('profileSaveStatus').textContent = 'Gagal menyimpan: '+err.message;
     $('profileSaveStatus').style.color = 'var(--bad)';

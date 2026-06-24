@@ -4175,10 +4175,15 @@ document.addEventListener('click', (e) => {
         mapEl.innerHTML = '';
         const pMap = L.map(mapEl, {zoomControl:true}).setView([destLoc.lat, destLoc.lng], 17);
         mapEl._leaflet_map = pMap;
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-          attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-          subdomains:'abcd', maxZoom:20
+
+        // OSM standar — nama jalan & kelurahan Indonesia paling lengkap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+          attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom:19
         }).addTo(pMap);
+
+        // Paksa Leaflet recalc ukuran container setelah modal selesai render
+        setTimeout(()=>{ try{ pMap.invalidateSize(); }catch(e){} }, 250);
 
         // Hanya tampilkan marker TOKO — belum request GPS user
         const storeName = u.storeName || u.displayName || 'Toko UMKM';
@@ -4242,7 +4247,9 @@ document.addEventListener('click', (e) => {
             const coords = route.geometry.coordinates.map(c => L.latLng(c[1], c[0]));
             if(mapEl._routePoly) try{ pMap.removeLayer(mapEl._routePoly); }catch(e){}
             mapEl._routePoly = L.polyline(coords, {color:'#1B4D4A', weight:5, opacity:0.88}).addTo(pMap);
-            pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            // invalidateSize dulu agar Leaflet tahu ukuran container yang benar, baru fitBounds
+            pMap.invalidateSize();
+            setTimeout(()=>{ pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[50,50], maxZoom:15, animate:true}); }, 100);
             const km = (route.distance/1000).toFixed(1);
             const mins = Math.round(route.duration/60);
             const hrs = mins>=60 ? Math.floor(mins/60)+' jam '+(mins%60)+' mnt' : mins+' mnt';
@@ -4255,7 +4262,8 @@ document.addEventListener('click', (e) => {
             if(mapEl._routePoly) try{ pMap.removeLayer(mapEl._routePoly); }catch(e){}
             mapEl._routePoly = L.polyline([[fromLat,fromLng],[dest.lat,dest.lng]],
               {color:'#1B4D4A', weight:4, opacity:0.7, dashArray:'10,7'}).addTo(pMap);
-            pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[40,40], maxZoom:15, animate:true});
+            pMap.invalidateSize();
+            setTimeout(()=>{ pMap.fitBounds(mapEl._routePoly.getBounds(), {padding:[50,50], maxZoom:15, animate:true}); }, 100);
             routeDiv.innerHTML = '⚠️ ≈'+distStr+' (garis lurus) &nbsp;<a href="'+gmUrlFull+'" target="_blank" style="color:var(--teal);font-weight:600;">Google Maps →</a>';
             newRouteBtn.textContent = '📍 Arahkan ke Sini';
           }

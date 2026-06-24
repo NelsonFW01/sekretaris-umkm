@@ -3435,12 +3435,19 @@ document.getElementById('loadMapBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', async () => {
+  // Hapus seluruh geocode cache agar alamat yang diperbarui di-geocode ulang
+  Object.keys(storeGeoCache).forEach(k => delete storeGeoCache[k]);
+  // Reset firstRender agar fitBounds ikut diperbarui
+  communityMapFirstRender = true;
   if(!communityMap){
     if(myLocation && myLocation.lat) initCommunityMap(myLocation.lat, myLocation.lng);
     else initCommunityMap(-6.2088, 106.8456);
   }
+  const btn = document.getElementById('refreshMapBtn');
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Memperbarui...';
   await renderCommunityMap();
-  // Kalau ada lokasi user sendiri, fly ke sana setelah render
+  btn.disabled = false; btn.textContent = origText;
   if(communityMap && myLocation && myLocation.lat){
     setTimeout(() => communityMap.setView([myLocation.lat, myLocation.lng], 17), 400);
   }
@@ -3712,6 +3719,8 @@ $('saveProfileBtn').addEventListener('click', async () => {
       }
     }
     
+    // Hapus geocode cache agar peta langsung pakai alamat terbaru saat Perbarui
+    delete storeGeoCache[MY_UID];
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
     $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (coordsToSave.storeCoords ? ' + Lokasi ter-geocode' : '') + '.';
     $('profileSaveStatus').style.color = 'var(--good)';
@@ -4026,13 +4035,13 @@ document.addEventListener('click', (e) => {
         $('pdOpenMapsBtn').style.display = 'block';
         const routeDiv = $('pdRouteInfo');
 
-        if(myLocation && myLocation.lat){
-          // Kita punya lokasi sendiri -> gambar JALUR rute langsung di mini map (seperti Google Maps)
-          routeDiv.style.display = 'block';
-          routeDiv.innerHTML = '⏳ Menghitung rute ke <b>'+(u.displayName||u.storeName||'lokasi ini')+'</b>...';
+        // Selalu ambil GPS segar untuk menghindari jarak 0 atau lokasi stale
+        routeDiv.style.display = 'block';
+        routeDiv.innerHTML = '📍 Mendeteksi lokasi kamu...';
 
+        function _doPdRoute(fromLat, fromLng){
           const pdRoute = L.Routing.control({
-            waypoints: [L.latLng(myLocation.lat, myLocation.lng), L.latLng(u.location.lat, u.location.lng)],
+            waypoints: [L.latLng(fromLat, fromLng), L.latLng(u.location.lat, u.location.lng)],
             router: L.Routing.osrmv1({
               serviceUrl: 'https://router.project-osrm.org/route/v1',
               language: 'id'
@@ -4050,31 +4059,45 @@ document.addEventListener('click', (e) => {
           }).addTo(pMap);
           mapEl._leaflet_route = pdRoute;
 
-          pdRoute.on('routesfound', function(e){
-            const r = e.routes[0];
+          pdRoute.on('routesfound', function(ev){
+            const r = ev.routes[0];
             const km = (r.summary.totalDistance/1000).toFixed(1);
             const mins = Math.round(r.summary.totalTime/60);
             routeDiv.innerHTML = '🚗 <b>'+km+' km</b> &nbsp;·&nbsp; ⏱ '+mins+' mnt &nbsp;·&nbsp; <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
           });
-          pdRoute.on('routingerror', function(e){
-            console.error('Routing error (profile):', e);
-            // Fallback: tampilkan jarak garis lurus kalau OSRM gagal
+          pdRoute.on('routingerror', function(){
+            // Fallback: jarak garis lurus
             const R = 6371;
-            const dLat = (u.location.lat - myLocation.lat)*Math.PI/180;
-            const dLng = (u.location.lng - myLocation.lng)*Math.PI/180;
-            const a = Math.sin(dLat/2)**2 + Math.cos(myLocation.lat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+            const dLat = (u.location.lat - fromLat)*Math.PI/180;
+            const dLng = (u.location.lng - fromLng)*Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(fromLat*Math.PI/180)*Math.cos(u.location.lat*Math.PI/180)*Math.sin(dLng/2)**2;
             const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             const distStr = dist < 1 ? Math.round(dist*1000)+'m' : dist.toFixed(1)+'km';
             routeDiv.innerHTML = '⚠️ Gagal memuat rute jalan (≈'+distStr+' garis lurus). <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
             L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
               .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
           });
+        }
+
+        if(navigator.geolocation){
+          navigator.geolocation.getCurrentPosition(
+            (pos) => { _doPdRoute(pos.coords.latitude, pos.coords.longitude); },
+            () => {
+              // GPS gagal — coba pakai myLocation sebagai fallback
+              if(myLocation && myLocation.lat){
+                _doPdRoute(myLocation.lat, myLocation.lng);
+              } else {
+                routeDiv.innerHTML = '📍 Aktifkan izin lokasi di browser untuk melihat rute. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
+                L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
+                  .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
+              }
+            },
+            {timeout: 8000, maximumAge: 0}
+          );
         } else {
-          // Belum bagikan lokasi -> cuma tampilkan marker tujuan saja
+          routeDiv.innerHTML = '📍 Browser tidak mendukung GPS. <a href="'+gmUrl+'" target="_blank" style="color:var(--teal);font-weight:600;">Buka di Google Maps →</a>';
           L.marker([u.location.lat, u.location.lng], {icon}).addTo(pMap)
             .bindPopup('<b>'+(u.displayName||u.storeName||'Pengguna')+'</b>').openPopup();
-          routeDiv.style.display = 'block';
-          routeDiv.innerHTML = '📍 Aktifkan "Bagikan Lokasi Saya" di peta komunitas dulu supaya jalur rute ke sini bisa ditampilkan.';
         }
       }, 120);
     } else { $('pdMapWrap').style.display='none'; $('pdOpenMapsBtn').style.display='none'; $('pdRouteInfo').style.display='none'; }

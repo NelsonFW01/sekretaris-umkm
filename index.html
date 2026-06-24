@@ -2978,8 +2978,8 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
-  // SNAP KAMERA INSTAN (animate:false) supaya tidak bisa di-cancel watchPosition berikutnya.
-  // Prioritas: myLocation (sudah ada dari saat rute dihitung, instan) → getCurrentPosition (fallback)
+  // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
+  // (tanpa nunggu callback watchPosition pertama, supaya tidak ada delay/diam dulu seperti Google Maps)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     let lookAhead = L.latLng(lat, lng);
@@ -2988,25 +2988,19 @@ function startNavigation(){
     }
     const cLat = lat + (lookAhead.lat - lat) * 0.5;
     const cLng = lng + (lookAhead.lng - lng) * 0.5;
-    // animate:false = INSTAN, tidak bisa di-interrupt watchPosition yang datang bersamaan
-    communityMap.setView([cLat, cLng], 17, {animate: false});
+    communityMap.setView([cLat, cLng], 17, {animate: true, duration: 0.5});
   }
-  // Pakai myLocation dulu (tersedia dari saat rute dihitung, tidak ada delay)
-  if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
-    snapCameraNow(myLocation.lat, myLocation.lng);
-  } else if(navigator.geolocation){
+  if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
       (pos) => snapCameraNow(pos.coords.latitude, pos.coords.longitude),
-      () => {},
+      () => { if(myLocation && myLocation.lat) snapCameraNow(myLocation.lat, myLocation.lng); },
       {enableHighAccuracy: true, timeout: 5000, maximumAge: 5000}
     );
+  } else if(myLocation && myLocation.lat){
+    snapCameraNow(myLocation.lat, myLocation.lng);
   }
 
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
-
-  // Throttle kamera: update maksimal 1x per 2 detik dan minimal gerak 10m
-  // Ini FIX utama nama jalan hilang: setView terlalu sering → tile terus di-reset sebelum sempat render label
-  let _lastNavCamTime = 0, _lastNavCamLat = null, _lastNavCamLng = null;
 
   navWatchId=navigator.geolocation.watchPosition((pos)=>{
     if(!navMode) return;
@@ -3055,24 +3049,16 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 200m, throttle 2 detik + min 10m
-    // Throttle ini yang mencegah nama jalan hilang — setView tidak dipanggil setiap detik
+    // Kamera: ikuti user dengan look-ahead 200m, zoom 17, tanpa throttle di nav mode
     if(communityMap && !mapUserInteracting){
-      const now = Date.now();
-      const movedEnough = _lastNavCamLat === null ||
-        haversineM(lat, lng, _lastNavCamLat, _lastNavCamLng) > 10;
-      if(now - _lastNavCamTime > 2000 && movedEnough){
-        _lastNavCamTime = now;
-        _lastNavCamLat = lat; _lastNavCamLng = lng;
-        const userLL=L.latLng(lat,lng);
-        let lookAhead=userLL;
-        if(activeRouteCoords&&activeRouteCoords.length>1){
-          lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
-        }
-        const cLat=lat+(lookAhead.lat-lat)*0.5;
-        const cLng=lng+(lookAhead.lng-lng)*0.5;
-        communityMap.setView([cLat,cLng],17,{animate:true,duration:0.8,noMoveStart:true});
+      const userLL=L.latLng(lat,lng);
+      let lookAhead=userLL;
+      if(activeRouteCoords&&activeRouteCoords.length>1){
+        lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
       }
+      const cLat=lat+(lookAhead.lat-lat)*0.5;
+      const cLng=lng+(lookAhead.lng-lng)*0.5;
+      communityMap.setView([cLat,cLng],17,{animate:true,duration:0.6,noMoveStart:true});
     }
 
     // Cek apakah sudah sampai (< 30m dari tujuan)
@@ -3120,6 +3106,13 @@ function clearActiveRoute(){
     }
     activeRoute=null;
   }
+  // Hapus marker rute tujuan
+  const destMk=communityMapMarkers['route_dest'];
+  if(destMk && communityMap){ try{communityMap.removeLayer(destMk);}catch(e){} delete communityMapMarkers['route_dest']; }
+  // Hapus marker user rute HANYA kalau bukan myMarkerLive (location sharing masih ON)
+  const userMk=communityMapMarkers['route_user'];
+  if(userMk && userMk !== myMarkerLive && communityMap){ try{communityMap.removeLayer(userMk);}catch(e){} }
+  delete communityMapMarkers['route_user'];
   activeRouteCoords=null;
   activeRouteSteps=[];
   activeDestName=''; activeDestLat=null; activeDestLng=null;
@@ -3202,11 +3195,17 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   communityMapMarkers['route_dest']=L.marker([destLat,destLng],{icon:makeStoreIcon()})
     .bindPopup('🏪 '+destName).addTo(communityMap);
 
-  // Marker user
+  // Marker user — kalau myMarkerLive sudah ada (location sharing ON), jangan duplikasi.
+  // Cukup update posisinya supaya tidak ada dua marker "saya" di peta.
   const existingUser=communityMapMarkers['route_user'];
-  if(existingUser) try{communityMap.removeLayer(existingUser);}catch(e){}
-  communityMapMarkers['route_user']=L.marker([fromLat,fromLng],{icon:makeUserIcon(true)})
-    .bindPopup('📍 Lokasi Kamu').addTo(communityMap);
+  if(existingUser && existingUser !== myMarkerLive) try{communityMap.removeLayer(existingUser);}catch(e){}
+  if(myMarkerLive){
+    myMarkerLive.setLatLng([fromLat,fromLng]);
+    communityMapMarkers['route_user']=myMarkerLive;  // shared reference, bukan marker baru
+  } else {
+    communityMapMarkers['route_user']=L.marker([fromLat,fromLng],{icon:makeUserIcon(true)})
+      .bindPopup('📍 Lokasi Kamu').addTo(communityMap);
+  }
 
   // Update myLocation dengan koordinat segar
   if(!myLocation) myLocation={};
@@ -3271,9 +3270,22 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   const km=(route.distance/1000).toFixed(1);
   const dur=fmtDur(route.duration);
 
-  // fitBounds DULU, baru clear routePending
+  // fitBounds untuk tampilkan seluruh rute
   communityMap.fitBounds(L.latLngBounds(coords),{padding:[60,60],maxZoom:15,animate:true});
   routePending=false;
+
+  // Snap kamera ke arah rute dari posisi user — seperti Google Maps setelah rute ditampilkan
+  setTimeout(()=>{
+    if(!navMode && communityMap && activeRouteCoords && activeRouteCoords.length>1){
+      const userLL=L.latLng(fromLat,fromLng);
+      const lookAhead=findLookAheadPoint(userLL,activeRouteCoords,350);
+      // Titik tengah antara user dan look-ahead → supaya user + sedikit rute ke depan kelihatan
+      const cLat=fromLat+(lookAhead.lat-fromLat)*0.45;
+      const cLng=fromLng+(lookAhead.lng-fromLng)*0.45;
+      mapUserInteracting=false;
+      communityMap.flyTo([cLat,cLng],16,{animate:true,duration:1.0});
+    }
+  },1800);
 
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
 
@@ -3298,8 +3310,7 @@ function initCommunityMap(centerLat, centerLng){
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: 'abcd',
-    maxZoom: 20,
-    keepBuffer: 6
+    maxZoom: 20
   }).addTo(communityMap);
 
   // Tombol kontrol sederhana seperti Google Maps
@@ -3609,10 +3620,10 @@ async function doMapSearch(){
     return;
   }
 
-  resultsDiv.innerHTML = hits.map((h,i) => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
-    <span style="flex-shrink:0;margin-top:2px;">${h.lat ? '👤' : '🏪'}</span>
+  resultsDiv.innerHTML = hits.map((h,i) => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" data-label="${escapeHtml(h.label)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
+    <span style="flex-shrink:0;margin-top:2px;">${h.uid === MY_UID ? '⭐' : (h.lat ? '👤' : '🏪')}</span>
     <div>
-      <div style="font-weight:600;">${escapeHtml(h.label)}</div>
+      <div style="font-weight:600;">${escapeHtml(h.label)}${h.uid === MY_UID ? ' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:1px 6px;font-weight:700;">Toko Saya</span>' : ''}</div>
       ${h.sub ? '<div style="font-size:11.5px;color:var(--ink-soft);">'+escapeHtml(h.sub)+'</div>' : ''}
     </div>
   </div>`).join('');
@@ -3665,9 +3676,8 @@ document.addEventListener('click', async (e) => {
   let lat = parseFloat(row.dataset.lat), lng = parseFloat(row.dataset.lng);
   const hasCoords = !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
 
-  // Label untuk marker sementara
-  const labelEl = row.querySelector('div b') || row.querySelector('div');
-  const tempLabel = labelEl ? labelEl.textContent.trim() : 'Lokasi';
+  // Label untuk marker sementara — ambil dari data-label supaya tidak ikut teks sub
+  const tempLabel = row.dataset.label || row.querySelector('[style*="font-weight:600"]')?.textContent.trim() || 'Lokasi';
 
   // Kalau tidak ada koordinat GPS (toko yang hanya punya alamat teks), geocode dulu
   if(!hasCoords){
@@ -3704,6 +3714,20 @@ document.addEventListener('click', async (e) => {
   // Init peta kalau belum ada, lalu fly
   if(!communityMap){ initCommunityMap(lat, lng); await renderCommunityMap(); }
   else { communityMap.invalidateSize(); }
+
+  const isOwnEntry = row.dataset.uid && row.dataset.uid === MY_UID;
+
+  // Kalau hasil pencarian adalah toko sendiri, cukup fly ke sana dan tampilkan popup
+  // — tidak perlu routing dari diri sendiri ke diri sendiri
+  if(isOwnEntry){
+    communityMap.flyTo([lat, lng], 17, {duration:1});
+    setTimeout(() => {
+      const mk = communityMapMarkers['user_'+MY_UID] || communityMapMarkers['store_'+MY_UID];
+      if(mk){ mk.openPopup(); }
+    }, 1200);
+    return;
+  }
+
   communityMap.flyTo([lat, lng], 15, {duration:1});
 
   // Coba buka popup marker yang sudah ada di peta
@@ -3953,24 +3977,21 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
         communityMapMarkers['user_'+MY_UID] = myMarkerLive;
       }
 
-      // Kalau sedang ada rute aktif, kamera "ikuti jalur" ala Google Maps:
-      // arahkan pandangan agak ke depan di sepanjang garis rute, bukan cuma pas di titik user.
-      // CATATAN: sengaja TIDAK memanggil setWaypoints() di sini karena itu memicu
-      // recalculation rute + fitBounds otomatis dari Leaflet Routing Machine setiap detik
-      // (penyebab peta kedut-kedutan / gerak sendiri). Garis rute memang tetap dari titik
-      // awal ke tujuan — yang bergerak hanya marker user & kamera.
-      // Kamera hanya digerakkan watchPosition kalau navMode TIDAK aktif
-      // (saat navMode aktif, kamera diurus oleh navWatchId di startNavigation)
+      // Ikuti posisi user dengan kamera — navMode diurus navWatchId terpisah
       if(!navMode){
         const nowPan = Date.now();
-        if(!mapUserInteracting && (nowPan - lastPanTime > 3000)){
+        if(!mapUserInteracting && (nowPan - lastPanTime > 4000)){
           if(firstFix && !routePending && !activeRoute && !activeDestLat){
-            // Pertama kali dapat fix, tidak ada rute → fly ke posisi user
+            // Pertama kali dapat fix, tidak ada rute → fly smooth ke posisi user
             communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});
-            lastPanTime = nowPan;
+          } else if(!routePending && !activeDestLat){
+            // Tidak ada rute aktif → ikuti user terus menerus (throttle 4 detik)
+            const currentZoom = communityMap.getZoom();
+            communityMap.setView([loc.lat, loc.lng], currentZoom >= 15 ? currentZoom : 16, {animate:true, duration:0.9, noMoveStart:true});
           }
-          // Kalau rute aktif tapi navMode off, jangan gerakkan kamera otomatis
-          // biarkan user kontrol sendiri
+          // Kalau rute aktif (activeDestLat terisi), biarkan user kontrol kamera sendiri.
+          // Gunakan tombol "Mulai Navigasi" untuk kamera ikut rute otomatis.
+          lastPanTime = nowPan;
         }
       }
     }

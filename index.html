@@ -3482,9 +3482,10 @@ async function renderCommunityMap(){
     communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
   });
 
-  // ── 6. Fit bounds ke marker GPS — FIX BUG: hanya saat pertama render, bukan tiap update ───
+  // ── 6. Fit bounds ke marker GPS — FIX BUG: hanya saat pertama render, bukan tiap update,
+  //        dan TIDAK jika sedang ada rute aktif (agar tampilan rute tidak terganggu) ───
   const existingMarkers = Object.values(communityMapMarkers);
-  if(existingMarkers.length > 0 && communityMapFirstRender && !mapUserInteracting){
+  if(existingMarkers.length > 0 && communityMapFirstRender && !mapUserInteracting && !activeRoute && !routePending){
     try{ communityMap.fitBounds(L.featureGroup(existingMarkers).getBounds().pad(0.3)); }catch(e){}
     communityMapFirstRender = false;
   }
@@ -3501,19 +3502,14 @@ async function renderCommunityMap(){
 
     console.log('[v0] Rendering store', uid, 'with coords:', coords);
     
+    const isMyStore = uid === MY_UID;
     const _sName = escapeHtml(u.storeName||u.displayName||'Toko');
-    const popup = '<div style="min-width:180px;font-family:inherit;">'
-      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+'</div>'
-      +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'
-      +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
-      +'<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
-      +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
-      +'</div>';
+    const popup = '<div style="min-width:180px;font-family:inherit;">'      +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_sName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko Saya</span>':'')+'</div>'      +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.address)+'</div>'      +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')      +(!isMyStore ? '<button class="map-route-btn" data-lat="'+coords.lat+'" data-lng="'+coords.lng+'" data-name="'+_sName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<div style="margin-top:8px;font-size:11.5px;color:#6B645A;text-align:center;">📍 Ini toko kamu sendiri</div>')      +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords.lat+','+coords.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'      +'</div>';
     const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
     communityMapMarkers['store_'+uid] = mk;
 
-    // Re-fit bounds setelah toko pertama ditambahkan — FIX BUG: hanya jika masih firstRender
-    if(communityMapFirstRender && !mapUserInteracting){
+    // Re-fit bounds setelah toko pertama ditambahkan — FIX BUG: hanya jika masih firstRender dan tidak ada rute aktif
+    if(communityMapFirstRender && !mapUserInteracting && !activeRoute && !routePending){
       const allMk = Object.values(communityMapMarkers);
       if(allMk.length > 0){
         try{ communityMap.fitBounds(L.featureGroup(allMk).getBounds().pad(0.3)); }catch(e){}
@@ -3881,7 +3877,8 @@ function showMyLocationOnMap(loc, visibility){
   }
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
-  setTimeout(() => { if(typeof renderCommunityMap==='function') renderCommunityMap(); }, 300);
+  // Jangan re-render peta (yang akan reset bounds) kalau sedang ada rute aktif
+  setTimeout(() => { if(typeof renderCommunityMap==='function' && !activeRoute && !routePending) renderCommunityMap(); }, 300);
 }
 
 // Populate daftar user di modal privat
@@ -3987,12 +3984,12 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
       if(!navMode){
         const nowPan = Date.now();
         if(!mapUserInteracting && (nowPan - lastPanTime > 3000)){
-          if(firstFix && !routePending && !activeRoute){
-            // Pertama kali dapat fix, tidak ada rute → fly ke posisi user
+          if(firstFix && !routePending && !activeRoute && !activeDestLat){
+            // Pertama kali dapat fix, tidak ada rute dan tidak ada tujuan aktif → fly ke posisi user
             communityMap.flyTo([loc.lat, loc.lng], 17, {duration:1.2});
             lastPanTime = nowPan;
           }
-          // Kalau rute aktif tapi navMode off, jangan gerakkan kamera otomatis
+          // Kalau rute aktif atau ada tujuan, jangan gerakkan kamera otomatis
           // biarkan user kontrol sendiri
         }
       }
@@ -4092,7 +4089,7 @@ function renderUserDirectory(){
 
 function startUserDirectoryListeners(){
   if(!window.firebaseReady){ $('userDirectory').innerHTML = '<div class="empty-state">Direktori pengguna butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(communityMap) renderCommunityMap(); });
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); });
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); });
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }

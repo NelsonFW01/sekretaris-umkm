@@ -1188,10 +1188,27 @@
           <input type="text" id="profStoreName" placeholder="contoh: Kripik Bu Sari">
         </div>
         <div class="field-group">
-          <label>Alamat UMKM (opsional)</label>
+          <label>Alamat Toko/UMKM ke-1 (opsional)</label>
           <input type="text" id="profAddress" placeholder="contoh: Jl. Merdeka No. 12, Bandung">
         </div>
-        <div class="field-group">
+
+        <!-- Toko ke-2 (gratis) -->
+        <div style="margin-top:10px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
+          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">🏪 Toko ke-2 <span style="font-weight:500;color:var(--ink-soft);font-size:11px;">(opsional · gratis)</span></div>
+          <div class="field-group" style="margin-bottom:8px;">
+            <label style="font-size:12px;">Nama Toko ke-2</label>
+            <input type="text" id="profStore2Name" placeholder="contoh: Warung Pak Budi">
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">Alamat Toko ke-2</label>
+            <input type="text" id="profStore2Address" placeholder="contoh: Taman Kopo Indah 3, Bandung">
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;padding:0 2px;">
+          💡 Butuh lebih dari 2 toko? <a href="https://wa.me/6282117573435?text=Halo+admin,+saya+mau+upgrade+toko+premium+di+Sekretaris+UMKM" target="_blank" style="color:var(--teal);font-weight:600;">Hubungi admin (WA)</a> — <strong>Rp 15.000/bln</strong>
+        </div>
+
+        <div class="field-group" style="margin-top:10px;">
           <label>No. Rekening / GoPay / DANA / OVO (opsional)</label>
           <input type="text" id="profPaymentId" placeholder="contoh: BCA 1234567890 a.n. Sari">
         </div>
@@ -1511,22 +1528,42 @@
       </div>
     </div>
 
-    <!-- Slide 3: Boost promo -->
+    <!-- Slide 3: Gratis vs Premium + cara bayar -->
     <div class="splash-slide" id="splashSlide3">
-      <div class="splash-section-title">🚀 Mau produkmu makin dilihat?</div>
-      <div class="boost-promo-card">
-        <div class="bp-icon">🚀</div>
-        <h3>Fitur Boost Produk</h3>
-        <p>Tampilkan produkmu di urutan <strong style="color:#fff;">paling atas</strong> Galeri Publik selama 24 jam penuh. Dilihat oleh semua pengguna Sekretaris UMKM!</p>
-        <div class="bp-price">Hanya Rp 10.000 / 24 jam</div>
+      <div class="splash-section-title">💎 Gratis & Premium</div>
+
+      <!-- Gratis -->
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:700;color:#A8F0C6;margin-bottom:8px;">✅ Gratis selamanya</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.7;">
+          • AI caption & analisa produk<br>
+          • Catat keuangan suara/teks<br>
+          • Galeri publik produk<br>
+          • Komunitas &amp; live streaming<br>
+          • <strong style="color:#fff;">2 toko di peta komunitas</strong><br>
+          • Bagikan lokasi real-time
+        </div>
       </div>
-      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">🎥 Collab Live Streaming</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Undang UMKM lain untuk live bareng dalam satu siaran. Kalian bisa tampil bersama, berbagi penonton, dan saling promosi — gratis!</div>
+
+      <!-- Boost -->
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:700;color:#FFD700;margin-bottom:8px;">⭐ Berbayar</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.7;">
+          • 🚀 <strong style="color:#fff;">Boost Produk</strong> — muncul paling atas galeri 24 jam · <em>Rp 10.000</em><br>
+          • 🏪 <strong style="color:#fff;">Toko Premium</strong> — lebih dari 2 toko di peta · <em>Rp 15.000/bln</em>
+        </div>
       </div>
-      <div style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:14px;margin-bottom:8px;">
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:10px;">📹 Galeri Video Live</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.6);line-height:1.55;">Rekaman sesi live tersimpan otomatis dan bisa ditonton siapa saja di tab Video — bangun kepercayaan pembeli lewat konten nyata.</div>
+
+      <!-- Cara bayar -->
+      <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.10);border-radius:14px;padding:14px;">
+        <div style="font-size:12.5px;font-weight:700;color:#fff;margin-bottom:8px;">💳 Cara bayar</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.7);line-height:1.7;">
+          Transfer ke rekening / GoPay / OVO / DANA admin,<br>lalu konfirmasi via WhatsApp:
+        </div>
+        <a href="https://wa.me/6282117573435?text=Halo+admin+Sekretaris+UMKM,+saya+mau+bayar+layanan+premium" target="_blank"
+           style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;background:#25D366;color:#fff;border-radius:12px;padding:11px 0;font-size:13px;font-weight:700;text-decoration:none;">
+          💬 Chat Admin via WhatsApp
+        </a>
       </div>
     </div>
 
@@ -2871,7 +2908,7 @@ if(location.hash==='#admin'){
 setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 
 // ============ COMMUNITY: PRESENCE, PROFILE, LOCATION, USER DIRECTORY ============
-let myProfile = {displayName:'', storeName:'', address:'', email:''};
+let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', email:''};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
 
@@ -3522,16 +3559,11 @@ async function geocodeAddress(uid, address){
     .replace(/\s*\/\s*\d+\w*/gi, ''));
   const q2 = strip2.length > 5 && strip2 !== strip1 && strip2 !== address ? makeQ(strip2) : null;
 
-  // Variasi 4 — hapus juga angka di nama kompleks (taman kopo indah 2 → taman kopo indah)
-  const strip3 = norm(strip2.replace(/\s+\d+(?=\s|,|$)/g, ''));
-  const q3 = strip3.length > 5 && strip3 !== strip2 ? makeQ(strip3) : null;
+  // PENTING: JANGAN strip angka di nama kompleks (misal "taman kopo indah 3" → "taman kopo indah")
+  // karena Nominatim bisa mengembalikan kompleks BERBEDA (misal TKI 2 padahal user maksud TKI 3).
+  // Lebih baik return null (marker tidak muncul) daripada menampilkan lokasi yang SALAH.
 
-  // Variasi 5 — ambil kata pertama+kedua+ketiga (nama utama kompleks saja)
-  const words = strip3.split(/[\s,]+/).filter(w => w.length > 2);
-  const strip4 = words.slice(0, 3).join(' ');
-  const q4 = strip4.length > 5 && strip4 !== strip3 ? makeQ(strip4) : null;
-
-  const queries = [q0, q1, q2, q3, q4].filter(Boolean);
+  const queries = [q0, q1, q2].filter(Boolean);
   console.log('[v0] Geocode queries for', uid, ':', queries);
 
   for(const q of queries){
@@ -3584,7 +3616,10 @@ async function renderCommunityMap(){
   });
 
   // ── 2. Kumpulkan toko yang punya alamat (termasuk yang sudah ada GPS) ──
-  const storeEntries = Object.entries(usersData).filter(([uid, u]) => u.address && u.address.trim().length > 3);
+  const storeEntries = Object.entries(usersData).filter(([uid, u]) =>
+    (u.address && u.address.trim().length > 3) ||
+    (u.store2Address && u.store2Address.trim().length > 3)
+  );
 
   // ── 3. Init peta jika belum ada ──────────────────────────────
   if(!communityMap){
@@ -3687,6 +3722,27 @@ async function renderCommunityMap(){
       +'</div>';
     const mk = L.marker([coords.lat, coords.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
     communityMapMarkers['store_'+uid] = mk;
+
+    // ── Toko ke-2 (jika ada) ─────────────────────────────────────────────────
+    if(u.store2Address && u.store2Address.trim().length > 3){
+      let coords2 = u.store2Coords || null;
+      if(!coords2) coords2 = await geocodeAddress(uid+'_s2', u.store2Address);
+      if(coords2){
+        const _s2Name = escapeHtml(u.store2Name || ((u.storeName||u.displayName||'Toko')+' 2'));
+        const routeBtn2 = !isMyStore
+          ? '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
+          : '<button class="map-route-btn" data-lat="'+coords2.lat+'" data-lng="'+coords2.lng+'" data-name="'+_s2Name+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Navigasi ke Toko 2</button>';
+        const popup2 = '<div style="min-width:180px;font-family:inherit;">'
+          +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_s2Name+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko 2 Saya</span>':'')+'</div>'
+          +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(u.store2Address)+'</div>'
+          +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
+          +routeBtn2
+          +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coords2.lat+','+coords2.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
+          +'</div>';
+        const mk2 = L.marker([coords2.lat, coords2.lng], {icon: makeStoreIcon()}).addTo(communityMap).bindPopup(popup2, {maxWidth: 220});
+        communityMapMarkers['store2_'+uid] = mk2;
+      }
+    }
 
     // Re-fit bounds setelah toko pertama ditambahkan — FIX BUG: hanya jika masih firstRender dan tidak ada rute aktif
     if(communityMapFirstRender && !mapUserInteracting && !activeRoute && !routePending){
@@ -4061,10 +4117,12 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
+      if($('profStore2Name')) $('profStore2Name').value = myProfile.store2Name;
+      if($('profStore2Address')) $('profStore2Address').value = myProfile.store2Address;
       $('profPaymentId').value = myProfile.paymentId;
       $('profPaymentLink').value = myProfile.paymentLink;
       // Sync ke localStorage
@@ -4097,6 +4155,8 @@ $('saveProfileBtn').addEventListener('click', async () => {
     displayName: typedName,
     storeName: $('profStoreName').value.trim(),
     address: $('profAddress').value.trim(),
+    store2Name: ($('profStore2Name')?.value||'').trim(),
+    store2Address: ($('profStore2Address')?.value||'').trim(),
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim(),
     email: currentAuthEmail || myProfile.email || ''
@@ -4140,10 +4200,30 @@ $('saveProfileBtn').addEventListener('click', async () => {
       }
     }
     
+    // Geocode toko ke-2 jika ada alamatnya
+    if(myProfile.store2Address && myProfile.store2Address.length > 5){
+      $('profileSaveStatus').textContent = '🌍 Geocoding toko ke-2...';
+      try{
+        delete storeGeoCache[MY_UID+'_s2'];
+        const geo2 = await geocodeAddress(MY_UID+'_s2', myProfile.store2Address);
+        coordsToSave.store2Coords = geo2 || null;
+        if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+        allUsersCache[MY_UID].store2Coords = geo2 || null;
+        allUsersCache[MY_UID].store2Address = myProfile.store2Address;
+        allUsersCache[MY_UID].store2Name = myProfile.store2Name;
+      } catch(e){
+        coordsToSave.store2Coords = null;
+      }
+    } else {
+      coordsToSave.store2Coords = null;
+      if(allUsersCache[MY_UID]){ allUsersCache[MY_UID].store2Coords = null; }
+    }
+
     // JANGAN hapus storeGeoCache di sini — hasil geocode baru sudah tersimpan di cache
     // dan dibutuhkan agar renderCommunityMap tidak perlu geocode ulang ke Nominatim.
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
-    $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (coordsToSave.storeCoords ? ' + Lokasi ter-geocode' : '') + '.';
+    const geocodedCount = (coordsToSave.storeCoords?1:0)+(coordsToSave.store2Coords?1:0);
+    $('profileSaveStatus').textContent = '✅ Profil tersimpan' + (geocodedCount ? ' + '+geocodedCount+' lokasi ter-geocode' : '') + '.';
     $('profileSaveStatus').style.color = 'var(--good)';
     // Sembunyikan reminder setelah nama terisi
     const reminder = $('profileCompleteReminder');
@@ -4602,7 +4682,14 @@ function renderAdminUserList(){
     const statusDot = `<span class="status-dot ${online?'on':'off'}" style="flex-shrink:0;"></span>`;
     const selfBadge = isSelf ? ' <span style="font-size:10px;background:var(--teal);color:#fff;border-radius:20px;padding:1px 7px;vertical-align:middle;font-weight:700;">Saya</span>' : '';
     const storeLine = u.storeName ? `<div style="font-size:11.5px;color:var(--ink-soft);">🏪 ${escapeHtml(u.storeName)}</div>` : '';
+    const store2Line = u.store2Name ? `<div style="font-size:11px;color:var(--ink-soft);">🏪 ${escapeHtml(u.store2Name)} <em style="font-size:10px;">(toko 2)</em></div>` : '';
     const addressLine = u.address ? `<div style="font-size:11px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escapeHtml(u.address)}</div>` : '';
+    const premiumBadge = u.isPremium ? `<span style="font-size:10px;background:#FFD700;color:#7B5E00;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">⭐ Premium</span>` : '';
+    const premiumBtn = !isSelf
+      ? (u.isPremium
+          ? `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="0" style="font-size:11px;padding:4px 8px;border:1px solid #7B5E00;border-radius:7px;background:#FFFBEA;color:#7B5E00;cursor:pointer;white-space:nowrap;">⭐ Cabut Premium</button>`
+          : `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="1" style="font-size:11px;padding:4px 8px;border:1px solid #2D7A4F;border-radius:7px;background:#E8F5E9;color:#2D7A4F;cursor:pointer;white-space:nowrap;">✅ Beri Premium</button>`)
+      : '';
     const delBtn = !isSelf
       ? `<button class="admin-del-user-btn" data-uid="${uid}" data-name="${escapeAttr(u.displayName||u.email||uid)}"
            style="flex-shrink:0;padding:7px 12px;border:none;border-radius:9px;background:#FDEAEA;color:#C84F2F;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">🗑️ Hapus</button>`
@@ -4610,14 +4697,32 @@ function renderAdminUserList(){
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #FEE2E2;min-width:0;">
       ${statusDot}
       <div style="flex:1;min-width:0;overflow:hidden;">
-        <div style="font-weight:700;font-size:13px;color:var(--ink);">${name}${selfBadge}</div>
+        <div style="font-weight:700;font-size:13px;color:var(--ink);">${name}${selfBadge}${premiumBadge}</div>
         <div style="font-size:12px;color:#2563EB;font-weight:500;margin-top:1px;">📧 ${email}</div>
-        ${storeLine}${addressLine}
+        ${storeLine}${store2Line}${addressLine}
+        ${premiumBtn ? `<div style="margin-top:4px;">${premiumBtn}</div>` : ''}
       </div>
       ${delBtn}
     </div>`;
   }).join('');
 }
+
+// ===== ADMIN: TOGGLE PREMIUM =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.admin-toggle-premium-btn');
+  if(!btn || !isAdmin || !window.firebaseReady) return;
+  const uid = btn.dataset.uid;
+  const grantPremium = btn.dataset.premium === '1';
+  btn.disabled = true; btn.textContent = '⏳...';
+  try{
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {isPremium: grantPremium});
+    if(allUsersCache[uid]) allUsersCache[uid].isPremium = grantPremium;
+    renderAdminUserList();
+  } catch(err){
+    alert('Gagal update premium: '+err.message);
+    btn.disabled = false;
+  }
+});
 
 // ===== ADMIN: HAPUS PENGGUNA DARI PANEL ADMIN =====
 document.addEventListener('click', async (e) => {
@@ -4633,11 +4738,12 @@ document.addEventListener('click', async (e) => {
     delete allUsersCache[uid];
     delete storeGeoCache[uid];
     if(communityMap){
-      ['store_', 'user_'].forEach(prefix => {
+      ['store_', 'store2_', 'user_'].forEach(prefix => {
         const mk = communityMapMarkers[prefix+uid];
         if(mk){ try{ communityMap.removeLayer(mk); }catch(ee){} delete communityMapMarkers[prefix+uid]; }
       });
     }
+    delete storeGeoCache[uid+'_s2'];
     renderAdminUserList();
     renderUserDirectory();
     if(typeof renderCommunityMap === 'function') renderCommunityMap();
@@ -4661,8 +4767,9 @@ document.addEventListener('click', async (e) => {
   try{
     delete allUsersCache[uid];
     delete storeGeoCache[uid];
+    delete storeGeoCache[uid+'_s2'];
     if(communityMap){
-      ['store_', 'user_'].forEach(prefix => {
+      ['store_', 'store2_', 'user_'].forEach(prefix => {
         const mk = communityMapMarkers[prefix+uid];
         if(mk){ try{ communityMap.removeLayer(mk); }catch(ee){} delete communityMapMarkers[prefix+uid]; }
       });

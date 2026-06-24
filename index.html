@@ -2974,28 +2974,26 @@ function startNavigation(){
   navMode=true;
   lastSpokenStep=-1;
   mapUserInteracting=false;
-  // Reset throttle state kamera supaya sesi navigasi baru mulai bersih
-  startNavigation._lastCamT = 0;
-  startNavigation._lastCamLat = null;
-  startNavigation._lastCamLng = null;
+  // Reset state throttle kamera supaya sesi navigasi baru mulai bersih
+  startNavigation._ct = 0; startNavigation._cLat = null; startNavigation._cLng = null;
 
   // Umumkan mulai
   speak('Navigasi dimulai. '+stepLabel(activeRouteSteps[0]));
 
   // SNAP KAMERA INSTAN saat tombol "Mulai Navigasi" ditekan.
-  // myLocation PASTI sudah terisi dari _doRoute (dipanggil sebelum tombol ini muncul).
-  // Tidak perlu getCurrentPosition lagi -- langsung snap tanpa delay apapun.
-  // animate:false = instan, tidak bisa dicancel watchPosition yang datang bersamaan.
-  // (animate:true 0.5s akan selalu dibatalkan watchPosition pertama -> kamera tidak pernah snap)
-  if(myLocation && myLocation.lat && !isNaN(myLocation.lat)){
+  // myLocation PASTI sudah ada dari _doRoute (tombol ini baru muncul setelah _doRoute selesai).
+  // animate:false = instan & tidak bisa dicancel watchPosition yang datang bersamaan.
+  // Kalau pakai getCurrentPosition baru (1-9 detik delay) atau animate:true (0.5s),
+  // watchPosition pertama akan cancel snap sebelum selesai -> kamera tidak pernah snap.
+  if(communityMap && myLocation && myLocation.lat && !isNaN(myLocation.lat)){
     const _sLat = myLocation.lat, _sLng = myLocation.lng;
-    let _lookAhead = L.latLng(_sLat, _sLng);
-    if(activeRouteCoords && activeRouteCoords.length > 1){
-      _lookAhead = findLookAheadPoint(L.latLng(_sLat, _sLng), activeRouteCoords, 200);
-    }
-    const _cLat = _sLat + (_lookAhead.lat - _sLat) * 0.5;
-    const _cLng = _sLng + (_lookAhead.lng - _sLng) * 0.5;
-    communityMap.setView([_cLat, _cLng], 17, {animate: false});
+    let _ahead = L.latLng(_sLat, _sLng);
+    if(activeRouteCoords && activeRouteCoords.length > 1)
+      _ahead = findLookAheadPoint(L.latLng(_sLat, _sLng), activeRouteCoords, 200);
+    communityMap.setView(
+      [_sLat + (_ahead.lat - _sLat)*0.5, _sLng + (_ahead.lng - _sLng)*0.5],
+      17, {animate: false}
+    );
   }
 
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
@@ -3048,27 +3046,24 @@ function startNavigation(){
     }
 
     // Kamera: ikuti user dengan look-ahead 200m, zoom 17.
-    // Throttle 2 detik + min 10m gerak = FIX nama jalan hilang.
-    // Tanpa throttle, setView dipanggil setiap GPS update (1-3x/detik) ->
-    // tile Leaflet di-reset terus sebelum sempat render label jalan.
+    // THROTTLE 2 detik + min 10m = fix nama jalan hilang.
+    // Tanpa throttle, setView dipanggil 1-3x/detik -> tile Leaflet di-reset terus
+    // sebelum sempat render nama jalan -> nama jalan kosong terus.
     if(communityMap && !mapUserInteracting){
-      const _now = Date.now();
-      if(!startNavigation._lastCamT) startNavigation._lastCamT = 0;
-      if(!startNavigation._lastCamLat) startNavigation._lastCamLat = null;
-      const _moved = startNavigation._lastCamLat === null ||
-        haversineM(lat, lng, startNavigation._lastCamLat, startNavigation._lastCamLng) > 10;
-      if(_now - startNavigation._lastCamT > 2000 && _moved){
-        startNavigation._lastCamT = _now;
-        startNavigation._lastCamLat = lat;
-        startNavigation._lastCamLng = lng;
+      const _nt = Date.now();
+      const _nm = !startNavigation._cLat ||
+        haversineM(lat,lng,startNavigation._cLat,startNavigation._cLng) > 10;
+      if(_nt - (startNavigation._ct||0) > 2000 && _nm){
+        startNavigation._ct = _nt;
+        startNavigation._cLat = lat; startNavigation._cLng = lng;
         const userLL=L.latLng(lat,lng);
         let lookAhead=userLL;
-        if(activeRouteCoords&&activeRouteCoords.length>1){
+        if(activeRouteCoords&&activeRouteCoords.length>1)
           lookAhead=findLookAheadPoint(userLL,activeRouteCoords,200);
-        }
-        const cLat=lat+(lookAhead.lat-lat)*0.5;
-        const cLng=lng+(lookAhead.lng-lng)*0.5;
-        communityMap.setView([cLat,cLng],17,{animate:true,duration:0.8,noMoveStart:true});
+        communityMap.setView(
+          [lat+(lookAhead.lat-lat)*0.5, lng+(lookAhead.lng-lng)*0.5],
+          17,{animate:true,duration:0.8,noMoveStart:true}
+        );
       }
     }
 
@@ -3107,6 +3102,7 @@ function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
 }
 
 // ── clearActiveRoute ──────────────────────────────────────────────────────────
+// Hapus SEMUA: polyline, bar, navigasi. Dipanggil saat user mau rute ke tujuan baru.
 function clearActiveRoute(){
   stopNavigation();
   if(activeRoute){
@@ -3125,6 +3121,13 @@ function clearActiveRoute(){
   if(bar) bar.remove();
   const np=document.getElementById('navPanel');
   if(np) np.innerHTML='';
+}
+
+// Tombol X di info bar: HANYA sembunyikan bar, garis rute di peta TETAP ada
+// supaya user masih bisa lihat jalur sambil jalan tanpa bar yang menghalangi layar.
+function hideRouteBar(){
+  const bar=document.getElementById('routeInfoBar');
+  if(bar) bar.style.display='none';
 }
 
 // ── Routing utama ─────────────────────────────────────────────────────────────
@@ -3274,7 +3277,7 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
 
   const gmUrl='https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng;
 
-  bar.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div><div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div><div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div><div style="display:flex;gap:8px;"><button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button><a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a></div>';
+  bar.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:12px;color:#888;margin-bottom:2px;">🏪 Menuju</div><div style="font-size:15px;font-weight:700;color:#111;margin-bottom:4px;">'+escapeHtml(destName)+'</div><div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:26px;font-weight:800;color:#1B4D4A;line-height:1;">'+km+' km</span><span style="font-size:13px;color:#666;">⏱ '+dur+'</span></div></div><button onclick="hideRouteBar();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button></div><div style="display:flex;gap:8px;"><button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button><a href="'+gmUrl+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a></div>';
 }
 
 function initCommunityMap(centerLat, centerLng){
@@ -3379,6 +3382,8 @@ async function geocodeAddress(uid, address){
       }
       
       storeGeoCache[uid] = coords;
+      // Simpan ke allUsersCache supaya popup marker di peta komunitas langsung dapat coords
+      if(allUsersCache[uid]) allUsersCache[uid].storeCoords = coords;
       // Simpan ke Firebase supaya user lain tidak perlu geocode ulang
       if(window.firebaseReady && uid === MY_UID){
         window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});

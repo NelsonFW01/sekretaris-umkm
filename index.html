@@ -1185,7 +1185,10 @@
           <div style="flex:1;">
             <div style="font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:5px;">📷 Foto Profil</div>
             <input type="file" id="profilePhotoInput" accept="image/*" style="display:none;">
-            <button type="button" id="profilePhotoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Ganti Foto</button>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;">
+              <button type="button" id="profilePhotoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Ganti Foto</button>
+              <button type="button" id="profilePhotoDeleteBtn" style="display:none;padding:7px 13px;border-radius:9px;border:1.5px solid var(--bad);background:transparent;color:var(--bad);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">🗑 Hapus</button>
+            </div>
             <div id="profilePhotoStatus" style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">Foto tampil di direktori komunitas & peta</div>
           </div>
         </div>
@@ -1226,7 +1229,10 @@
             <div id="storeLogoPreview" style="width:52px;height:52px;border-radius:10px;background:#E8633F20;border:2px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;cursor:pointer;" onclick="document.getElementById('storeLogoInput').click()">🏪</div>
             <div style="flex:1;">
               <input type="file" id="storeLogoInput" accept="image/*" style="display:none;">
-              <button type="button" id="storeLogoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid #E8633F;background:transparent;color:#E8633F;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Upload Logo</button>
+              <div style="display:flex;gap:7px;flex-wrap:wrap;">
+                <button type="button" id="storeLogoUploadBtn" style="padding:7px 13px;border-radius:9px;border:1.5px solid #E8633F;background:transparent;color:#E8633F;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">Upload Logo</button>
+                <button type="button" id="storeLogoDeleteBtn" style="display:none;padding:7px 13px;border-radius:9px;border:1.5px solid var(--bad);background:transparent;color:var(--bad);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">🗑 Hapus</button>
+              </div>
               <div id="storeLogoStatus" style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;">Logo tampil di marker peta komunitas</div>
             </div>
           </div>
@@ -4181,10 +4187,14 @@ async function loadMyProfile(){
       if(d.profilePhotoUrl){
         const prev = document.getElementById('profilePhotoPreview');
         if(prev) prev.innerHTML = '<img src="'+d.profilePhotoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'😊\'">';
+        const delBtn = document.getElementById('profilePhotoDeleteBtn');
+        if(delBtn) delBtn.style.display = '';
       }
       if(d.storeLogoUrl){
         const prev2 = document.getElementById('storeLogoPreview');
         if(prev2) prev2.innerHTML = '<img src="'+d.storeLogoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'🏪\'">';
+        const delBtn2 = document.getElementById('storeLogoDeleteBtn');
+        if(delBtn2) delBtn2.style.display = '';
       }
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
@@ -4302,6 +4312,29 @@ $('saveProfileBtn').addEventListener('click', async () => {
   }
 });
 
+// ===== HELPER: kompres gambar ke base64 =====
+async function compressImageToBase64(file, maxPx, quality){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w > h){ if(w > maxPx){ h = Math.round(h * maxPx / w); w = maxPx; } }
+        else { if(h > maxPx){ w = Math.round(w * maxPx / h); h = maxPx; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 // ===== UPLOAD FOTO PROFIL =====
 document.getElementById('profilePhotoUploadBtn').addEventListener('click', () => {
   document.getElementById('profilePhotoInput').click();
@@ -4309,62 +4342,57 @@ document.getElementById('profilePhotoUploadBtn').addEventListener('click', () =>
 document.getElementById('profilePhotoInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if(!file) return;
-  if(!window.firebaseReady || !window.firebaseStorage){
-    alert('Firebase Storage belum siap. Coba lagi sebentar.');
+  if(!window.firebaseReady){
+    alert('Firebase belum siap. Coba lagi sebentar.');
     return;
   }
   const statusEl = document.getElementById('profilePhotoStatus');
   const previewEl = document.getElementById('profilePhotoPreview');
-  statusEl.textContent = '⏳ Mengupload foto...';
+  const deleteBtn = document.getElementById('profilePhotoDeleteBtn');
+  statusEl.textContent = '⏳ Menyimpan foto...';
   statusEl.style.color = 'var(--ink-soft)';
   try{
-    // Kompres gambar agar tidak terlalu besar
-    const canvas = document.createElement('canvas');
-    const img = new Image();
-    const reader = new FileReader();
-    const dataUrl = await new Promise((res, rej) => {
-      reader.onload = (ev) => {
-        img.onload = () => {
-          const MAX = 400;
-          let w = img.width, h = img.height;
-          if(w > h){ if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; } }
-          else { if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; } }
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          res(canvas.toDataURL('image/jpeg', 0.85));
-        };
-        img.onerror = rej;
-        img.src = ev.target.result;
-      };
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-    // Convert dataUrl ke Blob
-    const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    const ref = window.storageRef(window.firebaseStorage, 'profilePhotos/' + MY_UID);
-    await window.storageUploadBytes(ref, blob);
-    const url = await window.storageGetDownloadURL(ref);
-    // Simpan ke Firebase RTDB
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {profilePhotoUrl: url});
-    // Update lokal
+    const dataUrl = await compressImageToBase64(file, 400, 0.82);
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {profilePhotoUrl: dataUrl});
     if(!myProfile) myProfile = {};
-    myProfile.profilePhotoUrl = url;
+    myProfile.profilePhotoUrl = dataUrl;
     if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
-    allUsersCache[MY_UID].profilePhotoUrl = url;
-    // Tampilkan preview
-    previewEl.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'😊\'">';
+    allUsersCache[MY_UID].profilePhotoUrl = dataUrl;
+    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    deleteBtn.style.display = '';
     statusEl.textContent = '✅ Foto berhasil disimpan!';
     statusEl.style.color = 'var(--good)';
-    // Refresh direktori
     if(typeof renderUserDirectory === 'function') renderUserDirectory();
     if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
   } catch(err){
-    statusEl.textContent = '❌ Gagal upload: ' + err.message;
+    statusEl.textContent = '❌ Gagal: ' + err.message;
     statusEl.style.color = 'var(--bad)';
   }
   e.target.value = '';
   setTimeout(() => { statusEl.textContent = 'Foto tampil di direktori komunitas & peta'; statusEl.style.color = 'var(--ink-soft)'; }, 3000);
+});
+document.getElementById('profilePhotoDeleteBtn').addEventListener('click', async () => {
+  if(!confirm('Hapus foto profil?')) return;
+  const statusEl = document.getElementById('profilePhotoStatus');
+  const previewEl = document.getElementById('profilePhotoPreview');
+  const deleteBtn = document.getElementById('profilePhotoDeleteBtn');
+  statusEl.textContent = '⏳ Menghapus...';
+  statusEl.style.color = 'var(--ink-soft)';
+  try{
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {profilePhotoUrl: ''});
+    if(myProfile) myProfile.profilePhotoUrl = '';
+    if(allUsersCache[MY_UID]) allUsersCache[MY_UID].profilePhotoUrl = '';
+    previewEl.innerHTML = '😊';
+    deleteBtn.style.display = 'none';
+    statusEl.textContent = '✅ Foto dihapus';
+    statusEl.style.color = 'var(--good)';
+    if(typeof renderUserDirectory === 'function') renderUserDirectory();
+    if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
+  } catch(err){
+    statusEl.textContent = '❌ Gagal hapus: ' + err.message;
+    statusEl.style.color = 'var(--bad)';
+  }
+  setTimeout(() => { statusEl.textContent = 'Foto tampil di direktori komunitas & peta'; statusEl.style.color = 'var(--ink-soft)'; }, 2500);
 });
 
 // ===== UPLOAD LOGO TOKO =====
@@ -4374,55 +4402,55 @@ document.getElementById('storeLogoUploadBtn').addEventListener('click', () => {
 document.getElementById('storeLogoInput').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if(!file) return;
-  if(!window.firebaseReady || !window.firebaseStorage){
-    alert('Firebase Storage belum siap. Coba lagi sebentar.');
+  if(!window.firebaseReady){
+    alert('Firebase belum siap. Coba lagi sebentar.');
     return;
   }
   const statusEl = document.getElementById('storeLogoStatus');
   const previewEl = document.getElementById('storeLogoPreview');
-  statusEl.textContent = '⏳ Mengupload logo...';
+  const deleteBtn = document.getElementById('storeLogoDeleteBtn');
+  statusEl.textContent = '⏳ Menyimpan logo...';
   statusEl.style.color = 'var(--ink-soft)';
   try{
-    const canvas = document.createElement('canvas');
-    const img = new Image();
-    const reader = new FileReader();
-    const dataUrl = await new Promise((res, rej) => {
-      reader.onload = (ev) => {
-        img.onload = () => {
-          const MAX = 300;
-          let w = img.width, h = img.height;
-          if(w > h){ if(w > MAX){ h = Math.round(h * MAX / w); w = MAX; } }
-          else { if(h > MAX){ w = Math.round(w * MAX / h); h = MAX; } }
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          res(canvas.toDataURL('image/jpeg', 0.85));
-        };
-        img.onerror = rej;
-        img.src = ev.target.result;
-      };
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
-    const blobRes = await fetch(dataUrl);
-    const blob = await blobRes.blob();
-    const ref = window.storageRef(window.firebaseStorage, 'storeLogos/' + MY_UID);
-    await window.storageUploadBytes(ref, blob);
-    const url = await window.storageGetDownloadURL(ref);
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {storeLogoUrl: url});
+    const dataUrl = await compressImageToBase64(file, 300, 0.82);
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {storeLogoUrl: dataUrl});
     if(!myProfile) myProfile = {};
-    myProfile.storeLogoUrl = url;
+    myProfile.storeLogoUrl = dataUrl;
     if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
-    allUsersCache[MY_UID].storeLogoUrl = url;
-    previewEl.innerHTML = '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\'🏪\'">';
+    allUsersCache[MY_UID].storeLogoUrl = dataUrl;
+    previewEl.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;">';
+    deleteBtn.style.display = '';
     statusEl.textContent = '✅ Logo berhasil disimpan!';
     statusEl.style.color = 'var(--good)';
     if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
   } catch(err){
-    statusEl.textContent = '❌ Gagal upload: ' + err.message;
+    statusEl.textContent = '❌ Gagal: ' + err.message;
     statusEl.style.color = 'var(--bad)';
   }
   e.target.value = '';
   setTimeout(() => { statusEl.textContent = 'Logo tampil di marker peta komunitas'; statusEl.style.color = 'var(--ink-soft)'; }, 3000);
+});
+document.getElementById('storeLogoDeleteBtn').addEventListener('click', async () => {
+  if(!confirm('Hapus logo toko?')) return;
+  const statusEl = document.getElementById('storeLogoStatus');
+  const previewEl = document.getElementById('storeLogoPreview');
+  const deleteBtn = document.getElementById('storeLogoDeleteBtn');
+  statusEl.textContent = '⏳ Menghapus...';
+  statusEl.style.color = 'var(--ink-soft)';
+  try{
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {storeLogoUrl: ''});
+    if(myProfile) myProfile.storeLogoUrl = '';
+    if(allUsersCache[MY_UID]) allUsersCache[MY_UID].storeLogoUrl = '';
+    previewEl.innerHTML = '🏪';
+    deleteBtn.style.display = 'none';
+    statusEl.textContent = '✅ Logo dihapus';
+    statusEl.style.color = 'var(--good)';
+    if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
+  } catch(err){
+    statusEl.textContent = '❌ Gagal hapus: ' + err.message;
+    statusEl.style.color = 'var(--bad)';
+  }
+  setTimeout(() => { statusEl.textContent = 'Logo tampil di marker peta komunitas'; statusEl.style.color = 'var(--ink-soft)'; }, 2500);
 });
 
 // ===== VISIBILITY LOCATION SYSTEM =====

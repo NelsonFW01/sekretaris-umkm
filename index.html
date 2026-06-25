@@ -1840,6 +1840,17 @@
 // Tujuannya: biar error JS kelihatan langsung di layar HP pas testing live,
 // gak perlu sambung ke laptop buat liat console.
 const DEBUG_MODE = location.search.includes('debug');
+// FIX: kalau file ini dibuka langsung dari file:// (bukan di-hosting/server),
+// localStorage & script Firebase module bisa gagal diam-diam di banyak browser/HP.
+// Ini akar penyebab paling umum untuk "data balik ke 0" / "tombol tidak merespon".
+if(location.protocol === 'file:'){
+  window.addEventListener('DOMContentLoaded', ()=>{
+    const warn=document.createElement('div');
+    warn.style.cssText='position:fixed;left:10px;right:10px;top:10px;z-index:999998;background:#FFF1D6;border:1.5px solid #E1913D;color:#A07000;padding:10px 14px;border-radius:12px;font-size:12.5px;line-height:1.5;font-family:sans-serif;';
+    warn.innerHTML='⚠️ Halaman ini dibuka langsung dari file (file://), bukan dari server/hosting. Di banyak HP, ini bikin <b>data tidak tersimpan</b> dan beberapa tombol/fitur online <b>tidak merespon</b>. Upload ke hosting (Firebase Hosting / Netlify / GitHub Pages) lalu akses lewat https:// untuk hasil normal.';
+    document.body.insertBefore(warn, document.body.firstChild);
+  });
+}
 function showDebugToast(msg){
   console.error(msg);
   if(!DEBUG_MODE) return;
@@ -2053,7 +2064,10 @@ let transactions = [];
 // FIX: muat transaksi yang tersimpan supaya tidak balik ke 0 saat refresh halaman
 try{
   const _savedTx = localStorage.getItem('umkm_transactions_v1');
-  if(_savedTx) transactions = JSON.parse(_savedTx) || [];
+  if(_savedTx){
+    const _parsed = JSON.parse(_savedTx);
+    if(Array.isArray(_parsed)) transactions = _parsed;
+  }
 }catch(e){ transactions = []; }
 function persistTransactions(){
   try{ localStorage.setItem('umkm_transactions_v1', JSON.stringify(transactions.slice(-3000))); }catch(e){}
@@ -6812,28 +6826,30 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
   // Wire UI
-  document.querySelectorAll('.kongsi-mode').forEach(el=>{
-    el.addEventListener('click',()=>{
-      document.querySelectorAll('.kongsi-mode').forEach(m=>m.classList.remove('active'));
-      el.classList.add('active');
-      kgMode=el.dataset.mode;
-      renderList(cache);
+  try{
+    document.querySelectorAll('.kongsi-mode').forEach(el=>{
+      el.addEventListener('click',()=>{
+        document.querySelectorAll('.kongsi-mode').forEach(m=>m.classList.remove('active'));
+        el.classList.add('active');
+        kgMode=el.dataset.mode;
+        renderList(cache);
+      });
     });
-  });
-  $$('kgAddBtn').addEventListener('click',()=>$$('kgForm').classList.toggle('open'));
-  $$('kgCancel').addEventListener('click',()=>$$('kgForm').classList.remove('open'));
-  $$('kgRefreshBtn').addEventListener('click',refresh);
-  $$('kgSubmit').addEventListener('click',()=>{
-    const title=$$('kgTitle').value.trim();
-    const desc=$$('kgDesc').value.trim();
-    const city=$$('kgCity').value.trim();
-    const wa=$$('kgWa').value.trim();
-    const price=Number($$('kgPrice').value)||0;
-    if(!title||!desc||!wa||!city){alert('Isi minimal judul, deskripsi, kota, dan WA dulu ya.');return;}
-    addItem({mode:kgMode,title,desc,city,wa,price});
-    ['kgTitle','kgDesc','kgPrice','kgCity','kgWa'].forEach(id=>$$(id).value='');
-    $$('kgForm').classList.remove('open');
-  });
+    $$('kgAddBtn')?.addEventListener('click',()=>{ $$('kgForm')?.classList.toggle('open'); });
+    $$('kgCancel')?.addEventListener('click',()=>$$('kgForm')?.classList.remove('open'));
+    $$('kgRefreshBtn')?.addEventListener('click',refresh);
+    $$('kgSubmit')?.addEventListener('click',()=>{
+      const title=$$('kgTitle').value.trim();
+      const desc=$$('kgDesc').value.trim();
+      const city=$$('kgCity').value.trim();
+      const wa=$$('kgWa').value.trim();
+      const price=Number($$('kgPrice').value)||0;
+      if(!title||!desc||!wa||!city){alert('Isi minimal judul, deskripsi, kota, dan WA dulu ya.');return;}
+      addItem({mode:kgMode,title,desc,city,wa,price});
+      ['kgTitle','kgDesc','kgPrice','kgCity','kgWa'].forEach(id=>$$(id).value='');
+      $$('kgForm').classList.remove('open');
+    });
+  }catch(e){ console.error('[kongsi] gagal pasang event:', e); if(typeof showDebugToast==='function') showDebugToast('Kongsi wiring error: '+e.message); }
   $$('kgList').addEventListener('click',e=>{
     const id=e.target.getAttribute('data-del');
     if(id && confirm('Hapus tawaran ini?'))delItem(id);
@@ -7047,7 +7063,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   $$('brainTrainBtn').addEventListener('click',runTraining);
   document.querySelectorAll('.tab[data-panel="brain"]').forEach(t=>t.addEventListener('click',refreshStatus));
-  setTimeout(refreshStatus,300); // FIX: status Otak AI langsung akurat begitu transaksi tersimpan dimuat, tidak nunggu klik tab
   setTimeout(refreshStatus,1000);
 })();
 </script>

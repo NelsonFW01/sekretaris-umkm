@@ -1779,8 +1779,18 @@
       <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
       <input type="tel" id="authPhoneInput" placeholder="Nomor HP (contoh: +628123456789)" autocomplete="tel" class="auth-field-hidden" style="display:none;margin-top:8px;">
       <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
-      <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
-      <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="display:none;margin-top:8px;">
+      <div style="position:relative;margin-top:8px;">
+        <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="current-password" style="margin-top:0;padding-right:44px;width:100%;box-sizing:border-box;">
+        <button type="button" id="togglePasswordBtn" title="Tampilkan password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:2px;color:var(--ink-soft);">👁️</button>
+      </div>
+      <div style="position:relative;margin-top:8px;display:none;" id="authPasswordConfirmWrap">
+        <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="margin-top:0;padding-right:44px;width:100%;box-sizing:border-box;">
+        <button type="button" id="togglePasswordConfirmBtn" title="Tampilkan konfirmasi" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;line-height:1;padding:2px;color:var(--ink-soft);">👁️</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;user-select:none;" id="rememberEmailRow">
+        <input type="checkbox" id="rememberEmailChk" style="width:15px;height:15px;accent-color:var(--teal);cursor:pointer;">
+        Ingat email saya
+      </label>
       <div class="auth-error" id="authError"></div>
       <button id="authSubmitBtn">Masuk</button>
       <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
@@ -2020,29 +2030,100 @@ function updateAuthModeUI(){
 
     $a('authPasswordInput').placeholder = 'Password (min. 6 karakter)';
     $a('authPasswordInput').autocomplete = 'new-password';
-    $a('authPasswordConfirm').style.display = 'block';
+    if($a('authPasswordConfirmWrap')) $a('authPasswordConfirmWrap').style.display = 'block';
     $a('authPasswordConfirm').value = '';
+    if($a('rememberEmailRow')) $a('rememberEmailRow').style.display = 'none';
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     $a('authTabLogin').classList.remove('active');
     $a('authTabRegister').classList.add('active');
     $a('forgotPasswordBtn').style.display = 'none';
+    setTimeout(()=>{ try{ $a('authNameInput').focus(); }catch(e){} }, 80);
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
 
     $a('authPasswordInput').placeholder = 'Password';
     $a('authPasswordInput').autocomplete = 'current-password';
-    $a('authPasswordConfirm').style.display = 'none';
+    if($a('authPasswordConfirmWrap')) $a('authPasswordConfirmWrap').style.display = 'none';
     $a('authPasswordConfirm').value = '';
+    if($a('rememberEmailRow')) $a('rememberEmailRow').style.display = 'flex';
     $a('authSubmitBtn').textContent = 'Masuk';
     $a('authTabRegister').classList.remove('active');
     $a('authTabLogin').classList.add('active');
     $a('forgotPasswordBtn').style.display = 'inline-block';
+    setTimeout(()=>{ try{ $a('authEmailInput').focus(); }catch(e){} }, 80);
   }
 }
 $a('authTabLogin').addEventListener('click', ()=>{ authMode='login'; updateAuthModeUI(); });
 $a('authTabRegister').addEventListener('click', ()=>{ authMode='register'; updateAuthModeUI(); });
 updateAuthModeUI();
+
+// ---- Show/hide password toggle ----
+(function(){
+  function makeToggle(btnId, inputId){
+    const btn = $a(btnId);
+    const inp = $a(inputId);
+    if(!btn || !inp) return;
+    let visible = false;
+    btn.addEventListener('click', ()=>{
+      visible = !visible;
+      inp.type = visible ? 'text' : 'password';
+      btn.textContent = visible ? '🙈' : '👁️';
+      btn.title = visible ? 'Sembunyikan password' : 'Tampilkan password';
+    });
+  }
+  makeToggle('togglePasswordBtn', 'authPasswordInput');
+  makeToggle('togglePasswordConfirmBtn', 'authPasswordConfirm');
+})();
+
+// ---- Ingat email (remember me) ----
+(function(){
+  const REMEMBER_KEY = 'umkm_remember_email';
+  const emailInp = $a('authEmailInput');
+  const chk = $a('rememberEmailChk');
+  if(!emailInp || !chk) return;
+  // Muat email yang tersimpan
+  try{
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if(saved){ emailInp.value = saved; chk.checked = true; }
+  } catch(e){}
+  // Simpan/hapus saat submit berhasil — hook ke authSubmitBtn click setelah login sukses
+  const origSubmit = $a('authSubmitBtn');
+  origSubmit.addEventListener('click', ()=>{
+    if(authMode === 'login'){
+      try{
+        if(chk.checked) localStorage.setItem(REMEMBER_KEY, emailInp.value.trim());
+        else localStorage.removeItem(REMEMBER_KEY);
+      } catch(e){}
+    }
+  }, true); // capture phase, sebelum handler utama
+})();
+
+// ---- Animasi smooth saat logout (fade-in authOverlay) ----
+(function(){
+  const _origUnlock = unlockAuthOverlay;
+  // Patch: tambahkan animasi fade-in saat authOverlay muncul
+  window._authOverlayFadeIn = function(){
+    const a = document.getElementById('authOverlay');
+    if(!a || a.classList.contains('hidden')) return;
+    a.style.opacity = '0';
+    a.style.transition = 'opacity .4s ease';
+    requestAnimationFrame(()=>{ requestAnimationFrame(()=>{ a.style.opacity = '1'; }); });
+  };
+  // Observe visibility setelah unlock
+  const obs = new MutationObserver((muts)=>{
+    muts.forEach(m=>{
+      if(m.attributeName === 'class'){
+        const a = document.getElementById('authOverlay');
+        if(a && !a.classList.contains('hidden') && _splashDone){
+          window._authOverlayFadeIn();
+        }
+      }
+    });
+  });
+  const authEl = document.getElementById('authOverlay');
+  if(authEl) obs.observe(authEl, { attributes: true });
+})();
 
 function translateAuthError(code){
   const map = {
@@ -2213,6 +2294,18 @@ let _splashDone = false;
 let _authWantsShow = false;
 function unlockAuthOverlay(){
   _authWantsShow = true;
+  // Reset state OTP/register yang mungkin masih tersisa dari sesi sebelumnya
+  _pendingRegister = null;
+  clearInterval(_otpTimer);
+  // Pastikan kembali ke Step 1 (Login/Daftar), bukan ke layar OTP
+  if($a('authStep1')) $a('authStep1').style.display = 'block';
+  if($a('authStep2')) $a('authStep2').style.display = 'none';
+  if($a('authHint'))  $a('authHint').style.display  = 'block';
+  if($a('authIcon'))  $a('authIcon').textContent    = '🔐';
+  if($a('authTitle')) $a('authTitle').textContent   = 'Masuk ke Akunmu';
+  if($a('authSubtitle')) $a('authSubtitle').style.display = 'block';
+  if($a('authError')) { $a('authError').textContent = ''; $a('authError').style.color = ''; }
+  authMode = 'login';
   if(_splashDone){
     const a = document.getElementById('authOverlay');
     if(a){ a.style.removeProperty('display'); a.classList.remove('hidden'); }

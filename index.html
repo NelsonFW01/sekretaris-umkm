@@ -26,7 +26,8 @@
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    onAuthStateChanged, signOut, sendPasswordResetEmail, sendEmailVerification, deleteUser
+    onAuthStateChanged, signOut, sendPasswordResetEmail, sendEmailVerification, deleteUser,
+    PhoneAuthProvider, signInWithPhoneNumber, RecaptchaVerifier
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
@@ -66,6 +67,9 @@
       window.fbSendPasswordReset = sendPasswordResetEmail;
       window.fbSendEmailVerification = sendEmailVerification;
       window.fbDeleteUser = deleteUser;
+      window.fbPhoneAuthProvider = PhoneAuthProvider;
+      window.fbSignInWithPhoneNumber = signInWithPhoneNumber;
+      window.fbRecaptchaVerifier = RecaptchaVerifier;
       window.rtdbRef = ref;
       window.rtdbPush = push;
       window.rtdbSet = set;
@@ -1773,6 +1777,7 @@
         <button type="button" class="auth-tab" id="authTabRegister">Daftar</button>
       </div>
       <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
+      <input type="tel" id="authPhoneInput" placeholder="Nomor HP (contoh: +628123456789)" autocomplete="tel" class="auth-field-hidden" style="display:none;margin-top:8px;">
       <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
       <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
       <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="display:none;margin-top:8px;">
@@ -1783,7 +1788,7 @@
 
     <!-- Step 2: OTP verifikasi (muncul setelah daftar) -->
     <div id="authStep2" style="display:none;">
-      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">Kode 6 digit sudah dikirim ke <strong id="otpEmailDisplay"></strong>. Berlaku <strong id="otpCountdown" style="color:var(--coral);">120</strong> detik.</p>
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">Kode 6 digit sudah dikirim ke nomor HP <strong id="otpEmailDisplay"></strong>. Berlaku <strong id="otpCountdown" style="color:var(--coral);">120</strong> detik.</p>
       <input type="text" id="otpInput" placeholder="Masukkan kode 6 digit" maxlength="6" inputmode="numeric" pattern="[0-9]*"
         style="text-align:center;font-size:26px;letter-spacing:10px;font-weight:700;padding:14px;border-radius:12px;border:2px solid var(--line);width:100%;font-family:'JetBrains Mono',monospace;">
       <div class="auth-error" id="otpError" style="margin-top:10px;"></div>
@@ -1793,6 +1798,7 @@
     </div>
 
     <div class="wb-hint" style="margin-top:14px;" id="authHint">Kamu bisa mengganti nama tampilan kapan saja lewat halaman Profil.</div>
+    <div id="recaptcha-container"></div>
   </div>
 </div>
 
@@ -1933,9 +1939,10 @@ let authMode = 'login';
 
 function $a(id){ return document.getElementById(id); }
 
-// ===== OTP EMAIL SYSTEM via Resend =====
-const RESEND_API_KEY = 're_Sop1dEa1_QCcjWqRLingzm8RZ71yG2kTE';
+// ===== OTP SYSTEM via Firebase Phone Auth =====
 const OTP_EXPIRE_MS  = 120000; // 2 menit
+let _recaptchaVerifier = null;
+let _confirmationResult = null;
 
 let _otpCode = '';
 let _otpExpiry = 0;
@@ -1960,31 +1967,25 @@ function _startOTPCountdown(){
   }, 1000);
 }
 
-async function _sendOTP(email, name){
-  _otpCode   = _genOTP();
+async function _sendOTP(phone, name){
   _otpExpiry = Date.now() + OTP_EXPIRE_MS;
   try{
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + RESEND_API_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: 'Sekretaris UMKM <onboarding@resend.dev>',
-        to: [email],
-        subject: 'Kode Verifikasi Sekretaris UMKM',
-        html: '<p>Halo <b>' + (name || email) + '</b>,</p><p>Kode verifikasi kamu: <b style="font-size:24px;letter-spacing:4px;">' + _otpCode + '</b></p><p>Kode berlaku 2 menit. Jangan bagikan ke siapapun.</p><p>- Tim Sekretaris UMKM</p>'
-      })
-    });
-    if(!res.ok){
-      const err = await res.json().catch(()=>({}));
-      console.error('Resend error:', err);
-      return false;
+    // Init reCAPTCHA kalau belum
+    if(!_recaptchaVerifier){
+      _recaptchaVerifier = new window.fbRecaptchaVerifier(window.fbAuth, 'recaptcha-container', {
+        size: 'invisible',
+        callback: () => {}
+      });
     }
+    _confirmationResult = await window.fbSignInWithPhoneNumber(window.fbAuth, phone, _recaptchaVerifier);
     return true;
   } catch(e){
-    console.error('Resend fetch error:', e);
+    console.error('Phone OTP error:', e);
+    // Reset recaptcha on error
+    if(_recaptchaVerifier){
+      try{ _recaptchaVerifier.clear(); } catch(ex){}
+      _recaptchaVerifier = null;
+    }
     return false;
   }
 }
@@ -2022,6 +2023,7 @@ function updateAuthModeUI(){
   if(authMode==='register'){
     $a('authTitle').textContent = 'Daftar Akun Baru';
     $a('authNameInput').classList.remove('auth-field-hidden');
+    $a('authPhoneInput').style.display = 'block';
     $a('authPasswordInput').placeholder = 'Password (min. 6 karakter)';
     $a('authPasswordInput').autocomplete = 'new-password';
     $a('authPasswordConfirm').style.display = 'block';
@@ -2033,6 +2035,7 @@ function updateAuthModeUI(){
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
+    $a('authPhoneInput').style.display = 'none';
     $a('authPasswordInput').placeholder = 'Password';
     $a('authPasswordInput').autocomplete = 'current-password';
     $a('authPasswordConfirm').style.display = 'none';
@@ -2092,23 +2095,26 @@ $a('authSubmitBtn').addEventListener('click', async () => {
   if(!email || !pass){ $a('authError').textContent = 'Isi email dan password dulu.'; return; }
   if(authMode==='register'){
     if(!name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
+    const phone = ($a('authPhoneInput').value || '').trim();
+    if(!phone){ $a('authError').textContent = 'Isi nomor HP kamu dulu (format: +628xxx).'; return; }
+    if(!phone.startsWith('+')){ $a('authError').textContent = 'Nomor HP harus pakai kode negara, contoh: +628123456789'; return; }
     const passConfirm = $a('authPasswordConfirm').value;
     if(!passConfirm){ $a('authError').textContent = 'Konfirmasi password dulu ya.'; return; }
     if(pass !== passConfirm){ $a('authError').textContent = 'Password dan konfirmasi tidak sama.'; return; }
     if(pass.length < 6){ $a('authError').textContent = 'Password minimal 6 karakter.'; return; }
 
-    // Mode register: kirim OTP dulu sebelum buat akun
+    // Mode register: kirim OTP SMS dulu sebelum buat akun
     $a('authSubmitBtn').disabled = true;
-    $a('authSubmitBtn').textContent = '📤 Mengirim kode...';
-    const ok = await _sendOTP(email, name);
+    $a('authSubmitBtn').textContent = '📤 Mengirim kode SMS...';
+    const ok = await _sendOTP(phone, name);
     $a('authSubmitBtn').disabled = false;
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     if(!ok){
-      $a('authError').textContent = '❌ Gagal kirim kode OTP. Pastikan email benar dan coba lagi.';
+      $a('authError').textContent = '❌ Gagal kirim kode SMS. Pastikan nomor HP benar dan coba lagi.';
       return;
     }
-    _pendingRegister = { email, pass, name };
-    _showOTPStep(email);
+    _pendingRegister = { email, pass, name, phone };
+    _showOTPStep(phone);
   } else {
     // Mode login: langsung masuk
     $a('authSubmitBtn').disabled = true;
@@ -2130,14 +2136,17 @@ $a('otpVerifyBtn').addEventListener('click', async () => {
   const inputOtp = ($a('otpInput').value || '').trim();
   $a('otpError').textContent = '';
   if(!inputOtp || inputOtp.length !== 6){ $a('otpError').textContent = 'Masukkan 6 digit kode.'; return; }
-  if(Date.now() > _otpExpiry){ $a('otpError').textContent = '⏰ Kode sudah kedaluwarsa. Klik Kirim Ulang.'; return; }
-  if(inputOtp !== _otpCode){ $a('otpError').textContent = '❌ Kode salah. Coba lagi.'; return; }
+  if(!_confirmationResult){ $a('otpError').textContent = 'Sesi OTP tidak ditemukan. Kembali dan coba lagi.'; return; }
   if(!_pendingRegister){ $a('otpError').textContent = 'Sesi daftar tidak ditemukan. Kembali dan coba lagi.'; return; }
 
   $a('otpVerifyBtn').disabled = true;
-  $a('otpVerifyBtn').textContent = '⏳ Membuat akun...';
+  $a('otpVerifyBtn').textContent = '⏳ Memverifikasi...';
   const { email, pass, name } = _pendingRegister;
   try{
+    // Verifikasi kode SMS dengan Firebase
+    await _confirmationResult.confirm(inputOtp);
+    // Setelah phone verified, sign out phone user lalu buat akun email/password
+    await window.fbSignOut(window.fbAuth);
     const cred = await window.fbCreateUser(window.fbAuth, email, pass);
     MY_UID = cred.user.uid;
     try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
@@ -2146,9 +2155,10 @@ $a('otpVerifyBtn').addEventListener('click', async () => {
     });
     clearInterval(_otpTimer);
     _pendingRegister = null;
+    _confirmationResult = null;
     // authOverlay akan otomatis tutup via onAuthStateChanged
   } catch(err){
-    $a('otpError').textContent = translateAuthError(err.code) || ('Gagal buat akun: '+err.message);
+    $a('otpError').textContent = translateAuthError(err.code) || ('Kode salah atau kedaluwarsa. Coba lagi.');
     $a('otpVerifyBtn').disabled = false;
     $a('otpVerifyBtn').textContent = '✅ Verifikasi & Buat Akun';
   }
@@ -2160,7 +2170,7 @@ $a('otpResendBtn').addEventListener('click', async () => {
   $a('otpResendBtn').disabled = true;
   $a('otpResendBtn').textContent = '⏳ Mengirim...';
   $a('otpError').textContent = '';
-  const ok = await _sendOTP(_pendingRegister.email, _pendingRegister.name);
+  const ok = await _sendOTP(_pendingRegister.phone, _pendingRegister.name);
   $a('otpResendBtn').disabled = false;
   $a('otpResendBtn').textContent = '🔄 Kirim Ulang Kode';
   if(ok){

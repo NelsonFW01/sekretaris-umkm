@@ -1881,7 +1881,7 @@ const DEBUG_MODE = location.search.includes('debug');
 if(location.protocol === 'file:'){
   window.addEventListener('DOMContentLoaded', ()=>{
     const warn=document.createElement('div');
-    warn.style.cssText='position:fixed;left:10px;right:10px;top:10px;z-index:999998;background:#FFF1D6;border:1.5px solid #E1913D;color:#A07000;padding:10px 14px;border-radius:12px;font-size:12.5px;line-height:1.5;font-family:sans-serif;';
+    warn.style.cssText='position:fixed;left:10px;right:10px;top:10px;z-index:999998;background:#FFF1D6;border:1.5px solid #E1913D;color:#A07000;padding:10px 14px;border-radius:12px;font-size:12.5px;line-height:1.5;font-family:sans-serif;pointer-events:none;';
     warn.innerHTML='⚠️ Halaman ini dibuka langsung dari file (file://), bukan dari server/hosting. Di banyak HP, ini bikin <b>data tidak tersimpan</b> dan beberapa tombol/fitur online <b>tidak merespon</b>. Upload ke hosting (Firebase Hosting / Netlify / GitHub Pages) lalu akses lewat https:// untuk hasil normal.';
     document.body.insertBefore(warn, document.body.firstChild);
   });
@@ -5344,9 +5344,7 @@ document.addEventListener('click', async (e) => {
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {banned: doBan});
     if(allUsersCache[uid]) allUsersCache[uid].banned = doBan;
     renderAdminUserList();
-    if(doBan) alert('Pengguna ini sudah di-ban. Mereka tidak akan bisa login karena akun akan langsung dikeluarkan saat masuk.
-
-Note: untuk hapus akun Firebase Auth sepenuhnya, lakukan dari Firebase Console → Authentication.');
+    if(doBan) alert('Pengguna ini sudah di-ban. Mereka tidak akan bisa login karena akun akan langsung dikeluarkan saat masuk.\n\nNote: untuk hapus akun Firebase Auth sepenuhnya, lakukan dari Firebase Console \u2192 Authentication.');
   } catch(err){
     alert('Gagal ban/unban: '+err.message);
     btn.disabled = false;

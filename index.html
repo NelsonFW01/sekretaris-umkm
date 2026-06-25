@@ -1771,6 +1771,7 @@
     <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
     <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
     <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
+    <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="display:none;margin-top:8px;">
     <div class="auth-error" id="authError"></div>
     <button id="authSubmitBtn">Masuk</button>
     <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
@@ -1917,9 +1918,14 @@ function $a(id){ return document.getElementById(id); }
 
 function updateAuthModeUI(){
   $a('authError').textContent = '';
+  document.getElementById('resendVerifBtn')?.remove();
   if(authMode==='register'){
     $a('authTitle').textContent = 'Daftar Akun Baru';
     $a('authNameInput').classList.remove('auth-field-hidden');
+    $a('authPasswordInput').placeholder = 'Password (min. 6 karakter)';
+    $a('authPasswordInput').autocomplete = 'new-password';
+    $a('authPasswordConfirm').style.display = 'block';
+    $a('authPasswordConfirm').value = '';
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     $a('authTabLogin').classList.remove('active');
     $a('authTabRegister').classList.add('active');
@@ -1927,6 +1933,10 @@ function updateAuthModeUI(){
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
+    $a('authPasswordInput').placeholder = 'Password';
+    $a('authPasswordInput').autocomplete = 'current-password';
+    $a('authPasswordConfirm').style.display = 'none';
+    $a('authPasswordConfirm').value = '';
     $a('authSubmitBtn').textContent = 'Masuk';
     $a('authTabRegister').classList.remove('active');
     $a('authTabLogin').classList.add('active');
@@ -1979,6 +1989,12 @@ $a('authSubmitBtn').addEventListener('click', async () => {
   if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, login tidak bisa dipakai.'; return; }
   if(!email || !pass){ $a('authError').textContent = 'Isi email dan password dulu.'; return; }
   if(authMode==='register' && !name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
+  if(authMode==='register'){
+    const passConfirm = $a('authPasswordConfirm').value;
+    if(!passConfirm){ $a('authError').textContent = 'Konfirmasi password dulu ya.'; return; }
+    if(pass !== passConfirm){ $a('authError').textContent = 'Password dan konfirmasi tidak sama. Coba cek lagi.'; return; }
+    if(pass.length < 6){ $a('authError').textContent = 'Password minimal 6 karakter.'; return; }
+  }
   $a('authSubmitBtn').disabled = true;
   const oldLabel = $a('authSubmitBtn').textContent;
   $a('authSubmitBtn').textContent = 'Memproses...';
@@ -1988,7 +2004,11 @@ $a('authSubmitBtn').addEventListener('click', async () => {
       MY_UID = cred.user.uid;
       try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
       // Kirim email verifikasi ke alamat yang didaftarkan
-      const _verifSettings = { url: location.href, handleCodeInApp: false };
+      // continueUrl: kalau di localhost/file pakai origin saja, kalau hosting pakai href
+      const _verifUrl = (location.hostname === 'localhost' || location.protocol === 'file:')
+        ? 'https://sekretaris-umkm.web.app'
+        : location.origin;
+      const _verifSettings = { url: _verifUrl, handleCodeInApp: false };
       try{ await window.fbSendEmailVerification(cred.user, _verifSettings); } catch(evErr){ console.warn('Gagal kirim verif email:', evErr); }
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
         displayName:name, uid:MY_UID, email:email, emailVerified:false, updatedAt:Date.now()
@@ -1998,7 +2018,7 @@ $a('authSubmitBtn').addEventListener('click', async () => {
     } else {
       await window.fbSignIn(window.fbAuth, email, pass);
     }
-    $a('authEmailInput').value=''; $a('authPasswordInput').value=''; $a('authNameInput').value='';
+    $a('authEmailInput').value=''; $a('authPasswordInput').value=''; $a('authNameInput').value=''; $a('authPasswordConfirm').value='';
   } catch(err){
     $a('authError').textContent = translateAuthError(err.code) || ('Gagal: '+err.message);
   } finally {
@@ -2079,7 +2099,10 @@ function initAuthGate(){
           btn.onclick = async () => {
             btn.disabled = true; btn.textContent = '⏳ Mengirim...';
             try{
-              const _rs = { url: location.href, handleCodeInApp: false };
+              const _rsUrl = (location.hostname === 'localhost' || location.protocol === 'file:')
+                ? 'https://sekretaris-umkm.web.app'
+                : location.origin;
+              const _rs = { url: _rsUrl, handleCodeInApp: false };
               await window.fbSendEmailVerification(window.fbAuth.currentUser, _rs);
               btn.textContent = '✅ Email terkirim! Cek inbox kamu.';
             } catch(e){ btn.textContent = '❌ Gagal kirim: ' + e.message; btn.disabled = false; }

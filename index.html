@@ -2372,8 +2372,15 @@ async function processTransaction(transcript){
   const prompt = `Kamu adalah asisten pencatat keuangan untuk pelaku UMKM Indonesia.
 Dari kalimat berikut, ekstrak SATU ATAU LEBIH transaksi keuangan.
 Kalimat: "${transcript}"
-Balas HANYA dengan JSON array (tanpa markdown) format:
-[{"type":"in"atau"out","desc":"deskripsi singkat","category":"kategori","amount":angka_rupiah}]
+
+Aturan wajib:
+- "type" harus PERSIS salah satu dari dua nilai: "in" (pemasukan/pendapatan/laku/untung) ATAU "out" (pengeluaran/beli/bayar/modal/biaya/ongkos).
+- "amount" harus berupa angka positif (tanpa tanda minus, tanpa titik/koma ribuan, misal: 50000).
+- Jangan pernah mengisi amount dengan 0 kecuali memang disebutkan nol.
+- Jika kalimat menyebut pengeluaran/belanja/beli, type wajib "out".
+
+Balas HANYA dengan JSON array murni tanpa markdown, contoh:
+[{"type":"out","desc":"beli tepung","category":"Modal Bahan","amount":50000}]
 Jika tidak ada transaksi jelas, balas [].`;
   try{
     const result = await callAI(prompt);
@@ -6867,17 +6874,23 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // Auto-refresh on tab open
   document.querySelectorAll('.tab[data-panel="kongsi"]').forEach(t=>t.addEventListener('click',refresh));
-  document.addEventListener('firebase-ready',()=>{
-    refresh();
-    // Realtime listener: semua user (termasuk si pembuat) langsung lihat postingan baru
+
+  function setupKongsiRealtime(){
     try{
+      // Realtime listener: semua user (termasuk si pembuat) langsung lihat postingan baru
       window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'pasarKongsi'), snap=>{
         const v=snap.val()||{};
         cache=Object.entries(v).map(([id,val])=>({...val,id}));
         renderList(cache);
       });
-    }catch(e){}
-  });
+    }catch(e){ refresh(); }
+  }
+
+  if(window.firebaseReady && window.firebaseDb){
+    setupKongsiRealtime();
+  } else {
+    document.addEventListener('firebase-ready', setupKongsiRealtime);
+  }
   setTimeout(refresh,800);
 })();
 
@@ -7090,6 +7103,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   $$('brainTrainBtn').addEventListener('click',runTraining);
   document.querySelectorAll('.tab[data-panel="brain"]').forEach(t=>t.addEventListener('click',refreshStatus));
+  // Panggil refreshStatus segera (bukan hanya setelah 1 detik) agar tombol langsung aktif
+  refreshStatus();
   setTimeout(refreshStatus,1000);
 })();
 </script>

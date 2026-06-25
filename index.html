@@ -1415,16 +1415,49 @@
         <button class="kg-secondary" id="kgRefreshBtn">🔄 Muat Ulang</button>
       </div>
       <div class="kongsi-form" id="kgForm">
-        <label>Judul singkat</label>
-        <input type="text" id="kgTitle" placeholder="cth: Tepung terigu 25kg lebih, mau lepas murah">
-        <label>Deskripsi</label>
-        <textarea id="kgDesc" placeholder="Jelaskan kondisi, kuantitas, lokasi pickup, deadline..."></textarea>
-        <label>Harga / Patungan (Rp, opsional)</label>
-        <input type="number" id="kgPrice" placeholder="0">
-        <label>Kota</label>
-        <input type="text" id="kgCity" placeholder="cth: Tangerang">
-        <label>WhatsApp kontak (08xx atau 62xx)</label>
-        <input type="text" id="kgWa" placeholder="08123456789">
+        <!-- STOK LEBIH -->
+        <div id="kgf-stok">
+          <label>Judul singkat</label>
+          <input type="text" id="kgTitle" placeholder="cth: Tepung terigu 25kg lebih, mau lepas murah">
+          <label>Deskripsi barang</label>
+          <textarea id="kgDesc" placeholder="Kondisi barang, jumlah stok, batas waktu ambil..."></textarea>
+          <label>Harga jual (Rp, 0 = gratis/nego)</label>
+          <input type="number" id="kgPrice" placeholder="0">
+          <label>Kota</label>
+          <input type="text" id="kgCity" placeholder="cth: Tangerang">
+          <label>WhatsApp kontak</label>
+          <input type="text" id="kgWa" placeholder="08123456789">
+        </div>
+        <!-- KONGSI BELANJA -->
+        <div id="kgf-belanja" style="display:none;">
+          <label>Bahan / produk yang mau dibeli bareng</label>
+          <input type="text" id="kgTitleB" placeholder="cth: Minyak goreng 20L, gula pasir 50kg">
+          <label>Deskripsi &amp; target patungan</label>
+          <textarea id="kgDescB" placeholder="Misal: butuh 5 orang patungan biar dapat harga grosir, deadline minggu ini..."></textarea>
+          <label>Estimasi patungan per orang (Rp)</label>
+          <input type="number" id="kgPriceB" placeholder="0">
+          <label>Kota / pasar tujuan beli</label>
+          <input type="text" id="kgCityB" placeholder="cth: Pasar Induk Tangerang">
+          <label>WhatsApp koordinator</label>
+          <input type="text" id="kgWaB" placeholder="08123456789">
+        </div>
+        <!-- RUTE KURIR -->
+        <div id="kgf-kurir" style="display:none;">
+          <label>Judul singkat</label>
+          <input type="text" id="kgTitleK" placeholder="cth: Antar barang Tangerang ke Jakarta Barat">
+          <label>&#128205; Lokasi asal (kota/kecamatan)</label>
+          <input type="text" id="kgFrom" placeholder="cth: Ciledug, Tangerang">
+          <label>&#127937; Lokasi tujuan (kota/kecamatan)</label>
+          <input type="text" id="kgTo" placeholder="cth: Grogol, Jakarta Barat">
+          <label>Keterangan muatan / jadwal</label>
+          <textarea id="kgDescK" placeholder="Jenis barang, berat, jadwal berangkat, tarif..."></textarea>
+          <label>Ongkos kirim (Rp, 0 = nego)</label>
+          <input type="number" id="kgPriceK" placeholder="0">
+          <label>WhatsApp kurir</label>
+          <input type="text" id="kgWaK" placeholder="08123456789">
+          <button type="button" id="kgPreviewRouteBtn" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:13px;cursor:pointer;">&#128506; Preview Rute di Peta</button>
+          <div id="kgRoutePreview" style="display:none;margin-top:8px;border-radius:11px;overflow:hidden;height:200px;border:1.5px solid #EFE6D8;"></div>
+        </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <button class="kg-primary" id="kgSubmit" style="flex:1;">Posting</button>
           <button class="kg-secondary" id="kgCancel" style="flex:1;">Batal</button>
@@ -6769,8 +6802,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     return '<span class="kc-badge kurir">🛵 Rute Kurir</span>';
   }
 
+  let listRouteMaps={};
   function renderList(items){
     const list=$$('kgList');
+    // Bersihkan peta rute list yang lama
+    Object.values(listRouteMaps).forEach(m=>{try{m.remove();}catch(e){}});
+    listRouteMaps={};
     const filtered=items.filter(i=>i.mode===kgMode).sort((a,b)=>(b.ts||0)-(a.ts||0));
     if(filtered.length===0){list.innerHTML='<div class="empty-state">Belum ada tawaran di mode ini. Jadilah yang pertama posting!</div>';return;}
     list.innerHTML=filtered.map(it=>{
@@ -6778,9 +6815,18 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const waLink=wa?`https://wa.me/${wa}?text=${encodeURIComponent('Halo, saya tertarik dengan tawaran kamu di Pasar Kongsi: '+it.title)}`:'#';
       const ownerKey=it.ownerKey||'';
       const isMine = ownerKey && ownerKey===getOwnerKey();
+      const kurirExtra = it.mode==='kurir' ? `
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
+          <span style="background:#DCEFE9;color:#1B4D4A;padding:3px 9px;border-radius:20px;font-weight:700;">📍 ${escapeHtml(it.from||it.city||'—')}</span>
+          <span style="color:#999;">→</span>
+          <span style="background:#FFF1D6;color:#A07000;padding:3px 9px;border-radius:20px;font-weight:700;">🏁 ${escapeHtml(it.to||'—')}</span>
+        </div>
+        <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="width:100%;margin-bottom:8px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute di Peta</button>
+        <div id="lrmap-${it.id}" style="display:none;height:180px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1.5px solid #EFE6D8;"></div>` : '';
       return `<div class="kongsi-card">
         <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
         <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
+        ${kurirExtra}
         <div class="kc-desc">${escapeHtml(it.desc||'')}</div>
         <div class="kc-foot">
           <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
@@ -6790,6 +6836,33 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       </div>`;
     }).join('');
   }
+
+  // Handler klik "Lihat Rute" di card kurir
+  $$('kgList').addEventListener('click', async e=>{
+    const btn=e.target.closest('.kc-show-route');
+    if(!btn) return;
+    const id=btn.dataset.id;
+    const from=btn.dataset.from.trim();
+    const to=btn.dataset.to.trim();
+    const wrap=document.getElementById('lrmap-'+id);
+    if(!wrap) return;
+    if(wrap.style.display==='block'){wrap.style.display='none';btn.textContent='🗺️ Lihat Rute di Peta';if(listRouteMaps[id]){listRouteMaps[id].remove();delete listRouteMaps[id];}return;}
+    btn.textContent='⏳ Memuat peta...'; btn.disabled=true;
+    const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
+    btn.textContent='🗺️ Sembunyikan Peta'; btn.disabled=false;
+    if(!orig||!dest){alert('Lokasi tidak ditemukan.');return;}
+    wrap.style.display='block';
+    if(listRouteMaps[id]){listRouteMaps[id].remove();}
+    const m=L.map(wrap).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(m);
+    L.marker([orig.lat,orig.lon]).addTo(m).bindPopup('📍 Asal: '+from).openPopup();
+    L.marker([dest.lat,dest.lon]).addTo(m).bindPopup('🏁 Tujuan: '+to);
+    const line=L.polyline([[orig.lat,orig.lon],[dest.lat,dest.lon]],{color:'#1B4D4A',weight:4,dashArray:'8,6'}).addTo(m);
+    m.fitBounds(line.getBounds(),{padding:[20,20]});
+    if(window.L&&L.Routing&&L.Routing.control){try{L.Routing.control({waypoints:[L.latLng(orig.lat,orig.lon),L.latLng(dest.lat,dest.lon)],routeWhileDragging:false,show:false,addWaypoints:false,lineOptions:{styles:[{color:'#E8633F',weight:4}]}}).addTo(m);m.removeLayer(line);}catch(er){}}
+    listRouteMaps[id]=m;
+    setTimeout(()=>m.invalidateSize(),150);
+  });
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
@@ -6842,6 +6915,52 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     }
   }
 
+  // Tampilkan field form sesuai mode aktif
+  function updateFormFields(){
+    $$('kgf-stok').style.display   = kgMode==='stok'    ? '' : 'none';
+    $$('kgf-belanja').style.display= kgMode==='belanja'  ? '' : 'none';
+    $$('kgf-kurir').style.display  = kgMode==='kurir'    ? '' : 'none';
+  }
+
+  // Geocode pakai Nominatim (OpenStreetMap, gratis, tanpa API key)
+  async function geocode(query){
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query+', Indonesia')}&limit=1`,{headers:{'Accept-Language':'id'}});
+      const d=await r.json();
+      if(d&&d[0]) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),name:d[0].display_name};
+    }catch(e){}
+    return null;
+  }
+
+  let kgRouteMap=null;
+  async function previewKurirRoute(){
+    const from=$$('kgFrom').value.trim();
+    const to=$$('kgTo').value.trim();
+    if(!from||!to){alert('Isi lokasi asal dan tujuan dulu ya.');return;}
+    const btn=$$('kgPreviewRouteBtn');
+    btn.textContent='⏳ Mencari rute...'; btn.disabled=true;
+    const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
+    btn.textContent='🗺️ Preview Rute di Peta'; btn.disabled=false;
+    if(!orig||!dest){alert('Lokasi tidak ditemukan. Coba tulis lebih spesifik, contoh: "Ciledug, Tangerang".');return;}
+    const wrap=$$('kgRoutePreview');
+    wrap.style.display='block';
+    if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
+    kgRouteMap=L.map(wrap).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(kgRouteMap);
+    const mFrom=L.marker([orig.lat,orig.lon]).addTo(kgRouteMap).bindPopup('📍 Asal: '+from).openPopup();
+    const mTo=L.marker([dest.lat,dest.lon]).addTo(kgRouteMap).bindPopup('🏁 Tujuan: '+to);
+    // Gambar garis lurus dulu sebagai fallback; coba routing machine jika tersedia
+    const line=L.polyline([[orig.lat,orig.lon],[dest.lat,dest.lon]],{color:'#1B4D4A',weight:4,dashArray:'8,6'}).addTo(kgRouteMap);
+    kgRouteMap.fitBounds(line.getBounds(),{padding:[20,20]});
+    if(window.L&&L.Routing&&L.Routing.control){
+      try{
+        L.Routing.control({waypoints:[L.latLng(orig.lat,orig.lon),L.latLng(dest.lat,dest.lon)],routeWhileDragging:false,show:false,addWaypoints:false,lineOptions:{styles:[{color:'#E8633F',weight:4}]}}).addTo(kgRouteMap);
+        kgRouteMap.removeLayer(line);
+      }catch(er){}
+    }
+    setTimeout(()=>kgRouteMap.invalidateSize(),150);
+  }
+
   // Wire UI
   try{
     document.querySelectorAll('.kongsi-mode').forEach(el=>{
@@ -6849,21 +6968,52 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         document.querySelectorAll('.kongsi-mode').forEach(m=>m.classList.remove('active'));
         el.classList.add('active');
         kgMode=el.dataset.mode;
+        updateFormFields();
+        // Tutup form dan reset peta rute saat ganti mode
+        $$('kgForm').classList.remove('open');
+        if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
+        $$('kgRoutePreview').style.display='none';
         renderList(cache);
       });
     });
-    $$('kgAddBtn')?.addEventListener('click',()=>{ $$('kgForm')?.classList.toggle('open'); });
-    $$('kgCancel')?.addEventListener('click',()=>$$('kgForm')?.classList.remove('open'));
+    $$('kgAddBtn')?.addEventListener('click',()=>{
+      updateFormFields();
+      $$('kgForm')?.classList.toggle('open');
+    });
+    $$('kgCancel')?.addEventListener('click',()=>{
+      $$('kgForm')?.classList.remove('open');
+      if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
+      $$('kgRoutePreview').style.display='none';
+    });
     $$('kgRefreshBtn')?.addEventListener('click',refresh);
+    $$('kgPreviewRouteBtn')?.addEventListener('click',previewKurirRoute);
     $$('kgSubmit')?.addEventListener('click',()=>{
-      const title=$$('kgTitle').value.trim();
-      const desc=$$('kgDesc').value.trim();
-      const city=$$('kgCity').value.trim();
-      const wa=$$('kgWa').value.trim();
-      const price=Number($$('kgPrice').value)||0;
-      if(!title||!desc||!wa||!city){alert('Isi minimal judul, deskripsi, kota, dan WA dulu ya.');return;}
-      addItem({mode:kgMode,title,desc,city,wa,price});
-      ['kgTitle','kgDesc','kgPrice','kgCity','kgWa'].forEach(id=>$$(id).value='');
+      let item={mode:kgMode};
+      if(kgMode==='stok'){
+        const title=$$('kgTitle').value.trim(), desc=$$('kgDesc').value.trim(),
+              city=$$('kgCity').value.trim(), wa=$$('kgWa').value.trim(),
+              price=Number($$('kgPrice').value)||0;
+        if(!title||!desc||!wa||!city){alert('Isi judul, deskripsi, kota, dan WA dulu ya.');return;}
+        Object.assign(item,{title,desc,city,wa,price});
+        ['kgTitle','kgDesc','kgPrice','kgCity','kgWa'].forEach(id=>$$(id).value='');
+      } else if(kgMode==='belanja'){
+        const title=$$('kgTitleB').value.trim(), desc=$$('kgDescB').value.trim(),
+              city=$$('kgCityB').value.trim(), wa=$$('kgWaB').value.trim(),
+              price=Number($$('kgPriceB').value)||0;
+        if(!title||!desc||!wa||!city){alert('Isi semua field kongsi belanja dulu ya.');return;}
+        Object.assign(item,{title,desc,city,wa,price});
+        ['kgTitleB','kgDescB','kgPriceB','kgCityB','kgWaB'].forEach(id=>$$(id).value='');
+      } else if(kgMode==='kurir'){
+        const title=$$('kgTitleK').value.trim(), desc=$$('kgDescK').value.trim(),
+              from=$$('kgFrom').value.trim(), to=$$('kgTo').value.trim(),
+              wa=$$('kgWaK').value.trim(), price=Number($$('kgPriceK').value)||0;
+        if(!title||!from||!to||!wa){alert('Isi judul, lokasi asal, tujuan, dan WA kurir dulu ya.');return;}
+        Object.assign(item,{title,desc,city:from,from,to,wa,price});
+        ['kgTitleK','kgDescK','kgFrom','kgTo','kgPriceK','kgWaK'].forEach(id=>$$(id).value='');
+        if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
+        $$('kgRoutePreview').style.display='none';
+      }
+      addItem(item);
       $$('kgForm').classList.remove('open');
     });
   }catch(e){ console.error('[kongsi] gagal pasang event:', e); if(typeof showDebugToast==='function') showDebugToast('Kongsi wiring error: '+e.message); }

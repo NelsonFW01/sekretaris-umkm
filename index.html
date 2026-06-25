@@ -2180,6 +2180,10 @@ document.querySelectorAll('.tab').forEach(tab => {
     tab.classList.add('active');
     $('panel-' + tab.dataset.panel).classList.add('active');
     if(tab.dataset.panel === 'dashboard') renderDashboard();
+    if(tab.dataset.panel === 'finance'){
+      $('transcriptPreview').textContent = '';
+      $('transcriptPreview').classList.remove('show');
+    }
   });
 });
 
@@ -2377,6 +2381,8 @@ Jika tidak ada transaksi jelas, balas [].`;
     if(Array.isArray(txs) && txs.length > 0){
       txs.forEach(tx => pendingReviews.push({...tx}));
       renderReviewArea();
+      $('transcriptPreview').textContent = '';
+      $('transcriptPreview').classList.remove('show');
     } else {
       $('micStatus').textContent = 'Tidak terdeteksi transaksi — coba lebih spesifik';
       $('micStatus').classList.remove('live');
@@ -6810,7 +6816,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       try{
         const r=window.rtdbRef(window.firebaseDb,'pasarKongsi');
         const newRef=window.rtdbPush(r);
-        window.rtdbSet(newRef,item).then(refresh).catch(()=>{const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();});
+        const itemWithId = {...item, id: newRef.key};
+        // Langsung tambahkan ke cache lokal agar muncul seketika tanpa tunggu fetch
+        cache = [...cache, itemWithId];
+        renderList(cache);
+        window.rtdbSet(newRef, item).then(refresh).catch(()=>{const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();});
       }catch(e){const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();}
     } else {
       const arr=loadLocal();item.id='l_'+Date.now();arr.push(item);saveLocal(arr);refresh();
@@ -6857,7 +6867,17 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // Auto-refresh on tab open
   document.querySelectorAll('.tab[data-panel="kongsi"]').forEach(t=>t.addEventListener('click',refresh));
-  document.addEventListener('firebase-ready',refresh);
+  document.addEventListener('firebase-ready',()=>{
+    refresh();
+    // Realtime listener: semua user (termasuk si pembuat) langsung lihat postingan baru
+    try{
+      window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'pasarKongsi'), snap=>{
+        const v=snap.val()||{};
+        cache=Object.entries(v).map(([id,val])=>({...val,id}));
+        renderList(cache);
+      });
+    }catch(e){}
+  });
   setTimeout(refresh,800);
 })();
 
@@ -6877,7 +6897,14 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // ---- Data prep: group transactions by yyyy-mm-dd, compute net profit per day
   function prepData(){
-    const txs = (typeof transactions !== 'undefined' && Array.isArray(transactions)) ? transactions : [];
+    // Baca langsung dari localStorage agar selalu fresh setelah refresh halaman
+    let txs = [];
+    try {
+      const saved = localStorage.getItem('umkm_transactions_v1');
+      if(saved){ const p = JSON.parse(saved); if(Array.isArray(p)) txs = p; }
+    } catch(e){}
+    // Kalau variabel global transactions lebih lengkap (session aktif), pakai itu
+    if(typeof transactions !== 'undefined' && Array.isArray(transactions) && transactions.length > txs.length) txs = transactions;
     const byDay={};
     txs.forEach(t=>{
       if(!t.time)return;

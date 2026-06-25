@@ -1988,7 +1988,8 @@ $a('authSubmitBtn').addEventListener('click', async () => {
       MY_UID = cred.user.uid;
       try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
       // Kirim email verifikasi ke alamat yang didaftarkan
-      try{ await window.fbSendEmailVerification(cred.user); } catch(evErr){ console.warn('Gagal kirim verif email:', evErr); }
+      const _verifSettings = { url: location.href, handleCodeInApp: false };
+      try{ await window.fbSendEmailVerification(cred.user, _verifSettings); } catch(evErr){ console.warn('Gagal kirim verif email:', evErr); }
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
         displayName:name, uid:MY_UID, email:email, emailVerified:false, updatedAt:Date.now()
       });
@@ -2074,15 +2075,16 @@ function initAuthGate(){
           const btn = document.createElement('button');
           btn.id = 'resendVerifBtn';
           btn.textContent = '📧 Kirim Ulang Email Verifikasi';
-          btn.style.cssText = 'display:block;width:100%;margin-top:10px;padding:11px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:700;font-size:13px;cursor:pointer;';
+          btn.style.cssText = 'display:block;width:100%;margin-top:8px;margin-bottom:4px;padding:11px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;';
           btn.onclick = async () => {
             btn.disabled = true; btn.textContent = '⏳ Mengirim...';
             try{
-              await window.fbSendEmailVerification(window.fbAuth.currentUser);
+              const _rs = { url: location.href, handleCodeInApp: false };
+              await window.fbSendEmailVerification(window.fbAuth.currentUser, _rs);
               btn.textContent = '✅ Email terkirim! Cek inbox kamu.';
             } catch(e){ btn.textContent = '❌ Gagal kirim: ' + e.message; btn.disabled = false; }
           };
-          $a('authError').insertAdjacentElement('afterend', btn);
+          $a('authError').parentNode.insertBefore(btn, $a('authSubmitBtn'));
         }
         await window.fbSignOut(window.fbAuth);
         return;

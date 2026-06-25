@@ -1975,6 +1975,10 @@ async function _sendOTP(email, name){
     return true;
   } catch(e){
     console.error('EmailJS error:', e);
+    // Debug: tampilkan error detail di layar
+    const debugMsg = 'EmailJS Error: ' + JSON.stringify({status: e.status, text: e.text, message: e.message || String(e)});
+    const debugEl = document.getElementById('authError') || document.getElementById('otpError');
+    if(debugEl) debugEl.textContent = debugMsg;
     return false;
   }
 }

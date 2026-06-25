@@ -1933,11 +1933,9 @@ let authMode = 'login';
 
 function $a(id){ return document.getElementById(id); }
 
-// ===== OTP EMAIL SYSTEM via EmailJS =====
-const EMAILJS_SERVICE  = 'service_rvc2k5v';
-const EMAILJS_TEMPLATE = 'template_osq1f7k';
-const EMAILJS_PUBKEY   = 'nauUDtj2qB2miC6rt';
-const OTP_EXPIRE_MS    = 120000; // 2 menit
+// ===== OTP EMAIL SYSTEM via Resend =====
+const RESEND_API_KEY = 're_Sop1dEa1_QCcjWqRLingzm8RZ71yG2kTE';
+const OTP_EXPIRE_MS  = 120000; // 2 menit
 
 let _otpCode = '';
 let _otpExpiry = 0;
@@ -1966,19 +1964,27 @@ async function _sendOTP(email, name){
   _otpCode   = _genOTP();
   _otpExpiry = Date.now() + OTP_EXPIRE_MS;
   try{
-    emailjs.init(EMAILJS_PUBKEY);
-    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-      to_email: email,
-      to_name : name || email,
-      otp_code: _otpCode
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + RESEND_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Sekretaris UMKM <onboarding@resend.dev>',
+        to: [email],
+        subject: 'Kode Verifikasi Sekretaris UMKM',
+        html: '<p>Halo <b>' + (name || email) + '</b>,</p><p>Kode verifikasi kamu: <b style="font-size:24px;letter-spacing:4px;">' + _otpCode + '</b></p><p>Kode berlaku 2 menit. Jangan bagikan ke siapapun.</p><p>- Tim Sekretaris UMKM</p>'
+      })
     });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      console.error('Resend error:', err);
+      return false;
+    }
     return true;
   } catch(e){
-    console.error('EmailJS error:', e);
-    // Debug: tampilkan error detail di layar
-    const debugMsg = 'EmailJS Error: ' + JSON.stringify({status: e.status, text: e.text, message: e.message || String(e)});
-    const debugEl = document.getElementById('authError') || document.getElementById('otpError');
-    if(debugEl) debugEl.textContent = debugMsg;
+    console.error('Resend fetch error:', e);
     return false;
   }
 }

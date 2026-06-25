@@ -1940,10 +1940,7 @@ let authMode = 'login';
 function $a(id){ return document.getElementById(id); }
 
 // ===== OTP EMAIL SYSTEM via Mailjet =====
-const MAILJET_API_KEY    = 'eb60367e11fb4747bba4ce8563a96c17';
-const MAILJET_SECRET_KEY = '06034d39afdd96a88a84049818963bfa';
-const MAILJET_SENDER     = 'nagoyaflora@gmail.com';
-const OTP_EXPIRE_MS      = 120000; // 2 menit
+const OTP_EXPIRE_MS = 120000; // 2 menit
 
 let _otpCode = '';
 let _otpExpiry = 0;
@@ -1972,28 +1969,17 @@ async function _sendOTP(email, name){
   _otpCode   = _genOTP();
   _otpExpiry = Date.now() + OTP_EXPIRE_MS;
   try{
-    const credentials = btoa(MAILJET_API_KEY + ':' + MAILJET_SECRET_KEY);
-    const res = await fetch('https://api.mailjet.com/v3.1/send', {
+    const res = await fetch('/api/send-otp', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + credentials,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        Messages: [{
-          From: { Email: MAILJET_SENDER, Name: 'Sekretaris UMKM' },
-          To: [{ Email: email, Name: name || email }],
-          Subject: 'Kode Verifikasi Sekretaris UMKM',
-          HTMLPart: '<p>Halo <b>' + (name || email) + '</b>,</p><p>Kode verifikasi Sekretaris UMKM kamu:</p><h2 style="letter-spacing:8px;color:#1B4D4A;">' + _otpCode + '</h2><p>Kode berlaku 2 menit. Jangan bagikan ke siapapun.</p><p>- Tim Sekretaris UMKM</p>'
-        }]
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name: name || email, otp_code: _otpCode })
     });
     const data = await res.json();
-    if(data.Messages && data.Messages[0].Status === 'success') return true;
-    console.error('Mailjet error:', data);
+    if(data.success) return true;
+    console.error('OTP error:', data);
     return false;
   } catch(e){
-    console.error('Mailjet fetch error:', e);
+    console.error('OTP fetch error:', e);
     return false;
   }
 }

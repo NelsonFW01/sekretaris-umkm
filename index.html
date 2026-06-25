@@ -25,7 +25,7 @@
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-    onAuthStateChanged, signOut, sendPasswordResetEmail
+    onAuthStateChanged, signOut, sendPasswordResetEmail, sendEmailVerification, deleteUser
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // PENTING: ganti SEMUA nilai di bawah ini dengan kredensial Firebase Realtime Database
@@ -63,6 +63,8 @@
       window.fbOnAuthStateChanged = onAuthStateChanged;
       window.fbSignOut = signOut;
       window.fbSendPasswordReset = sendPasswordResetEmail;
+      window.fbSendEmailVerification = sendEmailVerification;
+      window.fbDeleteUser = deleteUser;
       window.rtdbRef = ref;
       window.rtdbPush = push;
       window.rtdbSet = set;
@@ -1985,9 +1987,13 @@ $a('authSubmitBtn').addEventListener('click', async () => {
       const cred = await window.fbCreateUser(window.fbAuth, email, pass);
       MY_UID = cred.user.uid;
       try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
+      // Kirim email verifikasi ke alamat yang didaftarkan
+      try{ await window.fbSendEmailVerification(cred.user); } catch(evErr){ console.warn('Gagal kirim verif email:', evErr); }
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
-        displayName:name, uid:MY_UID, email:email, updatedAt:Date.now()
+        displayName:name, uid:MY_UID, email:email, emailVerified:false, updatedAt:Date.now()
       });
+      $a('authError').style.color = 'var(--good)';
+      $a('authError').textContent = '✅ Akun berhasil dibuat! Email verifikasi sudah dikirim ke ' + email + '. Cek inbox kamu dan klik link verifikasi sebelum login.';
     } else {
       await window.fbSignIn(window.fbAuth, email, pass);
     }
@@ -2056,6 +2062,49 @@ function initAuthGate(){
       MY_UID = user.uid; // Firebase Auth UID — sama persis di semua device untuk akun yang sama
       currentAuthEmail = user.email || '';
       isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
+
+      // Cek email sudah diverifikasi (kecuali admin)
+      if(!isAdmin && !user.emailVerified){
+        // Update status di RTDB
+        try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {emailVerified:false}); } catch(e){}
+        $a('authError').style.color = 'var(--bad)';
+        $a('authError').textContent = '⚠️ Email kamu belum diverifikasi. Cek inbox ' + currentAuthEmail + ' dan klik link verifikasi. Atau klik tombol di bawah untuk kirim ulang.';
+        // Tampilkan tombol kirim ulang verifikasi
+        if(!document.getElementById('resendVerifBtn')){
+          const btn = document.createElement('button');
+          btn.id = 'resendVerifBtn';
+          btn.textContent = '📧 Kirim Ulang Email Verifikasi';
+          btn.style.cssText = 'display:block;width:100%;margin-top:10px;padding:11px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:700;font-size:13px;cursor:pointer;';
+          btn.onclick = async () => {
+            btn.disabled = true; btn.textContent = '⏳ Mengirim...';
+            try{
+              await window.fbSendEmailVerification(window.fbAuth.currentUser);
+              btn.textContent = '✅ Email terkirim! Cek inbox kamu.';
+            } catch(e){ btn.textContent = '❌ Gagal kirim: ' + e.message; btn.disabled = false; }
+          };
+          $a('authError').insertAdjacentElement('afterend', btn);
+        }
+        await window.fbSignOut(window.fbAuth);
+        return;
+      }
+      // Hapus tombol kirim ulang jika ada
+      document.getElementById('resendVerifBtn')?.remove();
+      // Update status verifikasi di RTDB
+      try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {emailVerified:true}); } catch(e){}
+
+      // Cek apakah user di-ban oleh admin
+      if(!isAdmin){
+        try{
+          const banSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+user.uid+'/banned'));
+          if(banSnap.val() === true){
+            await window.fbSignOut(window.fbAuth);
+            $a('authError').style.color = 'var(--bad)';
+            $a('authError').textContent = '🚫 Akun kamu telah dinonaktifkan oleh admin. Hubungi admin untuk informasi lebih lanjut.';
+            return;
+          }
+        } catch(e){}
+      }
+
       $a('authOverlay').classList.add('hidden');
       $a('authUserEmail').textContent = currentAuthEmail + (isAdmin ? ' · 👑 Admin' : '');
       try{
@@ -5237,15 +5286,28 @@ function renderAdminUserList(){
           ? `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="0" style="font-size:11px;padding:4px 8px;border:1px solid #7B5E00;border-radius:7px;background:#FFFBEA;color:#7B5E00;cursor:pointer;white-space:nowrap;">⭐ Cabut Premium</button>`
           : `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="1" style="font-size:11px;padding:4px 8px;border:1px solid #2D7A4F;border-radius:7px;background:#E8F5E9;color:#2D7A4F;cursor:pointer;white-space:nowrap;">✅ Beri Premium</button>`)
       : '';
+    const isBanned = !!u.banned;
+    const banBtn = !isSelf
+      ? (isBanned
+          ? `<button class="admin-ban-user-btn" data-uid="${uid}" data-ban="0" style="font-size:11px;padding:4px 8px;border:1px solid #2D7A4F;border-radius:7px;background:#E8F5E9;color:#2D7A4F;cursor:pointer;white-space:nowrap;margin-top:3px;">✅ Unban</button>`
+          : `<button class="admin-ban-user-btn" data-uid="${uid}" data-ban="1" style="font-size:11px;padding:4px 8px;border:1px solid #991B1B;border-radius:7px;background:#FEE2E2;color:#991B1B;cursor:pointer;white-space:nowrap;margin-top:3px;">🚫 Ban Login</button>`)
+      : '';
+    const verifiedBadge = u.emailVerified===false
+      ? '<span style="font-size:10px;background:#FEF3C7;color:#92400E;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">⚠️ Belum Verif</span>'
+      : '<span style="font-size:10px;background:#D1FAE5;color:#065F46;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">✅ Terverifikasi</span>';
+    const bannedBadge = isBanned ? '<span style="font-size:10px;background:#FEE2E2;color:#991B1B;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">🚫 BANNED</span>' : '';
     const delBtn = !isSelf
-      ? `<button class="admin-del-user-btn" data-uid="${uid}" data-name="${escapeAttr(u.displayName||u.email||uid)}"
-           style="flex-shrink:0;padding:7px 12px;border:none;border-radius:9px;background:#FDEAEA;color:#C84F2F;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;">🗑️ Hapus</button>`
+      ? `<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+           <button class="admin-del-user-btn" data-uid="${uid}" data-name="${escapeAttr(u.displayName||u.email||uid)}"
+             style="padding:6px 10px;border:none;border-radius:9px;background:#FDEAEA;color:#C84F2F;font-weight:700;font-size:11.5px;cursor:pointer;white-space:nowrap;">🗑️ Hapus Profil</button>
+           ${banBtn}
+         </div>`
       : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #FEE2E2;min-width:0;">
       ${statusDot}
       <div style="flex:1;min-width:0;overflow:hidden;">
-        <div style="font-weight:700;font-size:13px;color:var(--ink);">${name}${selfBadge}${premiumBadge}</div>
-        <div style="font-size:12px;color:#2563EB;font-weight:500;margin-top:1px;">📧 ${email}</div>
+        <div style="font-weight:700;font-size:13px;color:var(--ink);">${name}${selfBadge}${premiumBadge}${bannedBadge}</div>
+        <div style="font-size:12px;color:#2563EB;font-weight:500;margin-top:1px;">📧 ${email}${verifiedBadge}</div>
         ${storeLine}${store2Line}${addressLine}
         ${premiumBtn ? `<div style="margin-top:4px;">${premiumBtn}</div>` : ''}
       </div>
@@ -5267,6 +5329,26 @@ document.addEventListener('click', async (e) => {
     renderAdminUserList();
   } catch(err){
     alert('Gagal update premium: '+err.message);
+    btn.disabled = false;
+  }
+});
+
+// ===== ADMIN: BAN / UNBAN PENGGUNA =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.admin-ban-user-btn');
+  if(!btn || !isAdmin || !window.firebaseReady) return;
+  const uid = btn.dataset.uid;
+  const doBan = btn.dataset.ban === '1';
+  btn.disabled = true; btn.textContent = '⏳...';
+  try{
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {banned: doBan});
+    if(allUsersCache[uid]) allUsersCache[uid].banned = doBan;
+    renderAdminUserList();
+    if(doBan) alert('Pengguna ini sudah di-ban. Mereka tidak akan bisa login karena akun akan langsung dikeluarkan saat masuk.
+
+Note: untuk hapus akun Firebase Auth sepenuhnya, lakukan dari Firebase Console → Authentication.');
+  } catch(err){
+    alert('Gagal ban/unban: '+err.message);
     btn.disabled = false;
   }
 });
@@ -6815,14 +6897,20 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const waLink=wa?`https://wa.me/${wa}?text=${encodeURIComponent('Halo, saya tertarik dengan tawaran kamu di Pasar Kongsi: '+it.title)}`:'#';
       const ownerKey=it.ownerKey||'';
       const isMine = ownerKey && ownerKey===getOwnerKey();
+      const isMyKurir = ownerKey && ownerKey===getOwnerKey();
+      const trackStatus = it.tracking ? `<span style="font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;">🟢 Kurir Online</span>` : '';
       const kurirExtra = it.mode==='kurir' ? `
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
           <span style="background:#DCEFE9;color:#1B4D4A;padding:3px 9px;border-radius:20px;font-weight:700;">📍 ${escapeHtml(it.from||it.city||'—')}</span>
           <span style="color:#999;">→</span>
           <span style="background:#FFF1D6;color:#A07000;padding:3px 9px;border-radius:20px;font-weight:700;">🏁 ${escapeHtml(it.to||'—')}</span>
+          ${trackStatus}
         </div>
-        <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="width:100%;margin-bottom:8px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute di Peta</button>
-        <div id="lrmap-${it.id}" style="display:none;height:180px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1.5px solid #EFE6D8;"></div>` : '';
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
+          ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
+        </div>
+        <div id="lrmap-${it.id}" style="display:none;height:200px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1.5px solid #EFE6D8;"></div>` : '';
       return `<div class="kongsi-card">
         <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
         <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
@@ -6836,6 +6924,67 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       </div>`;
     }).join('');
   }
+
+  // ===== KURIR LIVE TRACKING =====
+  let kurirWatchId = null;
+  let kurirTrackingId = null;
+  let kurirLiveMarker = null;
+
+  async function startKurirTracking(itemId){
+    if(!navigator.geolocation){ alert('GPS tidak tersedia di perangkat ini.'); return; }
+    if(!window.firebaseReady){ alert('Firebase belum tersambung.'); return; }
+    kurirTrackingId = itemId;
+    // Tandai sedang tracking di Firebase
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId), {tracking:true});
+    kurirWatchId = navigator.geolocation.watchPosition(async pos=>{
+      const {latitude:lat,longitude:lng} = pos.coords;
+      const speed = pos.coords.speed ? (pos.coords.speed*3.6).toFixed(1)+' km/h' : null;
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'), {lat,lng,speed,t:Date.now()});
+      }catch(e){}
+    }, ()=>{}, {enableHighAccuracy:true,maximumAge:5000});
+    alert('📡 Tracking GPS aktif! Posisi kamu akan muncul di peta untuk semua orang yang membuka rute ini.');
+  }
+
+  async function stopKurirTracking(itemId){
+    if(kurirWatchId!==null){ navigator.geolocation.clearWatch(kurirWatchId); kurirWatchId=null; }
+    kurirTrackingId=null;
+    if(window.firebaseReady){
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId), {tracking:false});
+        await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'));
+      }catch(e){}
+    }
+    alert('⏹ Tracking GPS dihentikan.');
+  }
+
+  // Realtime listener per peta yang terbuka — update marker kurir live
+  const kurirPosListeners = {};
+  function attachKurirPosListener(itemId, map){
+    if(kurirPosListeners[itemId]) return;
+    const posRef = window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos');
+    const unsub = window.rtdbOnValue(posRef, snap=>{
+      const pos = snap.val();
+      if(!pos||!pos.lat) return;
+      if(kurirLiveMarker && map.hasLayer(kurirLiveMarker)) map.removeLayer(kurirLiveMarker);
+      const icon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+      kurirLiveMarker = L.marker([pos.lat,pos.lng],{icon}).addTo(map)
+        .bindPopup('🛵 Kurir di sini'+(pos.speed?'<br>Kecepatan: '+pos.speed:'')).openPopup();
+      map.panTo([pos.lat,pos.lng]);
+    });
+    kurirPosListeners[itemId] = unsub;
+  }
+
+  $$('kgList').addEventListener('click', async e=>{
+    const trackBtn = e.target.closest('.kc-track-btn');
+    if(trackBtn){
+      const id = trackBtn.dataset.id;
+      const isTracking = trackBtn.style.background.includes('FDE') || trackBtn.textContent.includes('Stop');
+      if(isTracking){ await stopKurirTracking(id); }
+      else { await startKurirTracking(id); }
+      return;
+    }
+  });
 
   // Handler klik "Lihat Rute" di card kurir
   $$('kgList').addEventListener('click', async e=>{
@@ -6862,6 +7011,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(window.L&&L.Routing&&L.Routing.control){try{L.Routing.control({waypoints:[L.latLng(orig.lat,orig.lon),L.latLng(dest.lat,dest.lon)],routeWhileDragging:false,show:false,addWaypoints:false,lineOptions:{styles:[{color:'#E8633F',weight:4}]}}).addTo(m);m.removeLayer(line);}catch(er){}}
     listRouteMaps[id]=m;
     setTimeout(()=>m.invalidateSize(),150);
+    // Pasang listener posisi kurir live jika Firebase tersedia
+    if(window.firebaseReady && window.firebaseDb){ attachKurirPosListener(id,m); }
   });
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

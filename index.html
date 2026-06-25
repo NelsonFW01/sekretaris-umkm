@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1761,21 +1762,37 @@
 
 <div class="welcome-overlay hidden" id="authOverlay" style="display:none!important;">
   <div class="welcome-box">
-    <div class="wb-icon">🔐</div>
+    <div class="wb-icon" id="authIcon">🔐</div>
     <h2 id="authTitle">Masuk ke Akunmu</h2>
-    <p>Masuk atau daftar dengan email untuk mulai pakai Sekretaris UMKM dan terhubung ke Komunitas.</p>
-    <div class="auth-tabs">
-      <button type="button" class="auth-tab active" id="authTabLogin">Masuk</button>
-      <button type="button" class="auth-tab" id="authTabRegister">Daftar</button>
+    <p id="authSubtitle">Masuk atau daftar dengan email untuk mulai pakai Sekretaris UMKM dan terhubung ke Komunitas.</p>
+
+    <!-- Step 1: Form login/register -->
+    <div id="authStep1">
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="authTabLogin">Masuk</button>
+        <button type="button" class="auth-tab" id="authTabRegister">Daftar</button>
+      </div>
+      <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
+      <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
+      <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
+      <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="display:none;margin-top:8px;">
+      <div class="auth-error" id="authError"></div>
+      <button id="authSubmitBtn">Masuk</button>
+      <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
     </div>
-    <input type="text" id="authNameInput" placeholder="Nama kamu atau nama toko" maxlength="40" autocomplete="off" class="auth-field-hidden">
-    <input type="email" id="authEmailInput" placeholder="Alamat email" autocomplete="username">
-    <input type="password" id="authPasswordInput" placeholder="Password (min. 6 karakter)" autocomplete="current-password">
-    <input type="password" id="authPasswordConfirm" placeholder="Konfirmasi password" autocomplete="new-password" style="display:none;margin-top:8px;">
-    <div class="auth-error" id="authError"></div>
-    <button id="authSubmitBtn">Masuk</button>
-    <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
-    <div class="wb-hint" style="margin-top:14px;">Kamu bisa mengganti nama tampilan kapan saja lewat halaman Profil.</div>
+
+    <!-- Step 2: OTP verifikasi (muncul setelah daftar) -->
+    <div id="authStep2" style="display:none;">
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">Kode 6 digit sudah dikirim ke <strong id="otpEmailDisplay"></strong>. Berlaku <strong id="otpCountdown" style="color:var(--coral);">120</strong> detik.</p>
+      <input type="text" id="otpInput" placeholder="Masukkan kode 6 digit" maxlength="6" inputmode="numeric" pattern="[0-9]*"
+        style="text-align:center;font-size:26px;letter-spacing:10px;font-weight:700;padding:14px;border-radius:12px;border:2px solid var(--line);width:100%;font-family:'JetBrains Mono',monospace;">
+      <div class="auth-error" id="otpError" style="margin-top:10px;"></div>
+      <button id="otpVerifyBtn" style="width:100%;margin-top:12px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:white;font-weight:700;font-size:15px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">✅ Verifikasi & Buat Akun</button>
+      <button id="otpResendBtn" type="button" style="display:block;width:100%;margin-top:10px;padding:10px;border-radius:11px;border:1.5px solid var(--line);background:transparent;color:var(--ink-soft);font-weight:600;font-size:13px;cursor:pointer;">🔄 Kirim Ulang Kode</button>
+      <button id="otpBackBtn" type="button" style="display:block;width:100%;margin-top:8px;padding:10px;border-radius:11px;border:none;background:transparent;color:var(--ink-soft);font-size:12.5px;cursor:pointer;">← Kembali</button>
+    </div>
+
+    <div class="wb-hint" style="margin-top:14px;" id="authHint">Kamu bisa mengganti nama tampilan kapan saja lewat halaman Profil.</div>
   </div>
 </div>
 
@@ -1916,9 +1933,82 @@ let authMode = 'login';
 
 function $a(id){ return document.getElementById(id); }
 
+// ===== OTP EMAIL SYSTEM via EmailJS =====
+const EMAILJS_SERVICE  = 'service_rvc2k5v';
+const EMAILJS_TEMPLATE = 'template_osq1f7k';
+const EMAILJS_PUBKEY   = 'M88S68FkQ_1BKR5IW';
+const OTP_EXPIRE_MS    = 120000; // 2 menit
+
+let _otpCode = '';
+let _otpExpiry = 0;
+let _otpTimer = null;
+let _pendingRegister = null;
+
+function _genOTP(){ return String(Math.floor(100000 + Math.random() * 900000)); }
+
+function _startOTPCountdown(){
+  clearInterval(_otpTimer);
+  const el = $a('otpCountdown');
+  let sisa = Math.ceil((_otpExpiry - Date.now()) / 1000);
+  if(el) el.textContent = sisa;
+  _otpTimer = setInterval(()=>{
+    sisa--;
+    if(el) el.textContent = Math.max(0, sisa);
+    if(sisa <= 0){
+      clearInterval(_otpTimer);
+      if($a('otpError')) $a('otpError').textContent = '⏰ Kode sudah kedaluwarsa. Klik "Kirim Ulang Kode".';
+      if($a('otpVerifyBtn')) $a('otpVerifyBtn').disabled = true;
+    }
+  }, 1000);
+}
+
+async function _sendOTP(email, name){
+  _otpCode   = _genOTP();
+  _otpExpiry = Date.now() + OTP_EXPIRE_MS;
+  try{
+    emailjs.init(EMAILJS_PUBKEY);
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: email,
+      to_name : name || email,
+      otp_code: _otpCode
+    });
+    return true;
+  } catch(e){
+    console.error('EmailJS error:', e);
+    return false;
+  }
+}
+
+function _showOTPStep(email){
+  $a('authStep1').style.display  = 'none';
+  $a('authStep2').style.display  = 'block';
+  $a('authHint').style.display   = 'none';
+  $a('authIcon').textContent     = '📧';
+  $a('authTitle').textContent    = 'Cek Email Kamu';
+  $a('authSubtitle').style.display = 'none';
+  $a('otpEmailDisplay').textContent = email;
+  $a('otpInput').value = '';
+  $a('otpError').textContent = '';
+  if($a('otpVerifyBtn')) $a('otpVerifyBtn').disabled = false;
+  _startOTPCountdown();
+  setTimeout(()=>{ try{ $a('otpInput').focus(); }catch(e){} }, 200);
+}
+
+function _showAuthStep1(){
+  if(!$a('authStep1')) return;
+  $a('authStep1').style.display  = 'block';
+  $a('authStep2').style.display  = 'none';
+  $a('authHint').style.display   = 'block';
+  $a('authIcon').textContent     = '🔐';
+  $a('authTitle').textContent    = authMode==='register' ? 'Daftar Akun Baru' : 'Masuk ke Akunmu';
+  $a('authSubtitle').style.display = 'block';
+  clearInterval(_otpTimer);
+  _pendingRegister = null;
+}
+
 function updateAuthModeUI(){
+  _showAuthStep1();
   $a('authError').textContent = '';
-  document.getElementById('resendVerifBtn')?.remove();
   if(authMode==='register'){
     $a('authTitle').textContent = 'Daftar Akun Baru';
     $a('authNameInput').classList.remove('auth-field-hidden');
@@ -1981,50 +2071,106 @@ function applyNameLockUI(){
   }
 }
 
+// ---- Submit daftar/masuk ----
 $a('authSubmitBtn').addEventListener('click', async () => {
   const email = $a('authEmailInput').value.trim();
-  const pass = $a('authPasswordInput').value;
-  const name = $a('authNameInput').value.trim();
+  const pass  = $a('authPasswordInput').value;
+  const name  = $a('authNameInput').value.trim();
+  $a('authError').style.color = '';
   $a('authError').textContent = '';
-  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, login tidak bisa dipakai.'; return; }
+  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum siap, coba refresh halaman.'; return; }
   if(!email || !pass){ $a('authError').textContent = 'Isi email dan password dulu.'; return; }
-  if(authMode==='register' && !name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
   if(authMode==='register'){
+    if(!name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
     const passConfirm = $a('authPasswordConfirm').value;
     if(!passConfirm){ $a('authError').textContent = 'Konfirmasi password dulu ya.'; return; }
-    if(pass !== passConfirm){ $a('authError').textContent = 'Password dan konfirmasi tidak sama. Coba cek lagi.'; return; }
+    if(pass !== passConfirm){ $a('authError').textContent = 'Password dan konfirmasi tidak sama.'; return; }
     if(pass.length < 6){ $a('authError').textContent = 'Password minimal 6 karakter.'; return; }
-  }
-  $a('authSubmitBtn').disabled = true;
-  const oldLabel = $a('authSubmitBtn').textContent;
-  $a('authSubmitBtn').textContent = 'Memproses...';
-  try{
-    if(authMode==='register'){
-      const cred = await window.fbCreateUser(window.fbAuth, email, pass);
-      MY_UID = cred.user.uid;
-      try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
-      // Kirim email verifikasi ke alamat yang didaftarkan
-      // continueUrl: kalau di localhost/file pakai origin saja, kalau hosting pakai href
-      const _verifUrl = (location.hostname === 'localhost' || location.protocol === 'file:')
-        ? 'https://sekretaris-umkm.web.app'
-        : location.origin;
-      const _verifSettings = { url: _verifUrl, handleCodeInApp: false };
-      try{ await window.fbSendEmailVerification(cred.user, _verifSettings); } catch(evErr){ console.warn('Gagal kirim verif email:', evErr); }
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
-        displayName:name, uid:MY_UID, email:email, emailVerified:false, updatedAt:Date.now()
-      });
-      $a('authError').style.color = 'var(--good)';
-      $a('authError').textContent = '✅ Akun berhasil dibuat! Email verifikasi sudah dikirim ke ' + email + '. Cek inbox kamu dan klik link verifikasi sebelum login.';
-    } else {
-      await window.fbSignIn(window.fbAuth, email, pass);
-    }
-    $a('authEmailInput').value=''; $a('authPasswordInput').value=''; $a('authNameInput').value=''; $a('authPasswordConfirm').value='';
-  } catch(err){
-    $a('authError').textContent = translateAuthError(err.code) || ('Gagal: '+err.message);
-  } finally {
+
+    // Mode register: kirim OTP dulu sebelum buat akun
+    $a('authSubmitBtn').disabled = true;
+    $a('authSubmitBtn').textContent = '📤 Mengirim kode...';
+    const ok = await _sendOTP(email, name);
     $a('authSubmitBtn').disabled = false;
-    $a('authSubmitBtn').textContent = oldLabel;
+    $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
+    if(!ok){
+      $a('authError').textContent = '❌ Gagal kirim kode OTP. Pastikan email benar dan coba lagi.';
+      return;
+    }
+    _pendingRegister = { email, pass, name };
+    _showOTPStep(email);
+  } else {
+    // Mode login: langsung masuk
+    $a('authSubmitBtn').disabled = true;
+    $a('authSubmitBtn').textContent = 'Memproses...';
+    try{
+      await window.fbSignIn(window.fbAuth, email, pass);
+      $a('authEmailInput').value=''; $a('authPasswordInput').value='';
+    } catch(err){
+      $a('authError').textContent = translateAuthError(err.code) || ('Gagal: '+err.message);
+    } finally {
+      $a('authSubmitBtn').disabled = false;
+      $a('authSubmitBtn').textContent = 'Masuk';
+    }
   }
+});
+
+// ---- Verifikasi OTP & buat akun ----
+$a('otpVerifyBtn').addEventListener('click', async () => {
+  const inputOtp = ($a('otpInput').value || '').trim();
+  $a('otpError').textContent = '';
+  if(!inputOtp || inputOtp.length !== 6){ $a('otpError').textContent = 'Masukkan 6 digit kode.'; return; }
+  if(Date.now() > _otpExpiry){ $a('otpError').textContent = '⏰ Kode sudah kedaluwarsa. Klik Kirim Ulang.'; return; }
+  if(inputOtp !== _otpCode){ $a('otpError').textContent = '❌ Kode salah. Coba lagi.'; return; }
+  if(!_pendingRegister){ $a('otpError').textContent = 'Sesi daftar tidak ditemukan. Kembali dan coba lagi.'; return; }
+
+  $a('otpVerifyBtn').disabled = true;
+  $a('otpVerifyBtn').textContent = '⏳ Membuat akun...';
+  const { email, pass, name } = _pendingRegister;
+  try{
+    const cred = await window.fbCreateUser(window.fbAuth, email, pass);
+    MY_UID = cred.user.uid;
+    try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {
+      displayName:name, uid:MY_UID, email:email, emailVerified:true, updatedAt:Date.now()
+    });
+    clearInterval(_otpTimer);
+    _pendingRegister = null;
+    // authOverlay akan otomatis tutup via onAuthStateChanged
+  } catch(err){
+    $a('otpError').textContent = translateAuthError(err.code) || ('Gagal buat akun: '+err.message);
+    $a('otpVerifyBtn').disabled = false;
+    $a('otpVerifyBtn').textContent = '✅ Verifikasi & Buat Akun';
+  }
+});
+
+// ---- Kirim ulang OTP ----
+$a('otpResendBtn').addEventListener('click', async () => {
+  if(!_pendingRegister) return;
+  $a('otpResendBtn').disabled = true;
+  $a('otpResendBtn').textContent = '⏳ Mengirim...';
+  $a('otpError').textContent = '';
+  const ok = await _sendOTP(_pendingRegister.email, _pendingRegister.name);
+  $a('otpResendBtn').disabled = false;
+  $a('otpResendBtn').textContent = '🔄 Kirim Ulang Kode';
+  if(ok){
+    if($a('otpVerifyBtn')) $a('otpVerifyBtn').disabled = false;
+    $a('otpError').style.color = 'var(--good)';
+    $a('otpError').textContent = '✅ Kode baru sudah dikirim!';
+    setTimeout(()=>{ if($a('otpError')) $a('otpError').style.color=''; }, 3000);
+    _startOTPCountdown();
+  } else {
+    $a('otpError').textContent = '❌ Gagal kirim ulang. Coba lagi.';
+  }
+});
+
+// ---- Tombol kembali ----
+$a('otpBackBtn').addEventListener('click', ()=>{ _showAuthStep1(); });
+
+// ---- Auto-format OTP input (angka saja) ----
+$a('otpInput').addEventListener('input', function(){
+  this.value = this.value.replace(/[^0-9]/g, '').slice(0,6);
+  if(this.value.length === 6) $a('otpVerifyBtn').click();
 });
 
 $a('authLogoutBtn').addEventListener('click', async () => {
@@ -2084,38 +2230,7 @@ function initAuthGate(){
       currentAuthEmail = user.email || '';
       isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
 
-      // Cek email sudah diverifikasi (kecuali admin)
-      if(!isAdmin && !user.emailVerified){
-        // Update status di RTDB
-        try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {emailVerified:false}); } catch(e){}
-        $a('authError').style.color = 'var(--bad)';
-        $a('authError').textContent = '⚠️ Email kamu belum diverifikasi. Cek inbox ' + currentAuthEmail + ' dan klik link verifikasi. Atau klik tombol di bawah untuk kirim ulang.';
-        // Tampilkan tombol kirim ulang verifikasi
-        if(!document.getElementById('resendVerifBtn')){
-          const btn = document.createElement('button');
-          btn.id = 'resendVerifBtn';
-          btn.textContent = '📧 Kirim Ulang Email Verifikasi';
-          btn.style.cssText = 'display:block;width:100%;margin-top:8px;margin-bottom:4px;padding:11px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;';
-          btn.onclick = async () => {
-            btn.disabled = true; btn.textContent = '⏳ Mengirim...';
-            try{
-              const _rsUrl = (location.hostname === 'localhost' || location.protocol === 'file:')
-                ? 'https://sekretaris-umkm.web.app'
-                : location.origin;
-              const _rs = { url: _rsUrl, handleCodeInApp: false };
-              await window.fbSendEmailVerification(window.fbAuth.currentUser, _rs);
-              btn.textContent = '✅ Email terkirim! Cek inbox kamu.';
-            } catch(e){ btn.textContent = '❌ Gagal kirim: ' + e.message; btn.disabled = false; }
-          };
-          $a('authError').parentNode.insertBefore(btn, $a('authSubmitBtn'));
-        }
-        await window.fbSignOut(window.fbAuth);
-        return;
-      }
-      // Hapus tombol kirim ulang jika ada
-      document.getElementById('resendVerifBtn')?.remove();
-      // Update status verifikasi di RTDB
-      try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {emailVerified:true}); } catch(e){}
+      // Email sudah diverifikasi via OTP saat daftar, langsung lanjut
 
       // Cek apakah user di-ban oleh admin
       if(!isAdmin){

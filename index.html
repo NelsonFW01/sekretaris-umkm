@@ -210,12 +210,14 @@
   .tabs{
     display:flex; gap:6px; padding: 4px; margin: 18px 20px 0;
     background: var(--sand); border-radius: 14px; overflow-x:auto;
+    scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch;
   }
+  .tabs::-webkit-scrollbar{ height:0; }
   .tab{
-    flex:1; padding: 11px 8px; text-align:center; border:none; background:transparent;
+    flex:0 0 auto; padding: 11px 14px; text-align:center; border:none; background:transparent;
     border-radius:11px; font-family:'Plus Jakarta Sans', sans-serif; font-weight:600;
     font-size: 13px; color: var(--ink-soft); cursor:pointer; transition: all .25s ease;
-    white-space:nowrap;
+    white-space:nowrap; scroll-snap-align:start;
   }
   .tab.active{ background: var(--teal); color: white; box-shadow: 0 3px 10px rgba(27,77,74,0.25); }
 
@@ -2048,6 +2050,14 @@ let openrouterKey = "";
 let financeLang = "id";
 let contentLang = "id";
 let transactions = [];
+// FIX: muat transaksi yang tersimpan supaya tidak balik ke 0 saat refresh halaman
+try{
+  const _savedTx = localStorage.getItem('umkm_transactions_v1');
+  if(_savedTx) transactions = JSON.parse(_savedTx) || [];
+}catch(e){ transactions = []; }
+function persistTransactions(){
+  try{ localStorage.setItem('umkm_transactions_v1', JSON.stringify(transactions.slice(-3000))); }catch(e){}
+}
 let uploadedImageBase64 = null;
 let lastGenerated = null;
 let isListening = false;
@@ -2438,9 +2448,11 @@ document.addEventListener('click', (e) => {
 });
 
 function onTransactionsChanged(){
+  persistTransactions(); // FIX: simpan ke localStorage tiap kali transaksi berubah
   $('finalizeBtn').style.display = transactions.length > 0 ? 'block' : 'none';
   if(reportFinalized) $('reFinalizeNotice').style.display = 'block';
 }
+renderTransactions(); onTransactionsChanged(); // FIX: tampilkan transaksi yang sudah dimuat dari localStorage
 
 $('finalizeBtn').addEventListener('click', async () => {
   $('finalizeBtn').disabled = true;
@@ -3072,6 +3084,10 @@ let locWatchId        = null;   // ID watchPosition untuk "Bagikan Lokasi"
 let routeWatchId      = null;   // ID watchPosition saat rute aktif (live marker, belum navigasi penuh)
 let navWatchId        = null;   // ID watchPosition khusus NAVIGASI (terpisah)
 let navMode           = false;  // true = mode navigasi aktif
+let followCameraMode  = true;   // true = kamera ikuti user saat navMode (bisa di-toggle user)
+let navFixCount       = 0;      // jumlah GPS fix yang sudah diterima saat navMode (untuk indikator)
+let navFallbackTimer  = null;   // setInterval fallback kalau watchPosition mandek
+let lastCameraUpdate  = 0;      // throttle setView saat follow
 let lastSpokenStep    = -1;     // index step terakhir yang sudah diucapkan
 let lastPanTime       = 0;
 let mapUserInteracting= false;
@@ -3178,6 +3194,9 @@ function stopNavigation(){
   navMode=false;
   lastSpokenStep=-1;
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
+  if(navFallbackTimer){ clearInterval(navFallbackTimer); navFallbackTimer=null; }
+  const _btnF=document.getElementById('btnFollowCam');
+  if(_btnF) _btnF.style.display='none';
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const p=document.getElementById('navPanel');
   if(p) p.innerHTML='';
@@ -3206,6 +3225,22 @@ function startNavigation(){
   navMode=true;
   lastSpokenStep=-1;
   mapUserInteracting=false;
+  followCameraMode=true;
+  navFixCount=0;
+  lastCameraUpdate=0;
+
+  // FIX: Tampilkan tombol Follow Mode
+  const _btnF = document.getElementById('btnFollowCam');
+  if(_btnF){ _btnF.style.display='flex'; _btnF.style.background='#1B4D4A'; }
+
+  // FIX BUG MARKER: hapus marker route_user yang static dari preview rute,
+  // supaya tidak ada "dua marker user" — satu diam (lama) + satu gerak (baru).
+  // Marker baru yang reaktif akan dibuat oleh navWatch callback.
+  const _oldRouteMk = communityMapMarkers && communityMapMarkers['route_user'];
+  if(_oldRouteMk && _oldRouteMk !== myMarkerLive){
+    try{ communityMap.removeLayer(_oldRouteMk); }catch(e){}
+    delete communityMapMarkers['route_user'];
+  }
 
   // ── LANGSUNG sembunyikan bar bawah & tampilkan nav panel atas ──────────────
   const _navBar = document.getElementById('routeInfoBar');
@@ -3222,6 +3257,17 @@ function startNavigation(){
       <button onclick="stopNavigation();" style="border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;">■ Stop</button>
     </div>
   </div>`;
+
+  // Tambahkan indikator GPS kecil di pojok nav panel atas
+  const _navPanel = document.getElementById('navPanel');
+  if(_navPanel && !document.getElementById('navGpsStatus')){
+    const _gpsDiv = document.createElement('div');
+    _gpsDiv.id='navGpsStatus';
+    _gpsDiv.style.cssText='position:absolute;top:6px;right:10px;font-size:10px;opacity:.75;color:#fff;background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:10px;pointer-events:none;';
+    _gpsDiv.textContent='⏳ Menunggu GPS...';
+    _navPanel.style.position='relative';
+    _navPanel.appendChild(_gpsDiv);
+  }
 
   // Umumkan mulai
   speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
@@ -3251,23 +3297,78 @@ function startNavigation(){
   if(routeWatchId !== null){ navigator.geolocation.clearWatch(routeWatchId); routeWatchId = null; }
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
 
-  navWatchId=navigator.geolocation.watchPosition((pos)=>{
+  // === Helper: dipanggil setiap kali ada GPS fix (watchPosition ATAU fallback poll) ===
+  function handleNavFix(lat, lng){
     if(!navMode) return;
-    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+    navFixCount++;
 
-    // Update myLocation juga
+    // Update myLocation
     if(!myLocation) myLocation={};
     myLocation.lat=lat; myLocation.lng=lng;
 
-    // Update marker user di peta
+    // FIX BUG MARKER: update SEMUA referensi marker user yang ada,
+    // bukan cuma myMarkerLive. Buat marker baru jika belum ada.
     if(communityMap){
-      if(myMarkerLive) myMarkerLive.setLatLng([lat,lng]);
-      else{
-        const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
-        myMarkerLive=L.marker([lat,lng],{icon:makeUserIcon(true,_navPhoto)}).addTo(communityMap)
-          .bindPopup('📍 Lokasi Kamu');
+      const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+      // Sinkronkan myMarkerLive
+      if(myMarkerLive){
+        myMarkerLive.setLatLng([lat,lng]);
+      } else {
+        myMarkerLive = L.marker([lat,lng],{icon:makeUserIcon(true,_navPhoto)})
+          .addTo(communityMap).bindPopup('📍 Lokasi Kamu');
+      }
+      // Sinkronkan route_user kalau masih ada referensi terpisah
+      const _ru = communityMapMarkers && communityMapMarkers['route_user'];
+      if(_ru && _ru !== myMarkerLive){
+        try{ _ru.setLatLng([lat,lng]); }catch(e){}
+      }
+      // Jadikan myMarkerLive sebagai canonical route_user
+      if(communityMapMarkers) communityMapMarkers['route_user'] = myMarkerLive;
+    }
+
+    // Update indikator GPS di nav panel (kalau ada elemennya)
+    const gpsEl = document.getElementById('navGpsStatus');
+    if(gpsEl) gpsEl.textContent = '📶 GPS aktif (' + navFixCount + ' fix)';
+
+    // === Camera Follow ===
+    // FIX: jangan pakai setView animate:true (animasi tabrakan), pakai panTo dengan
+    // animate:false dan throttle 800ms biar smooth, tidak gagap.
+    if(followCameraMode && communityMap && !mapUserInteracting){
+      const now = Date.now();
+      if(now - lastCameraUpdate > 800){
+        lastCameraUpdate = now;
+        const curZoom = communityMap.getZoom();
+        // Zoom dipaksa minimal 17 saat navigasi (tapi pertahankan zoom user kalau lebih besar)
+        const targetZoom = Math.max(curZoom, 17);
+        if(curZoom !== targetZoom){
+          communityMap.setView([lat,lng], targetZoom, {animate:false});
+        } else {
+          communityMap.panTo([lat,lng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
+        }
       }
     }
+  }
+
+  // Fallback polling: kalau watchPosition tidak fire dalam 6 detik, paksa getCurrentPosition tiap 3 detik
+  if(navFallbackTimer){ clearInterval(navFallbackTimer); navFallbackTimer=null; }
+  setTimeout(()=>{
+    if(navMode && navFixCount===0 && navigator.geolocation){
+      console.warn('[nav] watchPosition belum fire dalam 6s, mulai fallback polling');
+      navFallbackTimer = setInterval(()=>{
+        if(!navMode){ clearInterval(navFallbackTimer); navFallbackTimer=null; return; }
+        navigator.geolocation.getCurrentPosition(
+          (pos)=>handleNavFix(pos.coords.latitude,pos.coords.longitude),
+          (err)=>console.warn('[nav-fallback] err',err.code),
+          {enableHighAccuracy:true,timeout:8000,maximumAge:2000}
+        );
+      },3000);
+    }
+  },6000);
+
+  navWatchId=navigator.geolocation.watchPosition((pos)=>{
+    if(!navMode) return;
+    const lat=pos.coords.latitude, lng=pos.coords.longitude;
+    handleNavFix(lat,lng);
 
     // Tentukan step saat ini
     const stepIdx=findCurrentStep(lat,lng);
@@ -3299,16 +3400,7 @@ function startNavigation(){
       }
     }
 
-    // Kamera: ikuti user dengan look-ahead 250m, zoom 18, user muncul di bawah layar
-    if(communityMap && !mapUserInteracting){
-      const userLL=L.latLng(lat,lng);
-      let lookAhead=userLL;
-      if(activeRouteCoords&&activeRouteCoords.length>1){
-        lookAhead=findLookAheadPoint(userLL,activeRouteCoords,250);
-      }
-      // Center tepat di posisi user → logo profil selalu terlihat di tengah layar
-      communityMap.setView([lat,lng],18,{animate:true,duration:0.6,noMoveStart:true});
-    }
+    // (Camera follow & marker update sudah dihandle oleh handleNavFix di atas)
 
     // Cek apakah sudah sampai (< 30m dari tujuan)
     if(activeDestLat!==null){
@@ -3320,7 +3412,11 @@ function startNavigation(){
     }
   },(err)=>{
     console.warn('Nav GPS error:',err);
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+    const gpsEl=document.getElementById('navGpsStatus');
+    if(gpsEl) gpsEl.textContent = '⚠️ GPS error: '+(err.message||err.code||'unknown');
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
+  // FIX: maximumAge dinaikkan dari 0 → 2000ms supaya watchPosition fire lebih sering di Android.
+  // maximumAge:0 paksa tunggu GPS hardware fix baru setiap kali — sering bikin watch lambat / mandek.
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────
@@ -3657,10 +3753,29 @@ function initCommunityMap(centerLat, centerLng){
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
   communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
-  // Setelah 5 detik berhenti berinteraksi, izinkan GPS kamera kembali
+  // Setelah 2 detik berhenti berinteraksi, izinkan GPS kamera kembali
+  // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
   communityMap.on('dragend zoomend', () => {
-    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 5000);
+    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 2000);
   });
+
+  // === Tombol Follow Mode (Camera Follow) ===
+  // Tombol ini terlihat saat navMode aktif. Toggle on/off oleh user.
+  const btnFollow = document.createElement('button');
+  btnFollow.id = 'btnFollowCam';
+  btnFollow.title = 'Ikuti Saya (Camera Follow)';
+  btnFollow.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:#1B4D4A;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:18px;';
+  btnFollow.innerHTML = '🎯';
+  btnFollow.onclick = () => {
+    followCameraMode = !followCameraMode;
+    btnFollow.style.background = followCameraMode ? '#1B4D4A' : '#999';
+    btnFollow.title = followCameraMode ? 'Follow ON — klik untuk OFF' : 'Follow OFF — klik untuk ON';
+    if(followCameraMode && myLocation && myLocation.lat){
+      mapUserInteracting = false;
+      communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:false});
+    }
+  };
+  controlDiv.insertBefore(btnFollow, btnGPS);
 }
 
 function makeUserIcon(isMe, photoUrl){
@@ -6932,6 +7047,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   $$('brainTrainBtn').addEventListener('click',runTraining);
   document.querySelectorAll('.tab[data-panel="brain"]').forEach(t=>t.addEventListener('click',refreshStatus));
+  setTimeout(refreshStatus,300); // FIX: status Otak AI langsung akurat begitu transaksi tersimpan dimuat, tidak nunggu klik tab
   setTimeout(refreshStatus,1000);
 })();
 </script>

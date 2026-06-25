@@ -1788,7 +1788,7 @@
 
     <!-- Step 2: OTP verifikasi (muncul setelah daftar) -->
     <div id="authStep2" style="display:none;">
-      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">Kode 6 digit sudah dikirim ke nomor HP <strong id="otpEmailDisplay"></strong>. Berlaku <strong id="otpCountdown" style="color:var(--coral);">120</strong> detik.</p>
+      <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;">Kode 6 digit sudah dikirim ke <strong id="otpEmailDisplay"></strong>. Berlaku <strong id="otpCountdown" style="color:var(--coral);">120</strong> detik.</p>
       <input type="text" id="otpInput" placeholder="Masukkan kode 6 digit" maxlength="6" inputmode="numeric" pattern="[0-9]*"
         style="text-align:center;font-size:26px;letter-spacing:10px;font-weight:700;padding:14px;border-radius:12px;border:2px solid var(--line);width:100%;font-family:'JetBrains Mono',monospace;">
       <div class="auth-error" id="otpError" style="margin-top:10px;"></div>
@@ -1939,10 +1939,11 @@ let authMode = 'login';
 
 function $a(id){ return document.getElementById(id); }
 
-// ===== OTP SYSTEM via Firebase Phone Auth =====
-const OTP_EXPIRE_MS  = 120000; // 2 menit
-let _recaptchaVerifier = null;
-let _confirmationResult = null;
+// ===== OTP EMAIL SYSTEM via Mailjet =====
+const MAILJET_API_KEY    = 'eb60367e11fb4747bba4ce8563a96c17';
+const MAILJET_SECRET_KEY = '06034d39afdd96a88a84049818963bfa';
+const MAILJET_SENDER     = 'nagoyaflora@gmail.com';
+const OTP_EXPIRE_MS      = 120000; // 2 menit
 
 let _otpCode = '';
 let _otpExpiry = 0;
@@ -1967,25 +1968,32 @@ function _startOTPCountdown(){
   }, 1000);
 }
 
-async function _sendOTP(phone, name){
+async function _sendOTP(email, name){
+  _otpCode   = _genOTP();
   _otpExpiry = Date.now() + OTP_EXPIRE_MS;
   try{
-    // Init reCAPTCHA kalau belum
-    if(!_recaptchaVerifier){
-      _recaptchaVerifier = new window.fbRecaptchaVerifier(window.fbAuth, 'recaptcha-container', {
-        size: 'invisible',
-        callback: () => {}
-      });
-    }
-    _confirmationResult = await window.fbSignInWithPhoneNumber(window.fbAuth, phone, _recaptchaVerifier);
-    return true;
+    const credentials = btoa(MAILJET_API_KEY + ':' + MAILJET_SECRET_KEY);
+    const res = await fetch('https://api.mailjet.com/v3.1/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + credentials,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        Messages: [{
+          From: { Email: MAILJET_SENDER, Name: 'Sekretaris UMKM' },
+          To: [{ Email: email, Name: name || email }],
+          Subject: 'Kode Verifikasi Sekretaris UMKM',
+          HTMLPart: '<p>Halo <b>' + (name || email) + '</b>,</p><p>Kode verifikasi Sekretaris UMKM kamu:</p><h2 style="letter-spacing:8px;color:#1B4D4A;">' + _otpCode + '</h2><p>Kode berlaku 2 menit. Jangan bagikan ke siapapun.</p><p>- Tim Sekretaris UMKM</p>'
+        }]
+      })
+    });
+    const data = await res.json();
+    if(data.Messages && data.Messages[0].Status === 'success') return true;
+    console.error('Mailjet error:', data);
+    return false;
   } catch(e){
-    console.error('Phone OTP error:', e);
-    // Reset recaptcha on error
-    if(_recaptchaVerifier){
-      try{ _recaptchaVerifier.clear(); } catch(ex){}
-      _recaptchaVerifier = null;
-    }
+    console.error('Mailjet fetch error:', e);
     return false;
   }
 }
@@ -2023,7 +2031,7 @@ function updateAuthModeUI(){
   if(authMode==='register'){
     $a('authTitle').textContent = 'Daftar Akun Baru';
     $a('authNameInput').classList.remove('auth-field-hidden');
-    $a('authPhoneInput').style.display = 'block';
+
     $a('authPasswordInput').placeholder = 'Password (min. 6 karakter)';
     $a('authPasswordInput').autocomplete = 'new-password';
     $a('authPasswordConfirm').style.display = 'block';
@@ -2035,7 +2043,7 @@ function updateAuthModeUI(){
   } else {
     $a('authTitle').textContent = 'Masuk ke Akunmu';
     $a('authNameInput').classList.add('auth-field-hidden');
-    $a('authPhoneInput').style.display = 'none';
+
     $a('authPasswordInput').placeholder = 'Password';
     $a('authPasswordInput').autocomplete = 'current-password';
     $a('authPasswordConfirm').style.display = 'none';
@@ -2095,26 +2103,23 @@ $a('authSubmitBtn').addEventListener('click', async () => {
   if(!email || !pass){ $a('authError').textContent = 'Isi email dan password dulu.'; return; }
   if(authMode==='register'){
     if(!name){ $a('authError').textContent = 'Isi nama kamu dulu.'; return; }
-    const phone = ($a('authPhoneInput').value || '').trim();
-    if(!phone){ $a('authError').textContent = 'Isi nomor HP kamu dulu (format: +628xxx).'; return; }
-    if(!phone.startsWith('+')){ $a('authError').textContent = 'Nomor HP harus pakai kode negara, contoh: +628123456789'; return; }
     const passConfirm = $a('authPasswordConfirm').value;
     if(!passConfirm){ $a('authError').textContent = 'Konfirmasi password dulu ya.'; return; }
     if(pass !== passConfirm){ $a('authError').textContent = 'Password dan konfirmasi tidak sama.'; return; }
     if(pass.length < 6){ $a('authError').textContent = 'Password minimal 6 karakter.'; return; }
 
-    // Mode register: kirim OTP SMS dulu sebelum buat akun
+    // Mode register: kirim OTP email dulu sebelum buat akun
     $a('authSubmitBtn').disabled = true;
-    $a('authSubmitBtn').textContent = '📤 Mengirim kode SMS...';
-    const ok = await _sendOTP(phone, name);
+    $a('authSubmitBtn').textContent = '📤 Mengirim kode...';
+    const ok = await _sendOTP(email, name);
     $a('authSubmitBtn').disabled = false;
     $a('authSubmitBtn').textContent = 'Daftar & Mulai 🚀';
     if(!ok){
-      $a('authError').textContent = '❌ Gagal kirim kode SMS. Pastikan nomor HP benar dan coba lagi.';
+      $a('authError').textContent = '❌ Gagal kirim kode OTP. Pastikan email benar dan coba lagi.';
       return;
     }
-    _pendingRegister = { email, pass, name, phone };
-    _showOTPStep(phone);
+    _pendingRegister = { email, pass, name };
+    _showOTPStep(email);
   } else {
     // Mode login: langsung masuk
     $a('authSubmitBtn').disabled = true;
@@ -2136,17 +2141,14 @@ $a('otpVerifyBtn').addEventListener('click', async () => {
   const inputOtp = ($a('otpInput').value || '').trim();
   $a('otpError').textContent = '';
   if(!inputOtp || inputOtp.length !== 6){ $a('otpError').textContent = 'Masukkan 6 digit kode.'; return; }
-  if(!_confirmationResult){ $a('otpError').textContent = 'Sesi OTP tidak ditemukan. Kembali dan coba lagi.'; return; }
+  if(Date.now() > _otpExpiry){ $a('otpError').textContent = '⏰ Kode sudah kedaluwarsa. Klik Kirim Ulang.'; return; }
+  if(inputOtp !== _otpCode){ $a('otpError').textContent = '❌ Kode salah. Coba lagi.'; return; }
   if(!_pendingRegister){ $a('otpError').textContent = 'Sesi daftar tidak ditemukan. Kembali dan coba lagi.'; return; }
 
   $a('otpVerifyBtn').disabled = true;
   $a('otpVerifyBtn').textContent = '⏳ Memverifikasi...';
   const { email, pass, name } = _pendingRegister;
   try{
-    // Verifikasi kode SMS dengan Firebase
-    await _confirmationResult.confirm(inputOtp);
-    // Setelah phone verified, sign out phone user lalu buat akun email/password
-    await window.fbSignOut(window.fbAuth);
     const cred = await window.fbCreateUser(window.fbAuth, email, pass);
     MY_UID = cred.user.uid;
     try{ localStorage.setItem('umkm_display_name', name); } catch(e){}
@@ -2155,7 +2157,6 @@ $a('otpVerifyBtn').addEventListener('click', async () => {
     });
     clearInterval(_otpTimer);
     _pendingRegister = null;
-    _confirmationResult = null;
     // authOverlay akan otomatis tutup via onAuthStateChanged
   } catch(err){
     $a('otpError').textContent = translateAuthError(err.code) || ('Kode salah atau kedaluwarsa. Coba lagi.');
@@ -2170,7 +2171,7 @@ $a('otpResendBtn').addEventListener('click', async () => {
   $a('otpResendBtn').disabled = true;
   $a('otpResendBtn').textContent = '⏳ Mengirim...';
   $a('otpError').textContent = '';
-  const ok = await _sendOTP(_pendingRegister.phone, _pendingRegister.name);
+  const ok = await _sendOTP(_pendingRegister.email, _pendingRegister.name);
   $a('otpResendBtn').disabled = false;
   $a('otpResendBtn').textContent = '🔄 Kirim Ulang Kode';
   if(ok){

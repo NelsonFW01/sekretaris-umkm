@@ -1970,6 +1970,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         </div>
         <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
         <button id="chatVideoCallBtn" onclick="startVideoCall()" title="Video Call" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">📹</button>
+        <button class="chat-header-clear" id="chatWpBtn" title="Wallpaper chat">🖼️</button>
         <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
         <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
       </div>
@@ -1991,6 +1992,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         <!-- Input row -->
         <div class="chat-input-row">
           <button class="chat-attach-btn" id="chatAttachBtn" title="Lampirkan gambar/file">📎</button>
+          <button class="chat-attach-btn" id="chatMusicBtn" title="Bagikan lagu/audio">🎵</button>
           <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
           <button class="chat-mic-btn" id="chatMicBtn" title="Rekam pesan suara">🎤</button>
           <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
@@ -1998,6 +2000,56 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       </div>
       <!-- Hidden file input -->
       <input type="file" id="chatFileInput" accept="image/*,video/*,application/pdf" multiple style="display:none;">
+      <input type="file" id="chatMusicFileInput" accept="audio/*" style="display:none;">
+    </div>
+    <!-- Wallpaper Picker Panel (hidden by default, inside chat-box) -->
+    <div id="chatWpPanel" style="display:none;position:absolute;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1.5px solid var(--line);border-radius:0 0 0 0;z-index:20;padding:16px;box-shadow:0 -4px 24px rgba(0,0,0,0.12);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-weight:700;font-size:14px;">🖼️ Wallpaper Chat</span>
+        <button onclick="document.getElementById('chatWpPanel').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);">✕</button>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Warna Polos</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="wpSolidRow">
+        <div class="chat-wp-swatch" data-wp="solid:#FAF6F0" style="background:#FAF6F0;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#E8F5E9" style="background:#E8F5E9;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#E3F2FD" style="background:#E3F2FD;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#FFF3E0" style="background:#FFF3E0;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#F3E5F5" style="background:#F3E5F5;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#1A1A1A" style="background:#1A1A1A;border:1.5px solid #555;"></div>
+        <div class="chat-wp-swatch" data-wp="solid:#2C3E50" style="background:#2C3E50;"></div>
+      </div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Gradient</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#667eea,#764ba2)" style="background:linear-gradient(135deg,#667eea,#764ba2);"></div>
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#f093fb,#f5576c)" style="background:linear-gradient(135deg,#f093fb,#f5576c);"></div>
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#4facfe,#00f2fe)" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"></div>
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#43e97b,#38f9d7)" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"></div>
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#fa709a,#fee140)" style="background:linear-gradient(135deg,#fa709a,#fee140);"></div>
+        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#30cfd0,#330867)" style="background:linear-gradient(135deg,#30cfd0,#330867);"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;cursor:pointer;">
+          <div style="padding:9px;border:1.5px dashed var(--line);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--teal);">📷 Foto Custom</div>
+          <input type="file" id="chatWpImgInput" accept="image/*" style="display:none;">
+        </label>
+        <label style="flex:1;cursor:pointer;" id="chatWpBlurLabel">
+          <div style="padding:9px;border:1.5px dashed var(--line);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--teal);">🌫️ Foto Blur</div>
+          <input type="file" id="chatWpBlurInput" accept="image/*" style="display:none;">
+        </label>
+        <button onclick="applyChatWp('solid:#FAF6F0',true)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;background:none;color:var(--ink-soft);">🗑️ Reset</button>
+      </div>
+    </div>
+    <div id="chatUndoBar" style="display:none;position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:#2A2622;color:white;border-radius:20px;padding:10px 18px;font-size:13px;font-weight:600;display:none;align-items:center;gap:12px;z-index:30;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+      <span>✓ Pesan terkirim</span>
+      <button id="chatUndoBtn" style="background:var(--coral);color:white;border:none;border-radius:12px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;">↩ Urungkan</button>
+      <span id="chatUndoTimer" style="font-size:11px;opacity:0.6;">10s</span>
+    </div>
+    <div id="chatMusicUploadBar" style="display:none;padding:8px 14px;background:var(--sand);border-top:1px solid var(--line);align-items:center;gap:10px;font-size:12px;font-weight:600;">
+      🎵 <span id="chatMusicFileName" style="flex:1;">Mengunggah...</span>
+      <div style="flex:1;height:3px;background:var(--line);border-radius:2px;overflow:hidden;"><div id="chatMusicProgressBar" style="height:100%;background:var(--teal);border-radius:2px;width:0%;transition:width .1s;"></div></div>
+      <span id="chatMusicPct" style="color:var(--ink-soft);">0%</span>
+    </div>
+    <div id="_chatBoxInner_placeholder" style="display:none;">
     </div>
   </div>
 </div>
@@ -9773,6 +9825,647 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     }
   });
   if(window.firebaseReady) setTimeout(listenIncoming,1200);
+})();
+</script>
+<!-- ===== CSS TAMBAHAN ===== -->
+<style>
+/* Wallpaper chat swatch */
+.chat-wp-swatch {
+  width:44px; height:44px; border-radius:10px; cursor:pointer;
+  border:2.5px solid transparent; transition:all .2s; flex-shrink:0;
+  border:2px solid rgba(0,0,0,0.08);
+}
+.chat-wp-swatch:hover { transform:scale(1.08); }
+.chat-wp-swatch.active { border-color:var(--teal); box-shadow:0 0 0 2px white, 0 0 0 4px var(--teal); }
+
+/* Chat box needs position:relative for absolute children (wp picker, undo bar) */
+.chat-box { position:relative; }
+
+/* Music bubble in chat */
+.chat-bubble-music {
+  padding:10px 13px; min-width:200px; max-width:260px;
+}
+.cbm-header { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+.cbm-icon { width:36px; height:36px; border-radius:9px; background:rgba(27,77,74,0.15); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+.chat-bubble.mine .cbm-icon { background:rgba(255,255,255,0.2); }
+.cbm-title { font-size:12.5px; font-weight:700; line-height:1.3; }
+.cbm-sub { font-size:10.5px; opacity:.65; margin-top:1px; }
+.cbm-controls { display:flex; align-items:center; gap:7px; }
+.cbm-play {
+  width:28px; height:28px; border-radius:50%; border:none; cursor:pointer;
+  background:var(--teal); color:white; font-size:11px; display:flex;
+  align-items:center; justify-content:center; flex-shrink:0; transition:transform .15s;
+}
+.chat-bubble.mine .cbm-play { background:rgba(255,255,255,0.25); }
+.cbm-play:hover { transform:scale(1.1); }
+.cbm-prog { flex:1; height:3px; border-radius:2px; background:rgba(0,0,0,0.12); cursor:pointer; position:relative; }
+.chat-bubble.mine .cbm-prog { background:rgba(255,255,255,0.25); }
+.cbm-prog-fill { height:100%; border-radius:2px; background:var(--teal); width:0%; transition:width .15s; pointer-events:none; }
+.chat-bubble.mine .cbm-prog-fill { background:rgba(255,255,255,0.9); }
+.cbm-dur { font-size:10px; opacity:.6; white-space:nowrap; }
+
+/* Notif permission bar */
+#chatNotifPrompt {
+  display:none; padding:9px 14px; background:linear-gradient(90deg,#1B4D4A,#2D7A4F);
+  color:white; font-size:12.5px; font-weight:600; align-items:center; gap:10px;
+  flex-shrink:0;
+}
+#chatNotifPrompt.show { display:flex; }
+#chatNotifPrompt button {
+  padding:5px 12px; border-radius:10px; border:none; font-size:12px;
+  font-weight:700; cursor:pointer; flex-shrink:0;
+}
+.cnp-yes { background:white; color:var(--teal); }
+.cnp-no { background:rgba(255,255,255,0.2); color:white; }
+
+/* Music upload bar reposition inside chat-box */
+#chatMusicUploadBar {
+  position:absolute; bottom:58px; left:0; right:0;
+  background:var(--sand); border-top:1px solid var(--line);
+  padding:7px 14px; align-items:center; gap:8px; font-size:12px;
+  font-weight:600; z-index:10;
+}
+/* Undo bar reposition */
+#chatUndoBar {
+  position:absolute; bottom:72px; left:50%; transform:translateX(-50%);
+  z-index:25;
+}
+/* Wallpaper picker needs to be inside chat-box */
+#chatWpPanel {
+  position:absolute; bottom:0; left:0; right:0; z-index:20;
+  overflow-y:auto; max-height:55%;
+}
+</style>
+
+<!-- ===== SERVICE WORKER + WALLPAPER + MUSIK + UNDO + NOTIFIKASI ===== -->
+<script>
+(function(){
+  /* ── 1. SERVICE WORKER (blob, tanpa file terpisah) ─────────────────────── */
+  const SW_SRC = `
+    self.addEventListener('install', () => self.skipWaiting());
+    self.addEventListener('activate', e => e.waitUntil(clients.claim()));
+    self.addEventListener('message', e => {
+      if(e.data && e.data.type === 'SHOW_NOTIF'){
+        self.registration.showNotification(e.data.title||'Sekretaris UMKM', {
+          body: e.data.body||'Ada pesan baru',
+          icon: e.data.icon||'',
+          tag: e.data.tag||'chat',
+          vibrate: [180,80,180],
+          data: e.data.url||'/'
+        });
+      }
+    });
+    self.addEventListener('notificationclick', e => {
+      e.notification.close();
+      e.waitUntil(clients.matchAll({type:'window'}).then(cl=>{
+        for(const c of cl){ if('focus' in c) return c.focus(); }
+        if(clients.openWindow) return clients.openWindow('/');
+      }));
+    });
+  `;
+  let _swReg = null;
+  if('serviceWorker' in navigator){
+    const blob = new Blob([SW_SRC], {type:'application/javascript'});
+    const swUrl = URL.createObjectURL(blob);
+    navigator.serviceWorker.register(swUrl)
+      .then(reg => { _swReg = reg; })
+      .catch(e => console.warn('[SW]', e));
+  }
+
+  function sendPushNotif(title, body, tag){
+    if(Notification.permission !== 'granted') return;
+    if(_swReg && _swReg.active){
+      _swReg.active.postMessage({type:'SHOW_NOTIF', title, body, tag: tag||'chat'});
+    } else {
+      new Notification(title, {body, tag: tag||'chat', vibrate:[180,80,180]});
+    }
+  }
+
+  /* ── 2. NOTIFICATION PERMISSION PROMPT ─────────────────────────────────── */
+  // Tambahkan bar prompt notifikasi ke dalam chat-box
+  function injectNotifPrompt(){
+    const box = document.getElementById('chatBox');
+    if(!box || document.getElementById('chatNotifPrompt')) return;
+    const bar = document.createElement('div');
+    bar.id = 'chatNotifPrompt';
+    bar.className = 'show';
+    bar.innerHTML = `
+      <span style="flex:1">🔔 Aktifkan notifikasi agar kamu dapat pesan & live stream meski tab ditutup</span>
+      <button class="cnp-yes" id="chatNotifYes">Aktifkan</button>
+      <button class="cnp-no" id="chatNotifNo">✕</button>
+    `;
+    // Insert setelah chat-header (anak pertama chat-box setelah header)
+    const header = box.querySelector('.chat-header');
+    if(header && header.nextSibling){
+      box.insertBefore(bar, header.nextSibling);
+    } else {
+      box.prepend(bar);
+    }
+    document.getElementById('chatNotifYes').onclick = async () => {
+      const p = await Notification.requestPermission();
+      if(p === 'granted'){
+        localStorage.setItem('umkm_notif', 'true');
+        sendPushNotif('Sekretaris UMKM 🔔', 'Notifikasi aktif! Kamu akan dapat notif chat, live stream, dan panggilan.');
+        bar.remove();
+      } else {
+        bar.remove();
+      }
+    };
+    document.getElementById('chatNotifNo').onclick = () => {
+      localStorage.setItem('umkm_notif', 'denied_manual');
+      bar.remove();
+    };
+  }
+
+  // Cek apakah perlu tampilkan prompt
+  function maybeShowNotifPrompt(){
+    if(Notification.permission === 'granted'){
+      localStorage.setItem('umkm_notif', 'true');
+      return;
+    }
+    const saved = localStorage.getItem('umkm_notif');
+    if(saved === 'denied_manual') return;
+    if(Notification.permission === 'denied') return;
+    injectNotifPrompt();
+  }
+
+  // Hook ke openChat — dipanggil saat chat dibuka
+  const _origOpenChat = window.openChat;
+  window.openChat = function(uid, name, photo){
+    const result = _origOpenChat && _origOpenChat.apply(this, arguments);
+    setTimeout(()=>{
+      maybeShowNotifPrompt();
+      loadAndApplyChatWp(uid);
+    }, 400);
+    return result;
+  };
+
+  /* ── 3. NOTIFIKASI PESAN MASUK (tab tidak fokus) ──────────────────────── */
+  // Patch updateConvListUI untuk kirim push notif saat ada unread baru
+  let _prevTotalUnread = 0;
+  let _prevUnreadMap = {};
+
+  const _checkNewUnread = function(chats){
+    if(Notification.permission !== 'granted') return;
+    if(document.hasFocus()) return; // hanya kalau tab tidak fokus
+    chats && chats.forEach(c => {
+      const chatId = c.chatId;
+      const myUnread = c.unread && (typeof MY_UID !== 'undefined') && c.unread[MY_UID];
+      const peerUid = chatId.replace((typeof MY_UID!=='undefined'?MY_UID:'')+'_','').replace('_'+(typeof MY_UID!=='undefined'?MY_UID:''),'');
+      if(myUnread && !_prevUnreadMap[chatId]){
+        const peerName = (c.participants && c.participants[peerUid] && c.participants[peerUid].name) || 'Seseorang';
+        const lastMsg = (c.lastMsg||'').slice(0,80);
+        sendPushNotif(peerName + ' 💬', lastMsg || 'Pesan baru', 'chat_' + chatId);
+        addNotifSafe('💬 Pesan baru dari ' + peerName + ': ' + lastMsg.slice(0,40), '💬');
+      }
+      _prevUnreadMap[chatId] = !!myUnread;
+    });
+  };
+
+  // Monkey-patch updateConvListUI
+  const _waitForConvUI = setInterval(()=>{
+    if(typeof updateConvListUI === 'undefined') return;
+    clearInterval(_waitForConvUI);
+    const _origConvUI = updateConvListUI; // tidak bisa di-patch karena di dalam IIFE — gunakan MutationObserver sebagai gantinya
+  }, 500);
+
+  // Pakai MutationObserver pada convList untuk deteksi badge baru
+  setTimeout(()=>{
+    const badge = document.getElementById('chatSectionUnreadBadge');
+    if(!badge) return;
+    let prevBadgeText = badge.textContent;
+    new MutationObserver(()=>{
+      const cur = badge.textContent;
+      if(cur !== prevBadgeText && badge.style.display !== 'none' && !document.hasFocus()){
+        const myN = (typeof myProfile !== 'undefined' && myProfile) ? (myProfile.displayName||myProfile.storeName||'') : '';
+        sendPushNotif('Sekretaris UMKM 💬', 'Ada ' + cur + ' pesan belum dibaca', 'unread_badge');
+      }
+      prevBadgeText = cur;
+    }).observe(badge, {childList:true, characterData:true, subtree:true, attributes:true});
+  }, 3000);
+
+  // Notifikasi video call masuk
+  const _origShowBar = window.showBar;
+  window.showBar = function(v){
+    if(v && !document.hasFocus()){
+      const name = document.getElementById('vcIncomingName')?.textContent || 'Seseorang';
+      sendPushNotif('📹 Panggilan Video Masuk', name + ' mengajak video call!', 'videocall');
+      addNotifSafe('📹 Panggilan video dari ' + name, '📹');
+    }
+    return _origShowBar && _origShowBar.apply(this, arguments);
+  };
+
+  // Helper addNotif yang aman
+  function addNotifSafe(msg, icon){
+    try{ if(typeof addNotif === 'function') addNotif(msg, icon); } catch(e){}
+  }
+
+  /* ── 4. WALLPAPER CHAT (disimpan di Firebase — sinkron kedua pihak) ────── */
+  let _currentChatIdWp = null;
+  let _wpFirebaseUnsub = null;
+
+  // Terapkan wallpaper ke area pesan (tampilan saja, tanpa simpan)
+  function _applyWpVisual(wpVal){
+    const msgs = document.getElementById('chatMessages');
+    if(!msgs) return;
+    msgs.style.transition = 'background .4s';
+    msgs.style.background = '';
+    msgs.style.backgroundImage = '';
+    msgs.style.backgroundSize = '';
+    msgs.style.backgroundPosition = '';
+
+    const blurEl = document.getElementById('chatMsgsBgBlur');
+
+    if(!wpVal || wpVal === 'none'){
+      if(blurEl) blurEl.style.display = 'none';
+    } else {
+      const sep = wpVal.indexOf(':');
+      const type = wpVal.slice(0, sep);
+      const val  = wpVal.slice(sep + 1);
+      if(type === 'solid'){
+        msgs.style.background = val;
+        if(blurEl) blurEl.style.display = 'none';
+      } else if(type === 'gradient'){
+        msgs.style.background = val;
+        if(blurEl) blurEl.style.display = 'none';
+      } else if(type === 'image'){
+        msgs.style.backgroundImage = `url('${val}')`;
+        msgs.style.backgroundSize = 'cover';
+        msgs.style.backgroundPosition = 'center';
+        if(blurEl) blurEl.style.display = 'none';
+      } else if(type === 'blur'){
+        msgs.style.backgroundImage = `url('${val}')`;
+        msgs.style.backgroundSize = 'cover';
+        msgs.style.backgroundPosition = 'center';
+        let be = blurEl;
+        if(!be){
+          be = document.createElement('div');
+          be.id = 'chatMsgsBgBlur';
+          be.style.cssText = 'position:absolute;inset:0;z-index:0;pointer-events:none;background-size:cover;background-position:center;filter:blur(10px);transform:scale(1.05);';
+          msgs.style.position = 'relative';
+          msgs.insertBefore(be, msgs.firstChild);
+        }
+        be.style.backgroundImage = `url('${val}')`;
+        be.style.display = 'block';
+      }
+    }
+
+    // Update active swatch
+    document.querySelectorAll('.chat-wp-swatch').forEach(s => {
+      s.classList.toggle('active', s.dataset.wp === wpVal);
+    });
+  }
+
+  // Simpan ke Firebase → sinkron otomatis ke kedua pihak
+  window.applyChatWp = async function(wpVal, isReset){
+    if(!_currentChatIdWp) return;
+    // Terapkan lokal dulu supaya terasa responsif
+    _applyWpVisual(wpVal);
+    // Tutup panel
+    if(!isReset) document.getElementById('chatWpPanel').style.display = 'none';
+    // Simpan ke Firebase: chats/{chatId}/meta/wallpaper
+    try{
+      if(window.firebaseDb && window.rtdbUpdate){
+        await window.rtdbUpdate(
+          window.rtdbRef(window.firebaseDb, `chats/${_currentChatIdWp}/meta`),
+          { wallpaper: wpVal || 'none' }
+        );
+      }
+    } catch(e){ console.warn('[wp] gagal simpan wallpaper:', e.message); }
+  };
+
+  // Dengarkan perubahan wallpaper dari Firebase secara real-time
+  function loadAndApplyChatWp(uid){
+    const MY = (typeof MY_UID !== 'undefined') ? MY_UID : '';
+    _currentChatIdWp = [MY, uid].sort().join('_');
+    // Cabut listener lama
+    if(_wpFirebaseUnsub){ try{_wpFirebaseUnsub();}catch(e){} _wpFirebaseUnsub=null; }
+    if(!window.firebaseDb) return;
+    const wpRef = window.rtdbRef(window.firebaseDb, `chats/${_currentChatIdWp}/meta/wallpaper`);
+    _wpFirebaseUnsub = window.rtdbOnValue(wpRef, snap => {
+      const val = snap.val();
+      _applyWpVisual(val && val !== 'none' ? val : null);
+    });
+  }
+
+  // Tombol wallpaper
+  document.getElementById('chatWpBtn')?.addEventListener('click', ()=>{
+    const panel = document.getElementById('chatWpPanel');
+    if(panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+
+  // Click swatch
+  document.getElementById('chatBox')?.addEventListener('click', e=>{
+    const sw = e.target.closest('.chat-wp-swatch');
+    if(sw && sw.dataset.wp) applyChatWp(sw.dataset.wp);
+  });
+
+  // Upload foto custom
+  document.getElementById('chatWpImgInput')?.addEventListener('change', function(){
+    const file = this.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => applyChatWp('image:' + ev.target.result);
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
+  // Upload foto blur
+  document.getElementById('chatWpBlurInput')?.addEventListener('change', function(){
+    const file = this.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => applyChatWp('blur:' + ev.target.result);
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
+  /* ── 5. MUSIC SHARE — Upload ke Firebase Storage ───────────────────────── */
+  document.getElementById('chatMusicBtn')?.addEventListener('click', ()=>{
+    document.getElementById('chatMusicFileInput')?.click();
+  });
+
+  document.getElementById('chatMusicFileInput')?.addEventListener('change', async function(){
+    const file = this.files[0]; if(!file) return;
+    this.value = '';
+
+    if(!window.firebaseReady || !window.firebaseStorage){
+      alert('Firebase Storage belum siap. Pastikan Firebase sudah dikonfigurasi.');
+      return;
+    }
+    if(file.size > 25 * 1024 * 1024){
+      alert('File audio terlalu besar! Maks 25MB.');
+      return;
+    }
+
+    // Cari activeChatId — dipake oleh sendMessage
+    const activeChatId = window._activeChatIdGlobal;
+    const activeChatUid = window._activeChatUidGlobal;
+    if(!activeChatId || !activeChatUid){
+      alert('Buka percakapan dulu sebelum berbagi musik!');
+      return;
+    }
+
+    // Tampilkan progress bar
+    const uploadBar = document.getElementById('chatMusicUploadBar');
+    const fileNameEl = document.getElementById('chatMusicFileName');
+    const progBar = document.getElementById('chatMusicProgressBar');
+    const pctEl = document.getElementById('chatMusicPct');
+    if(uploadBar){ uploadBar.style.display = 'flex'; }
+    if(fileNameEl) fileNameEl.textContent = file.name.slice(0, 30);
+
+    try {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const path = `chat_media/${activeChatId}/${Date.now()}_music.${ext}`;
+      const sRef = window.storageRef(window.firebaseStorage, path);
+
+      // Upload with progress
+      const uploadTask = window.storageUploadBytesResumable
+        ? window.storageUploadBytesResumable(sRef, file)
+        : null;
+
+      let url;
+      if(uploadTask){
+        await new Promise((resolve, reject) => {
+          uploadTask.on('state_changed',
+            snap => {
+              const p = (snap.bytesTransferred / snap.totalBytes * 100).toFixed(0);
+              if(progBar) progBar.style.width = p + '%';
+              if(pctEl) pctEl.textContent = p + '%';
+            },
+            reject,
+            async () => {
+              url = await window.storageGetDownloadURL(sRef);
+              resolve();
+            }
+          );
+        });
+      } else {
+        // Fallback: uploadBytes tanpa progress
+        await window.storageUploadBytes(sRef, file);
+        url = await window.storageGetDownloadURL(sRef);
+        if(progBar) progBar.style.width = '100%';
+        if(pctEl) pctEl.textContent = '100%';
+      }
+
+      if(uploadBar) uploadBar.style.display = 'none';
+
+      // Kirim sebagai pesan musik
+      const myName = (typeof myProfile !== 'undefined' && myProfile)
+        ? (myProfile.displayName || myProfile.storeName || 'Saya') : 'Saya';
+      const myPhoto = (typeof myProfile !== 'undefined' && myProfile) ? (myProfile.profilePhotoUrl||'') : '';
+      const trackName = file.name.replace(/\.[^/.]+$/, '');
+
+      const newMsgRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`));
+      await window.rtdbSet(newMsgRef, {
+        from: (typeof MY_UID !== 'undefined' ? MY_UID : ''),
+        fromName: myName, fromPhoto: myPhoto,
+        to: activeChatUid,
+        text: '',
+        mediaUrl: url,
+        mediaType: 'music',
+        mediaName: trackName,
+        ts: Date.now(),
+        read: false
+      });
+
+      // Update meta
+      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/meta`), {
+        lastMsg: '🎵 ' + trackName,
+        lastTs: Date.now(),
+        [`unread/${activeChatUid}`]: Date.now()
+      });
+
+    } catch(err){
+      if(uploadBar) uploadBar.style.display = 'none';
+      console.error('[music upload]', err);
+      alert('Gagal upload musik: ' + err.message);
+    }
+  });
+
+  // Expose activeChatId via openChat patch (tambahan)
+  const _origOC2 = window.openChat;
+  window.openChat = function(uid, name, photo){
+    // Generate chatId sama seperti di kode aslinya
+    const MY = (typeof MY_UID !== 'undefined') ? MY_UID : '';
+    const chatId = [MY, uid].sort().join('_');
+    window._activeChatIdGlobal = chatId;
+    window._activeChatUidGlobal = uid;
+    return _origOC2 && _origOC2.apply(this, arguments);
+  };
+
+  /* ── 6. MUSIK BUBBLE — patch renderMsgBubble ───────────────────────────── */
+  // Cari & patch renderMsgBubble setelah script chat siap
+  const _activePlayers = {};
+
+  window._musicToggle = function(msgId, url){
+    const btn = document.getElementById('cbmp_' + msgId);
+    if(!btn) return;
+    if(_activePlayers[msgId]){
+      const a = _activePlayers[msgId];
+      if(a.paused){ a.play(); btn.textContent='⏸'; }
+      else { a.pause(); btn.textContent='▶'; }
+      return;
+    }
+    const a = new Audio(url);
+    _activePlayers[msgId] = a;
+    a.addEventListener('timeupdate', ()=>{
+      const pct = (a.currentTime / a.duration * 100)||0;
+      const fill = document.getElementById('cbmf_'+msgId);
+      const dur  = document.getElementById('cbmd_'+msgId);
+      if(fill) fill.style.width = pct+'%';
+      if(dur)  dur.textContent = _fmtDur(a.currentTime)+' / '+_fmtDur(a.duration);
+    });
+    a.addEventListener('ended', ()=>{ btn.textContent='▶'; });
+    a.play().then(()=>{ btn.textContent='⏸'; }).catch(e=>{ alert('Putar gagal: '+e.message); });
+  };
+  window._musicSeek = function(e, msgId){
+    const a = _activePlayers[msgId];
+    if(!a||!a.duration) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    a.currentTime = ((e.clientX-r.left)/r.width) * a.duration;
+  };
+  function _fmtDur(s){
+    if(!s||isNaN(s)) return '0:00';
+    return Math.floor(s/60)+':'+(Math.floor(s%60)+'').padStart(2,'0');
+  }
+
+  // Patch renderMsgBubble global — tunggu sampai fungsi didefinisikan
+  const _patchInterval = setInterval(()=>{
+    if(typeof renderMsgBubble !== 'function') return;
+    clearInterval(_patchInterval);
+    const _origRender = renderMsgBubble;
+    window.renderMsgBubble = function(m){
+      if(m.mediaType !== 'music') return _origRender(m);
+      const isMine = m.from === (typeof MY_UID !== 'undefined' ? MY_UID : '');
+      const timeStr = typeof fmtMsgTime === 'function' ? fmtMsgTime(m.ts||Date.now()) : '';
+      const readTick = isMine ? (m.read ? ' <span style="color:#8FE3B0;font-size:10px;">✓✓</span>' : ' <span style="opacity:0.5;font-size:10px;">✓</span>') : '';
+      const title = (m.mediaName||'Musik').slice(0, 40);
+      const url = m.mediaUrl||'';
+      const id = m.id||('m'+Date.now());
+      return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">
+        <div class="chat-bubble ${isMine?'mine':'theirs'} chat-bubble-music">
+          <div class="cbm-header">
+            <div class="cbm-icon">🎵</div>
+            <div>
+              <div class="cbm-title">${typeof escHtml==='function'?escHtml(title):title}</div>
+              <div class="cbm-sub">Ketuk untuk putar</div>
+            </div>
+          </div>
+          <div class="cbm-controls">
+            <button class="cbm-play" id="cbmp_${id}" onclick="_musicToggle('${id}','${url.replace(/'/g,'%27')}')">▶</button>
+            <div class="cbm-prog" onclick="_musicSeek(event,'${id}')">
+              <div class="cbm-prog-fill" id="cbmf_${id}"></div>
+            </div>
+            <span class="cbm-dur" id="cbmd_${id}">0:00</span>
+          </div>
+        </div>
+        <div class="chat-bubble-meta">${timeStr}${readTick}</div>
+      </div>`;
+    };
+  }, 600);
+
+  /* ── 7. UNDO KIRIM PESAN ───────────────────────────────────────────────── */
+  let _lastSentMsgRef = null;
+  let _undoTimer = null;
+  let _undoSec = 10;
+
+  function showUndoBar(msgRef){
+    _lastSentMsgRef = msgRef;
+    _undoSec = 10;
+    const bar = document.getElementById('chatUndoBar');
+    const timerEl = document.getElementById('chatUndoTimer');
+    if(!bar) return;
+    bar.style.display = 'flex';
+    clearInterval(_undoTimer);
+    _undoTimer = setInterval(()=>{
+      _undoSec--;
+      if(timerEl) timerEl.textContent = _undoSec + 's';
+      if(_undoSec <= 0){
+        clearInterval(_undoTimer);
+        bar.style.display = 'none';
+        _lastSentMsgRef = null;
+      }
+    }, 1000);
+  }
+
+  document.getElementById('chatUndoBtn')?.addEventListener('click', async ()=>{
+    if(!_lastSentMsgRef) return;
+    clearInterval(_undoTimer);
+    document.getElementById('chatUndoBar').style.display = 'none';
+    try{
+      await window.rtdbRemove(_lastSentMsgRef);
+      _lastSentMsgRef = null;
+    } catch(e){
+      alert('Gagal urungkan: '+e.message);
+    }
+  });
+
+  // Patch sendMessage untuk undo
+  const _patchSend = setInterval(()=>{
+    if(typeof sendMessage !== 'function') return;
+    clearInterval(_patchSend);
+    const _origSend = sendMessage;
+    window.sendMessage = async function(){
+      // Simpan ref pesan terakhir sebelum send
+      const chatId = window._activeChatIdGlobal;
+      const result = await _origSend.apply(this, arguments);
+
+      // Setelah send, cari pesan terakhir yg dikirim
+      if(chatId && window.firebaseDb){
+        try{
+          const q = window.rtdbQuery(
+            window.rtdbRef(window.firebaseDb, `chats/${chatId}/messages`),
+            window.rtdbOrderByChild('ts'),
+            window.rtdbLimitToLast(1)
+          );
+          const snap = await window.rtdbGet(q);
+          const val = snap.val();
+          if(val){
+            const key = Object.keys(val)[0];
+            const uid = typeof MY_UID !== 'undefined' ? MY_UID : '';
+            if(val[key].from === uid){
+              const msgRef = window.rtdbRef(window.firebaseDb, `chats/${chatId}/messages/${key}`);
+              showUndoBar(msgRef);
+            }
+          }
+        } catch(e){ /* silent */ }
+      }
+      return result;
+    };
+    // Wire send button dan Enter key ke versi baru
+    const btn = document.getElementById('chatSendBtn');
+    if(btn){
+      btn.onclick = null;
+      btn.addEventListener('click', sendMessage);
+    }
+    const inp = document.getElementById('chatInput');
+    if(inp){
+      inp._hasUndoPatch = true;
+    }
+  }, 700);
+
+  /* ── 8. NOTIFIKASI LIVE STREAM ─────────────────────────────────────────── */
+  // Hook ke addNotif yang sudah ada untuk live stream
+  document.addEventListener('firebase-ready', ()=>{
+    if(!window.firebaseDb || typeof MY_UID === 'undefined') return;
+    // Listen collab invites → notifikasi push juga
+    const origAddNotif = window.addNotif;
+    window.addNotif = function(msg, icon){
+      const result = origAddNotif && origAddNotif.apply(this, arguments);
+      // Kalau notif mengandung live/stream → push notif juga
+      if(msg && (msg.includes('Live') || msg.includes('live') || msg.includes('Collab') || msg.includes('panggilan'))){
+        if(!document.hasFocus()){
+          sendPushNotif('Sekretaris UMKM', msg.slice(0,100), icon||'live');
+        }
+      }
+      return result;
+    };
+  });
+
+  /* ── 9. AUTO-INIT NOTIF JIKA SUDAH DIIZINKAN SEBELUMNYA ───────────────── */
+  if(Notification.permission === 'granted'){
+    localStorage.setItem('umkm_notif', 'true');
+  }
+
 })();
 </script>
 </body>

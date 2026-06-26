@@ -765,26 +765,43 @@
   backdrop-filter:blur(3px);
 }
 .chat-modal-overlay.show { display:flex; }
-.chat-box {
-  background:var(--bg-card); width:100%; max-width:560px;
-  border-radius:22px 22px 0 0; display:flex; flex-direction:column;
-  height:88vh; overflow:hidden;
-  box-shadow:0 -8px 40px rgba(42,38,34,0.18);
-  transition:transform .3s cubic-bezier(.4,0,.2,1);
+
+/* Wrapper vertikal: drag cap + chat box */
+.chat-sheet-wrap {
+  width:100%; max-width:560px;
+  display:flex; flex-direction:column;
   will-change:transform;
-  touch-action:none;
+  touch-action:pan-x; /* biarkan scroll vertikal di dalam messages */
 }
 .chat-box.snap-open { animation:chatSlideUp .28s cubic-bezier(.4,0,.2,1) both; }
 .chat-box.snap-close { animation:chatSlideDown .22s cubic-bezier(.4,0,.2,1) both; }
 @keyframes chatSlideUp { from{transform:translateY(100%);} to{transform:translateY(0);} }
 @keyframes chatSlideDown { from{transform:translateY(0);} to{transform:translateY(100%);} }
 
-/* Drag handle pill */
-.chat-drag-handle {
-  width:40px; height:5px; background:var(--line); border-radius:3px;
-  margin:10px auto 0; flex-shrink:0; cursor:grab;
+/* Drag cap — area lebar di atas chat box, selalu di luar overflow:hidden */
+.chat-drag-cap {
+  width:100%;
+  padding:10px 0 6px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:grab; flex-shrink:0;
+  background:var(--bg-card);
+  border-radius:22px 22px 0 0;
+  border-bottom:1px solid var(--line);
 }
-.chat-drag-handle:active { cursor:grabbing; }
+.chat-drag-cap:active { cursor:grabbing; }
+.chat-drag-pill {
+  width:40px; height:5px;
+  background:var(--line); border-radius:3px;
+  pointer-events:none;
+}
+
+.chat-box {
+  background:var(--bg-card); width:100%;
+  display:flex; flex-direction:column;
+  height:calc(88vh - 42px); /* 42px = tinggi drag cap */
+  overflow:hidden;
+  box-shadow:0 -8px 40px rgba(42,38,34,0.18);
+}
 
 .chat-header {
   padding:10px 18px 14px; border-bottom:1px solid var(--line);
@@ -1936,44 +1953,49 @@
 
 <!-- ===== CHAT MODAL ===== -->
 <div class="chat-modal-overlay" id="chatModalOverlay">
-  <div class="chat-box snap-open" id="chatBox">
-    <!-- Drag handle untuk swipe-to-close -->
-    <div class="chat-drag-handle" id="chatDragHandle"></div>
-    <div class="chat-header">
-      <div class="chat-header-avatar" id="chatHeaderAvatar">👤</div>
-      <div class="chat-header-info">
-        <div class="chat-header-name" id="chatHeaderName">Nama</div>
-        <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
-      </div>
-      <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
-      <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
-      <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
+  <!-- sheet-wrap: yang di-transform saat drag -->
+  <div class="chat-sheet-wrap" id="chatSheetWrap">
+    <!-- Drag cap — LUAR chat-box agar tidak terpotong overflow:hidden -->
+    <div class="chat-drag-cap" id="chatDragCap">
+      <div class="chat-drag-pill"></div>
     </div>
-    <div class="chat-messages" id="chatMessages">
-      <div class="chat-empty">
-        <div class="ce-icon">💬</div>
-        <div>Memuat pesan...</div>
+    <div class="chat-box snap-open" id="chatBox">
+      <div class="chat-header">
+        <div class="chat-header-avatar" id="chatHeaderAvatar">👤</div>
+        <div class="chat-header-info">
+          <div class="chat-header-name" id="chatHeaderName">Nama</div>
+          <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
+        </div>
+        <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+        <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
+        <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
       </div>
-    </div>
-    <div id="chatTypingRow" style="display:none;padding:0 16px 4px;min-height:22px;">
-      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);">
-        <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
-        <span id="chatTypingName"></span> sedang mengetik...
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty">
+          <div class="ce-icon">💬</div>
+          <div>Memuat pesan...</div>
+        </div>
       </div>
-    </div>
-    <div class="chat-input-bar">
-      <!-- Attachment preview strip -->
-      <div class="chat-attach-preview" id="chatAttachPreview"></div>
-      <!-- Input row -->
-      <div class="chat-input-row">
-        <button class="chat-attach-btn" id="chatAttachBtn" title="Lampirkan gambar/file">📎</button>
-        <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
-        <button class="chat-mic-btn" id="chatMicBtn" title="Rekam pesan suara">🎤</button>
-        <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+      <div id="chatTypingRow" style="display:none;padding:0 16px 4px;min-height:22px;">
+        <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);">
+          <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+          <span id="chatTypingName"></span> sedang mengetik...
+        </div>
       </div>
+      <div class="chat-input-bar">
+        <!-- Attachment preview strip -->
+        <div class="chat-attach-preview" id="chatAttachPreview"></div>
+        <!-- Input row -->
+        <div class="chat-input-row">
+          <button class="chat-attach-btn" id="chatAttachBtn" title="Lampirkan gambar/file">📎</button>
+          <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
+          <button class="chat-mic-btn" id="chatMicBtn" title="Rekam pesan suara">🎤</button>
+          <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+        </div>
+      </div>
+      <!-- Hidden file input -->
+      <input type="file" id="chatFileInput" accept="image/*,video/*,application/pdf" multiple style="display:none;">
     </div>
-    <!-- Hidden file input -->
-    <input type="file" id="chatFileInput" accept="image/*,video/*,application/pdf" multiple style="display:none;">
   </div>
 </div>
 
@@ -8969,8 +8991,19 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     document.getElementById('chatMessages').innerHTML = `<div class="chat-empty"><div class="ce-icon">⏳</div><div>Memuat pesan...</div></div>`;
     document.getElementById('chatTypingRow').style.display='none';
 
-    // Show modal
-    document.getElementById('chatModalOverlay').classList.add('show');
+    // Show modal — slide up dari bawah
+    const overlay = document.getElementById('chatModalOverlay');
+    const wrap    = document.getElementById('chatSheetWrap');
+    overlay.classList.add('show');
+    if(wrap){
+      wrap.style.transform = 'translateY(100%)';
+      wrap.style.transition = 'none';
+      requestAnimationFrame(()=>{
+        wrap.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+        wrap.style.transform  = 'translateY(0)';
+        setTimeout(()=>{ wrap.style.transition=''; }, 320);
+      });
+    }
     document.body.style.overflow='hidden';
     if(inp) setTimeout(()=>inp.focus(), 300);
 
@@ -9033,25 +9066,26 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // ── Close chat ─────────────────────────────────────────────────────────────
   function closeChat(){
-    // Animasi slide-down sebelum sembunyikan
-    const box = document.getElementById('chatBox');
-    if(box){
-      box.classList.remove('snap-open');
-      box.classList.add('snap-close');
+    const wrap = document.getElementById('chatSheetWrap');
+    const overlay = document.getElementById('chatModalOverlay');
+    if(wrap){
+      wrap.style.transition = 'transform .25s cubic-bezier(.4,0,.2,1)';
+      wrap.style.transform  = 'translateY(100%)';
+      if(overlay){ overlay.style.transition = 'background .25s'; overlay.style.background = 'rgba(42,38,34,0)'; }
       setTimeout(()=>{
-        document.getElementById('chatModalOverlay').classList.remove('show');
-        box.classList.remove('snap-close');
-        box.classList.add('snap-open');
-      }, 220);
+        overlay.classList.remove('show');
+        wrap.style.transition = '';
+        wrap.style.transform  = '';
+        if(overlay){ overlay.style.transition = ''; overlay.style.background = ''; }
+      }, 260);
     } else {
-      document.getElementById('chatModalOverlay').classList.remove('show');
+      overlay && overlay.classList.remove('show');
     }
-    document.body.style.overflow='';
+    document.body.style.overflow = '';
     _setTyping(false);
     _detachListeners();
     activeChatUid = null;
     activeChatId  = null;
-    // Stop recording if active
     if(_mediaRecorder && _mediaRecorder.state === 'recording'){
       try{ _mediaRecorder.stop(); } catch(e){}
     }
@@ -9311,45 +9345,74 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">${bubbleContent}<div class="chat-bubble-meta">${timeStr}${readTick}</div></div>`;
   }
 
-  // ── Drag / swipe-to-close ──────────────────────────────────────────────────
+  // ── Drag / swipe-to-close (bottom sheet style) ────────────────────────────
   (function initChatSwipe(){
-    const box = document.getElementById('chatBox');
-    const handle = document.getElementById('chatDragHandle');
-    if(!box || !handle) return;
-    let startY = 0, curY = 0, dragging = false;
+    const wrap = document.getElementById('chatSheetWrap');
+    const cap  = document.getElementById('chatDragCap');
+    const overlay = document.getElementById('chatModalOverlay');
+    if(!wrap || !cap) return;
+
+    let startY = 0, curY = 0, dragging = false, velY = 0, lastY = 0, lastT = 0;
 
     function onStart(e){
+      if(e.target.closest('textarea,button,a,audio,video')) return;
       startY = e.touches ? e.touches[0].clientY : e.clientY;
-      curY = 0;
+      lastY  = startY;
+      lastT  = Date.now();
+      curY   = 0; velY = 0;
       dragging = true;
-      box.style.transition = 'none';
+      wrap.style.transition = 'none';
     }
+
     function onMove(e){
       if(!dragging) return;
-      const y = (e.touches ? e.touches[0].clientY : e.clientY) - startY;
-      if(y < 0) return; // hanya drag ke bawah
-      curY = y;
-      box.style.transform = `translateY(${curY}px)`;
-      // fade overlay
-      const overlay = document.getElementById('chatModalOverlay');
-      if(overlay) overlay.style.background = `rgba(42,38,34,${Math.max(0, 0.55 - curY/600)})`;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const now = Date.now();
+      velY = (clientY - lastY) / Math.max(1, now - lastT);
+      lastY = clientY; lastT = now;
+      const dy = clientY - startY;
+      if(dy < 0){ wrap.style.transform = `translateY(0)`; return; } // tidak ke atas
+      curY = dy;
+      wrap.style.transform = `translateY(${curY}px)`;
+      if(overlay){
+        const ratio = Math.max(0, 1 - curY / (window.innerHeight * 0.6));
+        overlay.style.background = `rgba(42,38,34,${(0.55 * ratio).toFixed(3)})`;
+      }
     }
+
     function onEnd(){
       if(!dragging) return;
       dragging = false;
-      box.style.transition = '';
-      box.style.transform = '';
-      const overlay = document.getElementById('chatModalOverlay');
-      if(overlay) overlay.style.background = '';
-      if(curY > 120){ closeChat(); } // threshold: drag > 120px → close
+      wrap.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+      if(overlay) overlay.style.transition = 'background .3s';
+
+      // Tutup kalau drag > 35% tinggi layar ATAU swipe cepat ke bawah (velocity > 0.5 px/ms)
+      const sheetH = window.innerHeight * 0.88;
+      if(curY > sheetH * 0.35 || velY > 0.5){
+        wrap.style.transform = `translateY(100%)`;
+        if(overlay) overlay.style.background = 'rgba(42,38,34,0)';
+        setTimeout(()=>{
+          wrap.style.transition = '';
+          if(overlay){ overlay.style.transition = ''; overlay.style.background = ''; }
+          closeChat();
+        }, 300);
+      } else {
+        // Snap back ke posisi semula
+        wrap.style.transform = 'translateY(0)';
+        if(overlay){ overlay.style.background = ''; }
+        setTimeout(()=>{ wrap.style.transition = ''; if(overlay) overlay.style.transition=''; }, 300);
+      }
     }
 
-    handle.addEventListener('touchstart', onStart, {passive:true});
-    handle.addEventListener('touchmove', onMove, {passive:true});
-    handle.addEventListener('touchend', onEnd);
-    handle.addEventListener('mousedown', onStart);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onEnd);
+    // Pasang event di cap (drag handle zone)
+    cap.addEventListener('touchstart', onStart, {passive:true});
+    cap.addEventListener('touchmove', onMove, {passive:true});
+    cap.addEventListener('touchend', onEnd);
+    cap.addEventListener('mousedown', onStart);
+
+    // Mouse global untuk drag di desktop
+    document.addEventListener('mousemove', (e)=>{ if(dragging) onMove(e); });
+    document.addEventListener('mouseup',   (e)=>{ if(dragging) onEnd(e); });
   })();
 
   // ── Typing indicator ────────────────────────────────────────────────────────

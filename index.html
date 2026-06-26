@@ -768,11 +768,26 @@
 .chat-box {
   background:var(--bg-card); width:100%; max-width:560px;
   border-radius:22px 22px 0 0; display:flex; flex-direction:column;
-  height:88vh; animation:fadeUp .28s ease; overflow:hidden;
+  height:88vh; overflow:hidden;
   box-shadow:0 -8px 40px rgba(42,38,34,0.18);
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  will-change:transform;
+  touch-action:none;
 }
+.chat-box.snap-open { animation:chatSlideUp .28s cubic-bezier(.4,0,.2,1) both; }
+.chat-box.snap-close { animation:chatSlideDown .22s cubic-bezier(.4,0,.2,1) both; }
+@keyframes chatSlideUp { from{transform:translateY(100%);} to{transform:translateY(0);} }
+@keyframes chatSlideDown { from{transform:translateY(0);} to{transform:translateY(100%);} }
+
+/* Drag handle pill */
+.chat-drag-handle {
+  width:40px; height:5px; background:var(--line); border-radius:3px;
+  margin:10px auto 0; flex-shrink:0; cursor:grab;
+}
+.chat-drag-handle:active { cursor:grabbing; }
+
 .chat-header {
-  padding:16px 18px 14px; border-bottom:1px solid var(--line);
+  padding:10px 18px 14px; border-bottom:1px solid var(--line);
   display:flex; align-items:center; gap:11px; flex-shrink:0;
   background:var(--bg-card);
 }
@@ -790,6 +805,15 @@
   background:var(--bg); cursor:pointer; font-size:16px; display:flex;
   align-items:center; justify-content:center; flex-shrink:0; color:var(--ink-soft);
 }
+/* Clear chat btn */
+.chat-header-clear {
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+  background:var(--bg); cursor:pointer; font-size:14px; display:flex;
+  align-items:center; justify-content:center; flex-shrink:0; color:var(--ink-soft);
+  transition:background .15s, color .15s;
+}
+.chat-header-clear:hover { background:#FDEAEA; color:var(--bad); border-color:var(--bad); }
+
 .chat-messages {
   flex:1; overflow-y:auto; padding:14px 16px; display:flex;
   flex-direction:column; gap:8px; scroll-behavior:smooth;
@@ -798,8 +822,7 @@
 .chat-messages::-webkit-scrollbar-track { background:transparent; }
 .chat-messages::-webkit-scrollbar-thumb { background:var(--line); border-radius:4px; }
 .chat-bubble-wrap {
-  display:flex; flex-direction:column; gap:2px;
-  max-width:82%;
+  display:flex; flex-direction:column; gap:2px; max-width:82%;
 }
 .chat-bubble-wrap.mine { align-self:flex-end; align-items:flex-end; }
 .chat-bubble-wrap.theirs { align-self:flex-start; align-items:flex-start; }
@@ -807,17 +830,15 @@
   padding:9px 13px; border-radius:18px; font-size:13.5px; line-height:1.5;
   word-break:break-word; position:relative;
 }
-.chat-bubble.mine {
-  background:var(--teal); color:white;
-  border-bottom-right-radius:5px;
-}
-.chat-bubble.theirs {
-  background:var(--sand); color:var(--ink);
-  border-bottom-left-radius:5px;
-}
-.chat-bubble-meta {
-  font-size:10.5px; color:var(--ink-soft); padding:0 4px;
-}
+.chat-bubble.mine { background:var(--teal); color:white; border-bottom-right-radius:5px; }
+.chat-bubble.theirs { background:var(--sand); color:var(--ink); border-bottom-left-radius:5px; }
+/* Image bubble */
+.chat-bubble-img { padding:4px; border-radius:14px; overflow:hidden; max-width:220px; cursor:zoom-in; }
+.chat-bubble-img img { width:100%; border-radius:10px; display:block; max-height:200px; object-fit:cover; }
+/* Audio bubble */
+.chat-bubble-audio { padding:8px 12px; min-width:180px; }
+.chat-bubble-audio audio { width:100%; height:36px; display:block; }
+.chat-bubble-meta { font-size:10.5px; color:var(--ink-soft); padding:0 4px; }
 .chat-date-divider {
   text-align:center; font-size:11px; color:var(--ink-soft); font-weight:600;
   padding:6px 0; letter-spacing:0.03em;
@@ -828,15 +849,58 @@
   text-align:center; padding:20px;
 }
 .chat-empty .ce-icon { font-size:38px; margin-bottom:4px; }
+
+/* ── Input bar ── */
 .chat-input-bar {
-  padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:8px;
-  align-items:flex-end; flex-shrink:0; background:var(--bg-card);
+  padding:8px 12px 12px; border-top:1px solid var(--line); display:flex; flex-direction:column;
+  gap:6px; flex-shrink:0; background:var(--bg-card);
+}
+/* Attachment preview strip */
+.chat-attach-preview {
+  display:none; gap:8px; flex-wrap:wrap; padding:4px 2px;
+}
+.chat-attach-preview.show { display:flex; }
+.cap-item {
+  position:relative; border-radius:10px; overflow:hidden; border:1.5px solid var(--line);
+  background:var(--sand);
+}
+.cap-item img { width:60px; height:60px; object-fit:cover; display:block; }
+.cap-item .cap-del {
+  position:absolute; top:2px; right:2px; width:18px; height:18px;
+  background:rgba(0,0,0,0.55); border:none; border-radius:50%; color:white;
+  font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  line-height:1;
+}
+.cap-item.audio-item {
+  width:auto; padding:6px 10px; display:flex; align-items:center; gap:6px;
+  font-size:11.5px; font-weight:600; color:var(--teal); white-space:nowrap;
+}
+/* Bottom row: attach + textarea + mic + send */
+.chat-input-row {
+  display:flex; gap:6px; align-items:flex-end;
+}
+.chat-attach-btn, .chat-mic-btn {
+  width:38px; height:38px; border-radius:50%; border:1.5px solid var(--line);
+  background:var(--bg); cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px;
+  transition:background .15s, border-color .15s; color:var(--ink-soft);
+}
+.chat-attach-btn:hover { background:var(--sand); border-color:var(--teal); }
+.chat-mic-btn:hover { background:var(--sand); border-color:var(--coral); }
+.chat-mic-btn.recording {
+  background:var(--coral); border-color:var(--coral); color:white;
+  animation: micPulse 1.2s infinite;
+}
+@keyframes micPulse {
+  0%,100%{box-shadow:0 0 0 0 rgba(232,99,63,.5);}
+  50%{box-shadow:0 0 0 8px rgba(232,99,63,0);}
 }
 .chat-input-bar textarea {
-  flex:1; padding:10px 13px; border-radius:20px; border:1.5px solid var(--line);
+  flex:1; padding:9px 13px; border-radius:20px; border:1.5px solid var(--line);
   font-family:inherit; font-size:13.5px; resize:none; max-height:100px;
-  min-height:40px; line-height:1.45; background:var(--bg);
-  outline:none; transition:border-color .2s;
+  min-height:38px; line-height:1.45; background:var(--bg);
+  outline:none; transition:border-color .2s; display:block;
+  box-sizing:border-box; overflow-y:auto; -webkit-appearance:none; appearance:none;
 }
 .chat-input-bar textarea:focus { border-color:var(--teal); }
 .chat-send-btn {
@@ -1872,15 +1936,17 @@
 
 <!-- ===== CHAT MODAL ===== -->
 <div class="chat-modal-overlay" id="chatModalOverlay">
-  <div class="chat-box" id="chatBox">
+  <div class="chat-box snap-open" id="chatBox">
+    <!-- Drag handle untuk swipe-to-close -->
+    <div class="chat-drag-handle" id="chatDragHandle"></div>
     <div class="chat-header">
       <div class="chat-header-avatar" id="chatHeaderAvatar">👤</div>
       <div class="chat-header-info">
         <div class="chat-header-name" id="chatHeaderName">Nama</div>
         <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
       </div>
-      <!-- tombol telepon WA hanya tampil kalau ada nomor WA dari profil -->
-      <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;display:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+      <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+      <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
       <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
     </div>
     <div class="chat-messages" id="chatMessages">
@@ -1896,9 +1962,18 @@
       </div>
     </div>
     <div class="chat-input-bar">
-      <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
-      <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+      <!-- Attachment preview strip -->
+      <div class="chat-attach-preview" id="chatAttachPreview"></div>
+      <!-- Input row -->
+      <div class="chat-input-row">
+        <button class="chat-attach-btn" id="chatAttachBtn" title="Lampirkan gambar/file">📎</button>
+        <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
+        <button class="chat-mic-btn" id="chatMicBtn" title="Rekam pesan suara">🎤</button>
+        <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+      </div>
     </div>
+    <!-- Hidden file input -->
+    <input type="file" id="chatFileInput" accept="image/*,video/*,application/pdf" multiple style="display:none;">
   </div>
 </div>
 
@@ -3986,13 +4061,12 @@ function startNavigation(){
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     let cLat = lat, cLng = lng;
-    // Geser pusat kamera sedikit ke arah waypoint berikutnya supaya marker user
-    // tampil di bagian bawah layar (gaya navigasi) — bukan persis di tengah,
-    // sehingga gerakan user jelas terlihat relatif ke peta.
+    // Geser pusat kamera ke arah waypoint berikutnya supaya marker user
+    // tampil di bagian bawah layar (gaya navigasi) — rute terlihat di depan
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
-      cLat = lat + (la.lat - lat) * 0.30;
-      cLng = lng + (la.lng - lng) * 0.30;
+      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
+      cLat = lat + (la.lat - lat) * 0.45;
+      cLng = lng + (la.lng - lng) * 0.45;
     }
     communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
   }
@@ -4051,19 +4125,33 @@ function startNavigation(){
     if(gpsEl) gpsEl.textContent = '📶 GPS aktif (' + navFixCount + ' fix)';
 
     // === Camera Follow ===
-    // FIX: jangan pakai setView animate:true (animasi tabrakan), pakai panTo dengan
-    // animate:false dan throttle 800ms biar smooth, tidak gagap.
+    // Throttle 800ms, geser kamera ke depan user mengikuti arah rute
     if(followCameraMode && communityMap && !mapUserInteracting){
       const now = Date.now();
       if(now - lastCameraUpdate > 800){
         lastCameraUpdate = now;
-        // Target kamera = look-ahead (sedikit di depan user di sepanjang rute),
-        // bukan persis posisi user, supaya marker profil terlihat bergerak maju.
         let camLat = lat, camLng = lng;
         if(activeRouteCoords && activeRouteCoords.length > 1){
-          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
-          camLat = lat + (la.lat - lat) * 0.30;
-          camLng = lng + (la.lng - lng) * 0.30;
+          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 250);
+          // Geser 45% ke arah look-ahead agar rute terlihat "di depan" user
+          camLat = lat + (la.lat - lat) * 0.45;
+          camLng = lng + (la.lng - lng) * 0.45;
+          // Update marker user dengan ikon panah arah (bearing) jika bisa
+          try {
+            const bearing = computeBearing(lat, lng, la.lat, la.lng);
+            const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+            const arrowIcon = L.divIcon({
+              className:'',
+              html:`<div style="position:relative;width:42px;height:42px;">
+                <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
+                  ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
+                </div>
+                <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:16px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">▲</div>
+              </div>`,
+              iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24]
+            });
+            if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
+          } catch(e){}
         }
         const curZoom = communityMap.getZoom();
         const targetZoom = Math.max(curZoom, 17);
@@ -4144,6 +4232,17 @@ function startNavigation(){
   },{enableHighAccuracy:true,timeout:15000,maximumAge:2000});
   // FIX: maximumAge dinaikkan dari 0 → 2000ms supaya watchPosition fire lebih sering di Android.
   // maximumAge:0 paksa tunggu GPS hardware fix baru setiap kali — sering bikin watch lambat / mandek.
+}
+
+// ── Bearing helper (derajat dari utara searah jarum jam) ─────────────────────
+function computeBearing(lat1, lng1, lat2, lng2){
+  const toRad = d => d * Math.PI / 180;
+  const toDeg = r => r * 180 / Math.PI;
+  const dLng = toRad(lng2 - lng1);
+  const rLat1 = toRad(lat1), rLat2 = toRad(lat2);
+  const y = Math.sin(dLng) * Math.cos(rLat2);
+  const x = Math.cos(rLat1)*Math.sin(rLat2) - Math.sin(rLat1)*Math.cos(rLat2)*Math.cos(dLng);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────
@@ -4346,7 +4445,7 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     if(d.code!=='Ok'||!d.routes||!d.routes[0]) throw new Error('No route: '+d.code);
     const r = d.routes[0];
     if(!r.geometry||!r.geometry.coordinates||r.geometry.coordinates.length<2) throw new Error('Empty geometry');
-    if(r.distance < straightM * 0.9) throw new Error('Route too short, likely invalid');
+    if(r.distance < straightM * 0.5) throw new Error('Route too short, likely invalid');
     return r;
   }
 
@@ -4492,9 +4591,10 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     if(navMode || !communityMap || !activeRouteCoords || activeRouteCoords.length<2) return;
     const userLL = L.latLng(fromLat, fromLng);
     const lookAhead = findLookAheadPoint(userLL, activeRouteCoords, 300);
-    // Center sedikit di depan user (35% ke arah waypoint berikutnya) di zoom 16
-    const cLat = fromLat + (lookAhead.lat - fromLat) * 0.35;
-    const cLng = fromLng + (lookAhead.lng - fromLng) * 0.35;
+    // Center sedikit di depan user (40% ke arah waypoint berikutnya) di zoom 16
+    // Ini membuat rute terlihat "di depan" user, bukan di balik user
+    const cLat = fromLat + (lookAhead.lat - fromLat) * 0.40;
+    const cLng = fromLng + (lookAhead.lng - fromLng) * 0.40;
     mapUserInteracting = false;
     try { communityMap.stop(); } catch(e){}
     communityMap.setView([cLat, cLng], 16, {animate:true, duration:0.8});
@@ -4675,7 +4775,7 @@ async function geocodeAddress(uid, address){
   // Buat daftar query dari paling spesifik ke paling umum.
   // Nominatim tidak bisa geocode detail mikro seperti "blok C 2 no 2",
   // tapi bisa menemukan nama kompleks/perumahan-nya.
-  const makeQ = (s) => /indonesia/i.test(s) ? s : s + ', Indonesia';
+  const makeQ = (s) => s.trim();
 
   // Normalisasi: buang karakter ganda
   const norm = (s) => s.replace(/,\s*,/g, ',').replace(/\s{2,}/g, ' ').trim();
@@ -4707,7 +4807,7 @@ async function geocodeAddress(uid, address){
     try{
       const resp = await fetch(
         'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)
-          +'&format=json&limit=1&addressdetails=1&countrycodes=id',
+          +'&format=json&limit=1&addressdetails=1',
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -4715,11 +4815,6 @@ async function geocodeAddress(uid, address){
         const coords = {lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon)};
         if(isNaN(coords.lat)||isNaN(coords.lng)||Math.abs(coords.lat)>90||Math.abs(coords.lng)>180){
           console.warn('[v0] Invalid coords from query:', q, coords); continue;
-        }
-        // Validasi: harus dalam bounding box Indonesia
-        // Lat: -11 s/d 6.5, Lng: 95 s/d 141.5
-        if(coords.lat < -11 || coords.lat > 6.5 || coords.lng < 95 || coords.lng > 141.5){
-          console.warn('[v0] Geocode result outside Indonesia bbox, skipping:', q, coords); continue;
         }
         console.log('[v0] Geocode success with query "'+q+'":', coords);
         storeGeoCache[uid] = coords;
@@ -5073,7 +5168,7 @@ async function doMapSearch(){
     resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
     try{
       const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q+', Indonesia')+'&format=json&limit=5&addressdetails=1&countrycodes=id',
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=5&addressdetails=1',
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
       const data = await resp.json();
@@ -8404,7 +8499,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   // Geocode pakai Nominatim (OpenStreetMap, gratis, tanpa API key)
   async function geocode(query){
     try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query+', Indonesia')}&limit=1`,{headers:{'Accept-Language':'id'}});
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,{headers:{'Accept-Language':'id'}});
       const d=await r.json();
       if(d&&d[0]) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon),name:d[0].display_name};
     }catch(e){}
@@ -8867,8 +8962,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     // Reset input & messages
     const inp = document.getElementById('chatInput');
     if(inp){ inp.value=''; autoResizeTextarea(inp); }
+    if(typeof _clearAttachPreview === 'function') _clearAttachPreview();
     const sendBtn = document.getElementById('chatSendBtn');
-    if(sendBtn) sendBtn.disabled = false;
+    if(sendBtn) sendBtn.disabled = true;
 
     document.getElementById('chatMessages').innerHTML = `<div class="chat-empty"><div class="ce-icon">⏳</div><div>Memuat pesan...</div></div>`;
     document.getElementById('chatTypingRow').style.display='none';
@@ -8906,18 +9002,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       let html = '';
       let lastDate = '';
       msgs.forEach(m=>{
-        const isMine = m.from === MY_UID;
         const dateStr = fmtMsgDate(m.ts||Date.now());
         if(dateStr !== lastDate){
           html += `<div class="chat-date-divider">${escHtml(dateStr)}</div>`;
           lastDate = dateStr;
         }
-        const timeStr = fmtMsgTime(m.ts||Date.now());
-        const readTick = isMine ? (m.read ? ' <span style="color:#8FE3B0;font-size:10px;">✓✓</span>' : ' <span style="opacity:0.5;font-size:10px;">✓</span>') : '';
-        html += `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">
-          <div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>
-          <div class="chat-bubble-meta">${timeStr}${readTick}</div>
-        </div>`;
+        html += renderMsgBubble(m);
       });
       msgEl.innerHTML = html;
       scrollToBottom(!firstLoad);
@@ -8943,12 +9033,29 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // ── Close chat ─────────────────────────────────────────────────────────────
   function closeChat(){
-    document.getElementById('chatModalOverlay').classList.remove('show');
+    // Animasi slide-down sebelum sembunyikan
+    const box = document.getElementById('chatBox');
+    if(box){
+      box.classList.remove('snap-open');
+      box.classList.add('snap-close');
+      setTimeout(()=>{
+        document.getElementById('chatModalOverlay').classList.remove('show');
+        box.classList.remove('snap-close');
+        box.classList.add('snap-open');
+      }, 220);
+    } else {
+      document.getElementById('chatModalOverlay').classList.remove('show');
+    }
     document.body.style.overflow='';
     _setTyping(false);
     _detachListeners();
     activeChatUid = null;
     activeChatId  = null;
+    // Stop recording if active
+    if(_mediaRecorder && _mediaRecorder.state === 'recording'){
+      try{ _mediaRecorder.stop(); } catch(e){}
+    }
+    if(typeof _clearAttachPreview === 'function') _clearAttachPreview();
   }
 
   document.getElementById('chatClose')?.addEventListener('click', closeChat);
@@ -8963,39 +9070,69 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     clearTimeout(typingTimer);
   }
 
-  // ── Send message ───────────────────────────────────────────────────────────
+  // ── Send message (text) ────────────────────────────────────────────────────
   async function sendMessage(){
     if(!fbReady() || !activeChatId || !activeChatUid) return;
     const inp = document.getElementById('chatInput');
     const text = (inp?.value || '').trim();
-    if(!text) return;
+    const hasAttach = _chatPendingFiles.length > 0 || _chatPendingAudio !== null;
+    if(!text && !hasAttach) return;
+
     inp.value=''; autoResizeTextarea(inp);
+    document.getElementById('chatSendBtn').disabled = true;
     _setTyping(false);
 
     const myName = (typeof myProfile !== 'undefined' && myProfile)
-      ? (myProfile.displayName || myProfile.storeName || 'Saya')
-      : 'Saya';
+      ? (myProfile.displayName || myProfile.storeName || 'Saya') : 'Saya';
     const myPhoto = (typeof myProfile !== 'undefined' && myProfile) ? (myProfile.profilePhotoUrl||'') : '';
 
-    const msgData = {
-      from: MY_UID,
-      fromName: myName,
-      fromPhoto: myPhoto,
-      to: activeChatUid,
-      text, ts: Date.now(), read: false
+    // 1. Upload attachments first (images / audio) to Firebase Storage
+    const uploads = [];
+    for(const f of _chatPendingFiles){
+      try{
+        const ext = f.name.split('.').pop().toLowerCase();
+        const path = `chat_media/${activeChatId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+        const sRef = window.storageRef(window.firebaseStorage, path);
+        await window.storageUploadBytes(sRef, f);
+        const url = await window.storageGetDownloadURL(sRef);
+        const type = f.type.startsWith('image') ? 'image' : f.type.startsWith('video') ? 'video' : 'file';
+        uploads.push({url, type, name: f.name});
+      } catch(e){ console.error('[chat] upload file error:', e); }
+    }
+    // Audio blob
+    if(_chatPendingAudio){
+      try{
+        const path = `chat_media/${activeChatId}/${Date.now()}_voice.webm`;
+        const sRef = window.storageRef(window.firebaseStorage, path);
+        await window.storageUploadBytes(sRef, _chatPendingAudio);
+        const url = await window.storageGetDownloadURL(sRef);
+        uploads.push({url, type:'audio', name:'Pesan Suara'});
+      } catch(e){ console.error('[chat] upload audio error:', e); }
+    }
+    _clearAttachPreview();
+
+    // 2. Build and push message(s)
+    const pushMsg = async (data) => {
+      const newMsgRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`));
+      await window.rtdbSet(newMsgRef, data);
     };
 
-    try{
-      // Push pesan
-      const newMsgRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`));
-      await window.rtdbSet(newMsgRef, msgData);
+    const baseMeta = { from: MY_UID, fromName: myName, fromPhoto: myPhoto, to: activeChatUid, ts: Date.now(), read: false };
 
-      // Update meta (preview percakapan)
+    try{
+      // Send text first
+      if(text) await pushMsg({...baseMeta, text});
+      // Send each media as separate bubble
+      for(const u of uploads){
+        await pushMsg({...baseMeta, text:'', mediaUrl: u.url, mediaType: u.type, mediaName: u.name});
+      }
+
+      // Update meta
       const peerName = document.getElementById('chatHeaderName')?.textContent || 'Pengguna';
       const peerPhoto = document.getElementById('chatHeaderAvatar')?.querySelector('img')?.src || '';
+      const lastMsg = text || (uploads[0]?.type === 'audio' ? '🎤 Pesan suara' : uploads[0]?.type === 'image' ? '📷 Gambar' : '📎 File');
       await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/meta`), {
-        lastMsg: text,
-        lastTs: Date.now(),
+        lastMsg, lastTs: Date.now(),
         [`participants/${MY_UID}`]: {name:myName, photo:myPhoto},
         [`participants/${activeChatUid}`]: {name:peerName, photo:peerPhoto},
         [`unread/${activeChatUid}`]: (window.rtdbServerTimestamp ? window.rtdbServerTimestamp() : Date.now())
@@ -9005,6 +9142,215 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       alert('Gagal mengirim pesan: '+err.message);
     }
   }
+
+  // ── Attachment handling ─────────────────────────────────────────────────────
+  let _chatPendingFiles = [];
+  let _chatPendingAudio = null;
+
+  function _clearAttachPreview(){
+    _chatPendingFiles = [];
+    _chatPendingAudio = null;
+    const prev = document.getElementById('chatAttachPreview');
+    if(prev){ prev.innerHTML=''; prev.classList.remove('show'); }
+    _updateSendBtn();
+  }
+
+  function _updateSendBtn(){
+    const inp = document.getElementById('chatInput');
+    const hasText = (inp?.value||'').trim().length > 0;
+    const hasAttach = _chatPendingFiles.length > 0 || _chatPendingAudio !== null;
+    const btn = document.getElementById('chatSendBtn');
+    if(btn) btn.disabled = !(hasText || hasAttach);
+  }
+
+  function _addFilesToPreview(files){
+    const prev = document.getElementById('chatAttachPreview');
+    if(!prev) return;
+    Array.from(files).forEach(f => {
+      if(!f.type.startsWith('image') && !f.type.startsWith('video') && f.type !== 'application/pdf') return;
+      _chatPendingFiles.push(f);
+      const idx = _chatPendingFiles.length - 1;
+      const item = document.createElement('div');
+      item.className = 'cap-item';
+      item.dataset.idx = idx;
+      if(f.type.startsWith('image')){
+        const url = URL.createObjectURL(f);
+        item.innerHTML = `<img src="${url}"><button class="cap-del" onclick="_removeAttach(${idx})">✕</button>`;
+      } else {
+        item.innerHTML = `<div style="padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--teal);display:flex;align-items:center;gap:5px;white-space:nowrap;">📎 ${escHtml(f.name.slice(0,18))}<button class="cap-del" style="position:static;margin-left:4px;" onclick="_removeAttach(${idx})">✕</button></div>`;
+      }
+      prev.appendChild(item);
+    });
+    prev.classList.add('show');
+    _updateSendBtn();
+  }
+
+  window._removeAttach = function(idx){
+    _chatPendingFiles.splice(idx, 1);
+    // re-render
+    const prev = document.getElementById('chatAttachPreview');
+    if(!prev) return;
+    prev.innerHTML='';
+    if(_chatPendingFiles.length === 0 && !_chatPendingAudio){
+      prev.classList.remove('show');
+    } else {
+      _chatPendingFiles.forEach((f,i)=>{
+        const item = document.createElement('div');
+        item.className='cap-item';
+        if(f.type.startsWith('image')){
+          const url = URL.createObjectURL(f);
+          item.innerHTML=`<img src="${url}"><button class="cap-del" onclick="_removeAttach(${i})">✕</button>`;
+        } else {
+          item.innerHTML=`<div style="padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--teal);display:flex;align-items:center;gap:5px;">📎 ${escHtml(f.name.slice(0,18))}<button class="cap-del" style="position:static;margin-left:4px;" onclick="_removeAttach(${i})">✕</button></div>`;
+        }
+        prev.appendChild(item);
+      });
+      if(_chatPendingAudio){
+        const auItem = document.createElement('div');
+        auItem.className='cap-item audio-item';
+        const dur = _chatAudioDurSec > 0 ? ` (${Math.round(_chatAudioDurSec)}s)` : '';
+        auItem.innerHTML=`🎤 Pesan Suara${dur} <button class="cap-del" style="position:static;margin-left:4px;" onclick="_removeAudio()">✕</button>`;
+        prev.appendChild(auItem);
+      }
+    }
+    _updateSendBtn();
+  };
+
+  window._removeAudio = function(){
+    _chatPendingAudio = null;
+    _chatAudioDurSec = 0;
+    window._removeAttach(-1); // triggers re-render
+  };
+
+  // File input
+  document.getElementById('chatFileInput')?.addEventListener('change', function(){
+    _addFilesToPreview(this.files);
+    this.value='';
+  });
+  document.getElementById('chatAttachBtn')?.addEventListener('click', ()=>{
+    document.getElementById('chatFileInput')?.click();
+  });
+
+  // ── Voice recording ─────────────────────────────────────────────────────────
+  let _mediaRecorder = null, _audioChunks = [], _recTimer = null, _chatAudioDurSec = 0;
+
+  document.getElementById('chatMicBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('chatMicBtn');
+    if(_mediaRecorder && _mediaRecorder.state === 'recording'){
+      // Stop recording
+      _mediaRecorder.stop();
+      return;
+    }
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      _audioChunks = [];
+      _chatAudioDurSec = 0;
+      _mediaRecorder = new MediaRecorder(stream, {mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'});
+      _mediaRecorder.addEventListener('dataavailable', e => { if(e.data.size>0) _audioChunks.push(e.data); });
+      _mediaRecorder.addEventListener('stop', () => {
+        stream.getTracks().forEach(t=>t.stop());
+        clearInterval(_recTimer);
+        btn.innerHTML='🎤'; btn.classList.remove('recording'); btn.title='Rekam pesan suara';
+        if(_audioChunks.length === 0) return;
+        const blob = new Blob(_audioChunks, {type: _mediaRecorder.mimeType});
+        _chatPendingAudio = blob;
+        const prev = document.getElementById('chatAttachPreview');
+        if(prev){
+          prev.classList.add('show');
+          const auItem = document.createElement('div');
+          auItem.className='cap-item audio-item';
+          const dur = Math.round(_chatAudioDurSec);
+          auItem.innerHTML=`🎤 Pesan Suara (${dur}s) <button class="cap-del" style="position:static;margin-left:4px;" onclick="_removeAudio()">✕</button>`;
+          // Remove old audio item if any
+          prev.querySelectorAll('.audio-item').forEach(el=>el.remove());
+          prev.appendChild(auItem);
+        }
+        _updateSendBtn();
+      });
+      _mediaRecorder.start();
+      btn.innerHTML='⏹'; btn.classList.add('recording'); btn.title='Hentikan rekaman';
+      let elapsed = 0;
+      _recTimer = setInterval(()=>{
+        elapsed++;
+        _chatAudioDurSec = elapsed;
+        btn.innerHTML = `⏹ ${elapsed}s`;
+        if(elapsed >= 120){ _mediaRecorder.stop(); } // max 2 min
+      }, 1000);
+    } catch(e){
+      alert('Tidak bisa akses mikrofon: '+e.message);
+    }
+  });
+
+  // ── Clear chat ──────────────────────────────────────────────────────────────
+  document.getElementById('chatClearBtn')?.addEventListener('click', async ()=>{
+    if(!fbReady() || !activeChatId) return;
+    if(!confirm('Hapus semua pesan di percakapan ini? Tindakan tidak bisa dibatalkan.')) return;
+    try{
+      await window.rtdbRemove(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`));
+      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/meta`), {lastMsg:'', lastTs: Date.now()});
+    } catch(e){ alert('Gagal hapus chat: '+e.message); }
+  });
+
+  // ── Render messages (with media support) ───────────────────────────────────
+  function renderMsgBubble(m){
+    const isMine = m.from === MY_UID;
+    const timeStr = fmtMsgTime(m.ts||Date.now());
+    const readTick = isMine ? (m.read ? ' <span style="color:#8FE3B0;font-size:10px;">✓✓</span>' : ' <span style="opacity:0.5;font-size:10px;">✓</span>') : '';
+    let bubbleContent = '';
+    if(m.mediaType === 'image'){
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'} chat-bubble-img" onclick="openImgFullscreen('${escHtml(m.mediaUrl)}')"><img src="${escHtml(m.mediaUrl)}" alt="Gambar" loading="lazy" onerror="this.src='data:image/svg+xml,<svg xmlns=\\'http://www.w3.org/2000/svg\\'><text y=\\'20\\'>📷</text></svg>'"></div>`;
+    } else if(m.mediaType === 'audio'){
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'} chat-bubble-audio"><div style="font-size:11px;margin-bottom:4px;opacity:.8;">🎤 Pesan Suara</div><audio controls src="${escHtml(m.mediaUrl)}" style="width:100%;height:36px;"></audio></div>`;
+    } else if(m.mediaType === 'video'){
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:4px;max-width:220px;"><video controls src="${escHtml(m.mediaUrl)}" style="width:100%;border-radius:10px;max-height:180px;"></video></div>`;
+    } else if(m.mediaType === 'file'){
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}"><a href="${escHtml(m.mediaUrl)}" target="_blank" style="color:${isMine?'white':'var(--teal)'};display:flex;align-items:center;gap:6px;text-decoration:none;font-weight:600;">📎 <span>${escHtml(m.mediaName||'File')}</span></a></div>`;
+    } else {
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>`;
+    }
+    return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">${bubbleContent}<div class="chat-bubble-meta">${timeStr}${readTick}</div></div>`;
+  }
+
+  // ── Drag / swipe-to-close ──────────────────────────────────────────────────
+  (function initChatSwipe(){
+    const box = document.getElementById('chatBox');
+    const handle = document.getElementById('chatDragHandle');
+    if(!box || !handle) return;
+    let startY = 0, curY = 0, dragging = false;
+
+    function onStart(e){
+      startY = e.touches ? e.touches[0].clientY : e.clientY;
+      curY = 0;
+      dragging = true;
+      box.style.transition = 'none';
+    }
+    function onMove(e){
+      if(!dragging) return;
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - startY;
+      if(y < 0) return; // hanya drag ke bawah
+      curY = y;
+      box.style.transform = `translateY(${curY}px)`;
+      // fade overlay
+      const overlay = document.getElementById('chatModalOverlay');
+      if(overlay) overlay.style.background = `rgba(42,38,34,${Math.max(0, 0.55 - curY/600)})`;
+    }
+    function onEnd(){
+      if(!dragging) return;
+      dragging = false;
+      box.style.transition = '';
+      box.style.transform = '';
+      const overlay = document.getElementById('chatModalOverlay');
+      if(overlay) overlay.style.background = '';
+      if(curY > 120){ closeChat(); } // threshold: drag > 120px → close
+    }
+
+    handle.addEventListener('touchstart', onStart, {passive:true});
+    handle.addEventListener('touchmove', onMove, {passive:true});
+    handle.addEventListener('touchend', onEnd);
+    handle.addEventListener('mousedown', onStart);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+  })();
 
   // ── Typing indicator ────────────────────────────────────────────────────────
   function _setTyping(isTyping){
@@ -9043,7 +9389,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   chatInputEl?.addEventListener('input', function(){
     autoResizeTextarea(this);
-    chatSendBtn.disabled = !this.value.trim();
+    _updateSendBtn();
     // Typing indicator
     _setTyping(true);
     clearTimeout(typingTimer);

@@ -3445,6 +3445,19 @@ let lastFirebaseUpdate= 0;
 let routePending      = false;
 let activeSnapNonce   = 0;    // nonce untuk cancel snap yang sudah stale
 let activeRouteInfo   = null; // { km, dur, destName, gmUrl, fromLat, fromLng }
+let navStartTime      = 0;    // ms timestamp saat startNavigation dipanggil
+let navDistanceTraveled = 0;  // meter, akumulasi jarak yang sudah ditempuh
+let lastNavLat        = null; // posisi GPS terakhir untuk hitung delta
+let lastNavLng        = null;
+let navStatsTimer     = null; // interval untuk update jam berjalan walau GPS belum fire
+
+function fmtElapsed(ms){
+  const s = Math.max(0, Math.floor(ms/1000));
+  const m = Math.floor(s/60), ss = s%60;
+  if(m<60) return m+'m '+(ss<10?'0':'')+ss+'s';
+  const h = Math.floor(m/60), mm = m%60;
+  return h+'j '+(mm<10?'0':'')+mm+'m';
+}
 
 // ── Utilitas ──────────────────────────────────────────────────────────────────
 
@@ -3526,14 +3539,22 @@ function updateNavPanel(stepIdx, userLat, userLng){
 
   // Hitung sisa jarak ke tujuan
   let distToGoal=0;
-  if(activeDestLat!==null) distToGoal=haversineM(userLat,userLng,activeDestLat,activeDestLng);
+  if(activeDestLat!==null && userLat!=null) distToGoal=haversineM(userLat,userLng,activeDestLat,activeDestLng);
+
+  const elapsedMs = navStartTime ? (Date.now()-navStartTime) : 0;
+  const elapsedStr = fmtElapsed(elapsedMs);
+  const traveledStr = fmtDist(navDistanceTraveled);
 
   panel.innerHTML=`
   <div style="pointer-events:auto;margin:10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:14px 16px;box-shadow:0 4px 18px rgba(0,0,0,0.35);font-family:'Plus Jakarta Sans',sans-serif;">
     <div style="font-size:16px;font-weight:800;line-height:1.3;margin-bottom:6px;">${label}</div>
     ${next?`<div style="font-size:12px;opacity:0.8;margin-bottom:8px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
-      <div style="font-size:12px;opacity:0.75;">🏁 Sisa ${fmtDist(distToGoal)}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;flex-wrap:wrap;">
+      <div style="font-size:11.5px;opacity:0.9;display:flex;gap:10px;flex-wrap:wrap;">
+        <span>⏱ ${elapsedStr}</span>
+        <span>🚶 ${traveledStr}</span>
+        <span>🏁 Sisa ${fmtDist(distToGoal)}</span>
+      </div>
       <button onclick="stopNavigation();" style="border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer;">✕ Stop</button>
     </div>
   </div>`;
@@ -3544,6 +3565,8 @@ function stopNavigation(){
   lastSpokenStep=-1;
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
   if(navFallbackTimer){ clearInterval(navFallbackTimer); navFallbackTimer=null; }
+  if(navStatsTimer){ clearInterval(navStatsTimer); navStatsTimer=null; }
+  navStartTime=0; navDistanceTraveled=0; lastNavLat=null; lastNavLng=null;
   const _btnF=document.getElementById('btnFollowCam');
   if(_btnF) _btnF.style.display='none';
   if(window.speechSynthesis) window.speechSynthesis.cancel();
@@ -3577,6 +3600,18 @@ function startNavigation(){
   followCameraMode=true;
   navFixCount=0;
   lastCameraUpdate=0;
+  navStartTime=Date.now();
+  navDistanceTraveled=0;
+  lastNavLat=null; lastNavLng=null;
+  if(navStatsTimer){ clearInterval(navStatsTimer); }
+  // Update jam berjalan tiap detik walau GPS belum fire, supaya "waktu" kelihatan jalan
+  navStatsTimer=setInterval(()=>{
+    if(!navMode){ clearInterval(navStatsTimer); navStatsTimer=null; return; }
+    const _lat = (myLocation&&myLocation.lat)||lastNavLat;
+    const _lng = (myLocation&&myLocation.lng)||lastNavLng;
+    const _idx = (_lat!=null) ? findCurrentStep(_lat,_lng) : 0;
+    updateNavPanel(_idx, _lat, _lng);
+  }, 1000);
 
   // FIX: Tampilkan tombol Follow Mode
   const _btnF = document.getElementById('btnFollowCam');
@@ -3625,12 +3660,16 @@ function startNavigation(){
   // Mode navigasi: zoom 18, user di bagian bawah layar (center digeser ke depan)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
-    let lookAhead = L.latLng(lat, lng);
+    let cLat = lat, cLng = lng;
+    // Geser pusat kamera sedikit ke arah waypoint berikutnya supaya marker user
+    // tampil di bagian bawah layar (gaya navigasi) — bukan persis di tengah,
+    // sehingga gerakan user jelas terlihat relatif ke peta.
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      lookAhead = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
+      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 200);
+      cLat = lat + (la.lat - lat) * 0.30;
+      cLng = lng + (la.lng - lng) * 0.30;
     }
-    // Center tepat di posisi user → logo profil selalu di tengah layar
-    communityMap.setView([lat, lng], 18, {animate: true, duration: 0.6});
+    communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
   }
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -3650,6 +3689,13 @@ function startNavigation(){
   function handleNavFix(lat, lng){
     if(!navMode) return;
     navFixCount++;
+
+    // Akumulasi jarak ditempuh — abaikan jitter < 3 m supaya tidak menggelembung saat diam
+    if(lastNavLat!=null && lastNavLng!=null){
+      const _d = haversineM(lastNavLat,lastNavLng,lat,lng);
+      if(_d >= 3 && _d < 200) navDistanceTraveled += _d;
+    }
+    lastNavLat=lat; lastNavLng=lng;
 
     // Update myLocation
     if(!myLocation) myLocation={};
@@ -3686,13 +3732,20 @@ function startNavigation(){
       const now = Date.now();
       if(now - lastCameraUpdate > 800){
         lastCameraUpdate = now;
+        // Target kamera = look-ahead (sedikit di depan user di sepanjang rute),
+        // bukan persis posisi user, supaya marker profil terlihat bergerak maju.
+        let camLat = lat, camLng = lng;
+        if(activeRouteCoords && activeRouteCoords.length > 1){
+          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
+          camLat = lat + (la.lat - lat) * 0.30;
+          camLng = lng + (la.lng - lng) * 0.30;
+        }
         const curZoom = communityMap.getZoom();
-        // Zoom dipaksa minimal 17 saat navigasi (tapi pertahankan zoom user kalau lebih besar)
         const targetZoom = Math.max(curZoom, 17);
         if(curZoom !== targetZoom){
-          communityMap.setView([lat,lng], targetZoom, {animate:false});
+          communityMap.setView([camLat,camLng], targetZoom, {animate:false});
         } else {
-          communityMap.panTo([lat,lng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
+          communityMap.panTo([camLat,camLng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
         }
       }
     }

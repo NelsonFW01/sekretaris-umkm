@@ -22,7 +22,7 @@
     query, orderByChild, limitToLast, onValue, onChildAdded, onDisconnect, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import {
-    getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject
+    getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
   import {
     getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -84,6 +84,7 @@
       window.rtdbOnDisconnect = onDisconnect;
       window.storageRef = storageRef;
       window.storageUploadBytes = uploadBytes;
+      window.storageUploadBytesResumable = uploadBytesResumable;
       window.storageGetDownloadURL = getDownloadURL;
       window.storageDeleteObject = deleteObject;
       window.firebaseServerTimestamp = serverTimestamp;
@@ -2018,6 +2019,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
         </div>
         <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+        <button id="chatVoiceCallBtn" onclick="startVoiceCall()" title="Panggilan Suara" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #2D7A4F;background:var(--bg);color:#2D7A4F;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">📞</button>
         <button id="chatVideoCallBtn" onclick="startVideoCall()" title="Video Call" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">📹</button>
         <button class="chat-header-clear" id="chatWpBtn" title="Wallpaper chat">🖼️</button>
         <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
@@ -2052,41 +2054,29 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <input type="file" id="chatMusicFileInput" accept="audio/*" style="display:none;">
     </div>
     <!-- Wallpaper Picker Panel (hidden by default, inside chat-box) -->
-    <div id="chatWpPanel" style="display:none;position:absolute;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1.5px solid var(--line);border-radius:0 0 0 0;z-index:20;padding:16px;box-shadow:0 -4px 24px rgba(0,0,0,0.12);">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div id="chatWpPanel" style="display:none;position:absolute;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1.5px solid var(--line);z-index:20;padding:16px;box-shadow:0 -4px 24px rgba(0,0,0,0.12);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
         <span style="font-weight:700;font-size:14px;">🖼️ Wallpaper Chat</span>
         <button onclick="document.getElementById('chatWpPanel').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-soft);">✕</button>
       </div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Warna Polos</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;" id="wpSolidRow">
-        <div class="chat-wp-swatch" data-wp="solid:#FAF6F0" style="background:#FAF6F0;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#E8F5E9" style="background:#E8F5E9;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#E3F2FD" style="background:#E3F2FD;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#FFF3E0" style="background:#FFF3E0;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#F3E5F5" style="background:#F3E5F5;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#1A1A1A" style="background:#1A1A1A;border:1.5px solid #555;"></div>
-        <div class="chat-wp-swatch" data-wp="solid:#2C3E50" style="background:#2C3E50;"></div>
+      <div id="chatWpPreview" style="display:none;margin-bottom:12px;border-radius:10px;overflow:hidden;max-height:140px;background:var(--sand);position:relative;">
+        <img id="chatWpPreviewImg" src="" style="width:100%;height:140px;object-fit:cover;display:none;">
+        <video id="chatWpPreviewVid" src="" style="width:100%;height:140px;object-fit:cover;display:none;" autoplay loop muted playsinline></video>
+        <div style="position:absolute;bottom:6px;right:8px;">
+          <button onclick="applyChatWp(null,true)" style="background:rgba(0,0,0,0.5);color:white;border:none;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer;">🗑️ Hapus</button>
+        </div>
       </div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:8px;">Gradient</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#667eea,#764ba2)" style="background:linear-gradient(135deg,#667eea,#764ba2);"></div>
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#f093fb,#f5576c)" style="background:linear-gradient(135deg,#f093fb,#f5576c);"></div>
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#4facfe,#00f2fe)" style="background:linear-gradient(135deg,#4facfe,#00f2fe);"></div>
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#43e97b,#38f9d7)" style="background:linear-gradient(135deg,#43e97b,#38f9d7);"></div>
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#fa709a,#fee140)" style="background:linear-gradient(135deg,#fa709a,#fee140);"></div>
-        <div class="chat-wp-swatch" data-wp="gradient:linear-gradient(135deg,#30cfd0,#330867)" style="background:linear-gradient(135deg,#30cfd0,#330867);"></div>
-      </div>
-      <div style="display:flex;gap:8px;">
+      <div style="display:flex;gap:10px;">
         <label style="flex:1;cursor:pointer;">
-          <div style="padding:9px;border:1.5px dashed var(--line);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--teal);">📷 Foto Custom</div>
+          <div style="padding:13px;border:1.5px dashed var(--teal);border-radius:12px;text-align:center;font-size:13px;font-weight:700;color:var(--teal);">🖼️ Upload Gambar</div>
           <input type="file" id="chatWpImgInput" accept="image/*" style="display:none;">
         </label>
-        <label style="flex:1;cursor:pointer;" id="chatWpBlurLabel">
-          <div style="padding:9px;border:1.5px dashed var(--line);border-radius:10px;text-align:center;font-size:12px;font-weight:600;color:var(--teal);">🌫️ Foto Blur</div>
-          <input type="file" id="chatWpBlurInput" accept="image/*" style="display:none;">
+        <label style="flex:1;cursor:pointer;">
+          <div style="padding:13px;border:1.5px dashed var(--coral);border-radius:12px;text-align:center;font-size:13px;font-weight:700;color:var(--coral);">🎬 Upload Video</div>
+          <input type="file" id="chatWpVideoInput" accept="video/*" style="display:none;">
         </label>
-        <button onclick="applyChatWp('solid:#FAF6F0',true)" style="flex:1;padding:9px;border:1.5px solid var(--line);border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;background:none;color:var(--ink-soft);">🗑️ Reset</button>
       </div>
+      <input type="file" id="chatWpBlurInput" accept="image/*" style="display:none;">
     </div>
     <div id="chatUndoBar" style="display:none;position:absolute;bottom:70px;left:50%;transform:translateX(-50%);background:#2A2622;color:white;border-radius:20px;padding:10px 18px;font-size:13px;font-weight:600;display:none;align-items:center;gap:12px;z-index:30;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
       <span>✓ Pesan terkirim</span>
@@ -9781,6 +9771,34 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     vcCallId=vcPeerUid=vcRole=null;
   }
 
+  window.startVoiceCall=async function(){
+    if(!fb()){alert('Login dulu.');return;}
+    const peerUid=window._vcActiveChatUid;
+    const peerName=document.getElementById('chatHeaderName')?.textContent||'Pengguna';
+    const peerPhoto=document.getElementById('chatHeaderAvatar')?.querySelector('img')?.src||'';
+    if(!peerUid){alert('Buka chat dulu sebelum menelepon.');return;}
+    vcPeerUid=peerUid; vcPeerName=peerName; vcPeerPhoto=peerPhoto;
+    vcRole='caller'; vcCallId=getCallId(MY_UID,peerUid);
+    try{ vcLocalStream=await navigator.mediaDevices.getUserMedia({video:false,audio:true}); }
+    catch(e){alert('Tidak bisa akses mikrofon: '+(e.message||e));return;}
+    setCallerInfo(peerName,peerPhoto); setStatus('Memanggil...'); showStatusPanel();
+    showOverlay(true); vcMicOn=true; vcCamOn=false; updateBtns();
+    await setupPC();
+    const offer=await vcPc.createOffer();
+    await vcPc.setLocalDescription(offer);
+    const myName=(typeof myProfile!=='undefined'&&myProfile)?(myProfile.displayName||myProfile.storeName||'Pengguna'):'Pengguna';
+    const myPhoto=(typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||'':'';
+    await window.rtdbSet(vcRef(`calls/${vcCallId}`),{caller:MY_UID,callee:peerUid,callerName:myName,callerPhoto:myPhoto,status:'calling',offer:{type:offer.type,sdp:offer.sdp},ts:Date.now(),voiceOnly:true});
+    vcSignalUnsub=window.rtdbOnValue(vcRef(`calls/${vcCallId}`),async snap=>{
+      const d=snap.val(); if(!d) return;
+      if(d.status==='answered'&&d.answer&&vcPc&&!vcPc.remoteDescription){
+        try{await vcPc.setRemoteDescription(new RTCSessionDescription(d.answer));setStatus('Terhubung');}catch(e){}
+      }
+      if(d.status==='rejected'||d.status==='ended') cleanup('Ditolak/diakhiri');
+      if(d.iceCandidatesCallee) Object.values(d.iceCandidatesCallee).forEach(async c=>{try{if(vcPc&&vcPc.remoteDescription)await vcPc.addIceCandidate(new RTCIceCandidate(c));}catch(e){}});
+    });
+  };
+
   window.startVideoCall=async function(){
     if(!fb()){alert('Login dulu.');return;}
     const peerUid=window._vcActiveChatUid;
@@ -10126,6 +10144,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
     if(!wpVal || wpVal === 'none'){
       if(blurEl) blurEl.style.display = 'none';
+      const veEl = document.getElementById('chatMsgsBgVideo');
+      if(veEl) veEl.style.display = 'none';
+      // Sembunyikan preview panel
+      const prev = document.getElementById('chatWpPreview');
+      if(prev) prev.style.display = 'none';
     } else {
       const sep = wpVal.indexOf(':');
       const type = wpVal.slice(0, sep);
@@ -10140,6 +10163,20 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         msgs.style.backgroundImage = `url('${val}')`;
         msgs.style.backgroundSize = 'cover';
         msgs.style.backgroundPosition = 'center';
+        if(blurEl) blurEl.style.display = 'none';
+      } else if(type === 'video'){
+        // Video wallpaper — buat elemen video di background
+        msgs.style.position = 'relative';
+        let ve = document.getElementById('chatMsgsBgVideo');
+        if(!ve){
+          ve = document.createElement('video');
+          ve.id = 'chatMsgsBgVideo';
+          ve.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;opacity:0.7;';
+          ve.autoplay = true; ve.loop = true; ve.muted = true; ve.playsInline = true;
+          msgs.insertBefore(ve, msgs.firstChild);
+        }
+        ve.src = val;
+        ve.style.display = 'block';
         if(blurEl) blurEl.style.display = 'none';
       } else if(type === 'blur'){
         msgs.style.backgroundImage = `url('${val}')`;
@@ -10208,16 +10245,37 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(sw && sw.dataset.wp) applyChatWp(sw.dataset.wp);
   });
 
-  // Upload foto custom
+  // Upload gambar wallpaper
   document.getElementById('chatWpImgInput')?.addEventListener('change', function(){
     const file = this.files[0]; if(!file) return;
     const reader = new FileReader();
-    reader.onload = ev => applyChatWp('image:' + ev.target.result);
+    reader.onload = ev => {
+      applyChatWp('image:' + ev.target.result);
+      // Tampilkan preview
+      const prev = document.getElementById('chatWpPreview');
+      const img = document.getElementById('chatWpPreviewImg');
+      const vid = document.getElementById('chatWpPreviewVid');
+      if(prev && img){ prev.style.display='block'; img.style.display='block'; img.src=ev.target.result; if(vid) vid.style.display='none'; }
+    };
     reader.readAsDataURL(file);
     this.value = '';
   });
 
-  // Upload foto blur
+  // Upload video wallpaper
+  document.getElementById('chatWpVideoInput')?.addEventListener('change', function(){
+    const file = this.files[0]; if(!file) return;
+    if(file.size > 30*1024*1024){ alert('Video terlalu besar! Maks 30MB.'); return; }
+    const url = URL.createObjectURL(file);
+    applyChatWp('video:' + url);
+    // Tampilkan preview
+    const prev = document.getElementById('chatWpPreview');
+    const vid = document.getElementById('chatWpPreviewVid');
+    const img = document.getElementById('chatWpPreviewImg');
+    if(prev && vid){ prev.style.display='block'; vid.style.display='block'; vid.src=url; if(img) img.style.display='none'; }
+    this.value = '';
+  });
+
+  // Upload foto blur (tetap ada, dipakai internal)
   document.getElementById('chatWpBlurInput')?.addEventListener('change', function(){
     const file = this.files[0]; if(!file) return;
     const reader = new FileReader();

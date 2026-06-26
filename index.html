@@ -835,8 +835,8 @@
   flex:1; overflow-y:auto; padding:14px 16px; display:flex;
   flex-direction:column; gap:8px; scroll-behavior:smooth;
 }
-.chat-messages { scrollbar-width:none; }
 .chat-messages::-webkit-scrollbar { display:none; }
+.chat-messages { scrollbar-width:none; }
 .chat-bubble-wrap {
   display:flex; flex-direction:column; gap:2px; max-width:82%;
 }
@@ -917,8 +917,10 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   font-family:inherit; font-size:13.5px; resize:none; max-height:100px;
   min-height:38px; line-height:1.45; background:var(--bg);
   outline:none; transition:border-color .2s; display:block;
-  box-sizing:border-box; overflow-y:auto; -webkit-appearance:none; appearance:none;
+  box-sizing:border-box; overflow:hidden; -webkit-appearance:none; appearance:none;
+  scrollbar-width:none; /* Firefox */
 }
+.chat-input-bar textarea::-webkit-scrollbar { display:none; } /* Sembunyikan scrollbar Android/Chrome */
 .chat-input-bar textarea:focus { border-color:var(--teal); }
 .chat-send-btn {
   width:42px; height:42px; border-radius:50%; border:none;
@@ -1967,7 +1969,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
         </div>
         <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
-        <button id="chatVideoCallBtn" onclick="startVideoCall()" title="Video Call" style="width:34px;height:34px;border-radius:50%;border:1px solid var(--teal);background:var(--bg);color:var(--teal);font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">📹</button>
+        <button id="chatVideoCallBtn" onclick="startVideoCall()" title="Video Call" style="width:34px;height:34px;border-radius:50%;border:1.5px solid var(--teal);background:var(--bg);color:var(--teal);font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;">📹</button>
         <button class="chat-header-clear" id="chatClearBtn" title="Hapus semua pesan">🗑️</button>
         <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
       </div>
@@ -1998,37 +2000,6 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <input type="file" id="chatFileInput" accept="image/*,video/*,application/pdf" multiple style="display:none;">
     </div>
   </div>
-</div>
-
-<!-- ===== VIDEO CALL MODAL ===== -->
-<div id="vcOverlay" style="display:none;position:fixed;inset:0;z-index:9800;background:#111;flex-direction:column;align-items:center;justify-content:center;">
-  <!-- Remote video (lawan bicara) -->
-  <video id="vcRemoteVideo" autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;"></video>
-  <!-- Local video (diri sendiri — kecil di pojok) -->
-  <video id="vcLocalVideo" autoplay playsinline muted style="position:absolute;bottom:100px;right:16px;width:100px;height:140px;object-fit:cover;border-radius:14px;border:2px solid white;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:2;background:#222;"></video>
-  <!-- Status label -->
-  <div id="vcStatus" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:16px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,0.8);z-index:3;pointer-events:none;">
-    <div id="vcCallerAvatar" style="width:80px;height:80px;border-radius:50%;background:#1B4D4A;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 12px;overflow:hidden;"></div>
-    <div id="vcCallerName" style="font-size:18px;font-weight:700;margin-bottom:6px;"></div>
-    <div id="vcStatusText" style="font-size:14px;opacity:0.85;">Memanggil...</div>
-  </div>
-  <!-- Controls -->
-  <div style="position:absolute;bottom:36px;left:0;right:0;display:flex;justify-content:center;gap:20px;z-index:4;">
-    <button id="vcToggleMic" onclick="vcToggleMic()" title="Matikan/Hidupkan Mikrofon" style="width:56px;height:56px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">🎙️</button>
-    <button onclick="endVideoCall()" title="Tutup panggilan" style="width:64px;height:64px;border-radius:50%;border:none;background:#E8633F;color:white;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(232,99,63,0.5);">📵</button>
-    <button id="vcToggleCam" onclick="vcToggleCam()" title="Matikan/Hidupkan Kamera" style="width:56px;height:56px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">📷</button>
-  </div>
-  <!-- Incoming call bar (muncul saat ada panggilan masuk, overlay terpisah) -->
-</div>
-<!-- Incoming call notification (terpisah dari overlay penuh) -->
-<div id="vcIncomingBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9900;background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:16px 20px;display:none;align-items:center;gap:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
-  <div id="vcIncomingAvatar" style="width:44px;height:44px;border-radius:50%;background:#2D7A4F;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;"></div>
-  <div style="flex:1;min-width:0;">
-    <div style="font-weight:700;font-size:14px;">Panggilan Video Masuk</div>
-    <div id="vcIncomingName" style="font-size:13px;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-  </div>
-  <button onclick="answerVideoCall()" style="padding:10px 18px;border-radius:20px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">✅ Angkat</button>
-  <button onclick="rejectVideoCall()" style="padding:10px 18px;border-radius:20px;border:none;background:#C84F2F;color:white;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">❌ Tolak</button>
 </div>
 
 <!-- ===== FULLSCREEN IMAGE VIEWER ===== -->
@@ -8939,8 +8910,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // ── State ──────────────────────────────────────────────────────────────────
   let activeChatUid   = null;   // UID lawan bicara
-  // Expose untuk video call (window scope)
-  Object.defineProperty(window,'activeChatUid',{get:()=>activeChatUid});
   let activeChatId    = null;   // Firebase path key
   let messagesUnsub   = null;   // Firebase listener pesan aktif
   let typingUnsub     = null;   // Firebase listener typing lawan
@@ -8985,6 +8954,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(peerUid === MY_UID){ alert('Kamu tidak bisa chat dengan dirimu sendiri.'); return; }
 
     activeChatUid = peerUid;
+    window._vcActiveChatUid = peerUid;
     activeChatId  = getChatId(MY_UID, peerUid);
 
     // ── Isi header ──────────────────────────────────────────────────────────
@@ -9119,7 +9089,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     _setTyping(false);
     _detachListeners();
     activeChatUid = null;
-    activeChatId  = null;
+    window._vcActiveChatUid = null;
     if(_mediaRecorder && _mediaRecorder.state === 'recording'){
       try{ _mediaRecorder.stop(); } catch(e){}
     }
@@ -9627,319 +9597,182 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
 })();
 </script>
+<!-- ===== VIDEO CALL MODAL ===== -->
+<div id="vcOverlay" style="display:none;position:fixed;inset:0;z-index:9800;background:#111;flex-direction:column;align-items:center;justify-content:center;">
+  <video id="vcRemoteVideo" autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;"></video>
+  <video id="vcLocalVideo" autoplay playsinline muted style="position:absolute;bottom:106px;right:16px;width:100px;height:140px;object-fit:cover;border-radius:14px;border:2px solid white;box-shadow:0 4px 16px rgba(0,0,0,0.5);z-index:2;background:#222;"></video>
+  <div id="vcStatus" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-size:16px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,0.8);z-index:3;pointer-events:none;">
+    <div id="vcCallerAvatar" style="width:80px;height:80px;border-radius:50%;background:#1B4D4A;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 12px;overflow:hidden;"></div>
+    <div id="vcCallerName" style="font-size:18px;font-weight:700;margin-bottom:6px;"></div>
+    <div id="vcStatusText" style="font-size:14px;opacity:0.85;">Memanggil...</div>
+  </div>
+  <div style="position:absolute;bottom:36px;left:0;right:0;display:flex;justify-content:center;gap:20px;z-index:4;">
+    <button id="vcToggleMic" onclick="vcToggleMic()" style="width:56px;height:56px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">🎙️</button>
+    <button onclick="endVideoCall()" style="width:64px;height:64px;border-radius:50%;border:none;background:#E8633F;color:white;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(232,99,63,0.5);">📵</button>
+    <button id="vcToggleCam" onclick="vcToggleCam()" style="width:56px;height:56px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);">📷</button>
+  </div>
+</div>
+<!-- Incoming call banner -->
+<div id="vcIncomingBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9900;background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:14px 16px;align-items:center;gap:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);">
+  <div id="vcIncomingAvatar" style="width:44px;height:44px;border-radius:50%;background:#2D7A4F;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;overflow:hidden;"></div>
+  <div style="flex:1;min-width:0;">
+    <div style="font-weight:700;font-size:13.5px;">📹 Panggilan Video Masuk</div>
+    <div id="vcIncomingName" style="font-size:12.5px;opacity:0.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  </div>
+  <button onclick="answerVideoCall()" style="padding:9px 16px;border-radius:20px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">✅ Angkat</button>
+  <button onclick="rejectVideoCall()" style="padding:9px 16px;border-radius:20px;border:none;background:#C84F2F;color:white;font-weight:700;font-size:13px;cursor:pointer;flex-shrink:0;">❌ Tolak</button>
+</div>
 
-<!-- ===== VIDEO CALL (WebRTC + Firebase Signaling) ===== -->
 <script>
 (function(){
-  // ── State ──────────────────────────────────────────────────────────────────
-  let vcPc         = null;   // RTCPeerConnection
-  let vcLocalStream= null;   // MediaStream kamera/mic lokal
-  let vcCallId     = null;   // ID sesi di Firebase: calls/{vcCallId}
-  let vcRole       = null;   // 'caller' | 'callee'
-  let vcPeerUid    = null;   // UID lawan bicara
-  let vcPeerName   = '';
-  let vcPeerPhoto  = '';
-  let vcMicOn      = true;
-  let vcCamOn      = true;
-  let vcIncomingUnsub = null;
-  let vcSignalUnsub   = null;
+  let vcPc=null, vcLocalStream=null, vcCallId=null, vcRole=null;
+  let vcPeerUid=null, vcPeerName='', vcPeerPhoto='';
+  let vcMicOn=true, vcCamOn=true;
+  let vcIncomingUnsub=null, vcSignalUnsub=null;
+  const ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
 
-  const ICE_SERVERS = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ];
+  function fb(){ return !!(window.firebaseReady&&window.firebaseDb&&typeof MY_UID!=='undefined'&&MY_UID); }
+  function vcRef(p){ return window.rtdbRef(window.firebaseDb,p); }
+  function getCallId(a,b){ return [a,b].sort().join('_vc_'); }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
-  function fbReady(){ return !!(window.firebaseReady && window.firebaseDb && typeof MY_UID !== 'undefined' && MY_UID); }
-  function vcRef(path){ return window.rtdbRef(window.firebaseDb, path); }
-
-  function getVcCallId(uid1, uid2){ return [uid1, uid2].sort().join('_vc_'); }
-
-  function showVcOverlay(show){
-    const el = document.getElementById('vcOverlay');
-    if(el) el.style.display = show ? 'flex' : 'none';
+  function showOverlay(v){ const e=document.getElementById('vcOverlay'); if(e) e.style.display=v?'flex':'none'; }
+  function showBar(v){ const e=document.getElementById('vcIncomingBar'); if(e) e.style.display=v?'flex':'none'; }
+  function setStatus(t){ const e=document.getElementById('vcStatusText'); if(e) e.textContent=t; }
+  function hideStatusPanel(){ const e=document.getElementById('vcStatus'); if(e) e.style.display='none'; }
+  function showStatusPanel(){ const e=document.getElementById('vcStatus'); if(e) e.style.display='block'; }
+  function setCallerInfo(name,photo){
+    const n=document.getElementById('vcCallerName'); if(n) n.textContent=name;
+    const a=document.getElementById('vcCallerAvatar');
+    if(a) a.innerHTML=photo?`<img src="${photo}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`:'👤';
   }
-  function showIncomingBar(show){
-    const el = document.getElementById('vcIncomingBar');
-    if(el) el.style.display = show ? 'flex' : 'none';
-  }
-  function setVcStatus(text){
-    const el = document.getElementById('vcStatusText');
-    if(el) el.textContent = text;
-  }
-  function setVcCallerInfo(name, photo){
-    const nameEl = document.getElementById('vcCallerName');
-    const avatarEl = document.getElementById('vcCallerAvatar');
-    if(nameEl) nameEl.textContent = name;
-    if(avatarEl){
-      avatarEl.innerHTML = photo
-        ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`
-        : '👤';
-    }
+  function updateBtns(){
+    const m=document.getElementById('vcToggleMic'),c=document.getElementById('vcToggleCam');
+    if(m){m.innerHTML=vcMicOn?'🎙️':'🔇';m.style.background=vcMicOn?'rgba(255,255,255,0.18)':'rgba(200,79,47,0.7)';}
+    if(c){c.innerHTML=vcCamOn?'📷':'🚫';c.style.background=vcCamOn?'rgba(255,255,255,0.18)':'rgba(200,79,47,0.7)';}
   }
 
-  // Tampilkan/sembunyikan status overlay (avatar + nama + teks) saat remote stream sudah ada
-  function hideVcStatusOverlay(){
-    const el = document.getElementById('vcStatus');
-    if(el) el.style.display = 'none';
+  async function setupPC(){
+    vcPc=new RTCPeerConnection({iceServers:ICE});
+    if(vcLocalStream) vcLocalStream.getTracks().forEach(t=>vcPc.addTrack(t,vcLocalStream));
+    vcPc.ontrack=e=>{
+      const v=document.getElementById('vcRemoteVideo');
+      if(v&&e.streams&&e.streams[0]){v.srcObject=e.streams[0];hideStatusPanel();}
+    };
+    vcPc.onicecandidate=async e=>{
+      if(!e.candidate||!vcCallId||!fb()) return;
+      const key=vcRole==='caller'?'iceCandidatesCaller':'iceCandidatesCallee';
+      try{await window.rtdbSet(window.rtdbPush(vcRef(`calls/${vcCallId}/${key}`)),e.candidate.toJSON());}catch(err){}
+    };
+    vcPc.onconnectionstatechange=()=>{
+      const s=vcPc?.connectionState;
+      if(s==='connected'){setStatus('Terhubung ✅');hideStatusPanel();}
+      if(s==='disconnected'||s==='failed') cleanup('Koneksi terputus');
+    };
   }
-  function showVcStatusOverlay(){
-    const el = document.getElementById('vcStatus');
-    if(el) el.style.display = 'block';
+
+  function cleanup(msg){
+    if(vcLocalStream){vcLocalStream.getTracks().forEach(t=>t.stop());vcLocalStream=null;}
+    if(vcPc){try{vcPc.close();}catch(e){}vcPc=null;}
+    if(vcSignalUnsub){try{vcSignalUnsub();}catch(e){}vcSignalUnsub=null;}
+    const rv=document.getElementById('vcRemoteVideo'),lv=document.getElementById('vcLocalVideo');
+    if(rv) rv.srcObject=null; if(lv) lv.srcObject=null;
+    showOverlay(false); showBar(false);
+    vcCallId=vcPeerUid=vcRole=null;
   }
 
-  // ── Mulai video call (sebagai caller) ───────────────────────────────────────
-  window.startVideoCall = async function(){
-    if(!fbReady()){ alert('Login dulu untuk video call.'); return; }
-    const peerUid  = window.activeChatUid || null;
-    const peerName = document.getElementById('chatHeaderName')?.textContent || 'Pengguna';
-    const peerPhoto= document.getElementById('chatHeaderAvatar')?.querySelector('img')?.src || '';
-    if(!peerUid){ alert('Buka chat dulu sebelum video call.'); return; }
-
-    vcPeerUid   = peerUid;
-    vcPeerName  = peerName;
-    vcPeerPhoto = peerPhoto;
-    vcRole      = 'caller';
-    vcCallId    = getVcCallId(MY_UID, peerUid);
-
-    try {
-      vcLocalStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-    } catch(e){
-      alert('Tidak bisa mengakses kamera/mikrofon: ' + (e.message||e));
-      return;
-    }
-
-    const localVid = document.getElementById('vcLocalVideo');
-    if(localVid){ localVid.srcObject = vcLocalStream; }
-
-    setVcCallerInfo(peerName, peerPhoto);
-    setVcStatus('Memanggil...');
-    showVcStatusOverlay();
-    showVcOverlay(true);
-    vcMicOn = vcCamOn = true;
-    _updateVcBtnIcons();
-
-    await _setupPeerConnection();
-    const offer = await vcPc.createOffer();
+  window.startVideoCall=async function(){
+    if(!fb()){alert('Login dulu.');return;}
+    const peerUid=window._vcActiveChatUid;
+    const peerName=document.getElementById('chatHeaderName')?.textContent||'Pengguna';
+    const peerPhoto=document.getElementById('chatHeaderAvatar')?.querySelector('img')?.src||'';
+    if(!peerUid){alert('Buka chat dulu sebelum video call.');return;}
+    vcPeerUid=peerUid; vcPeerName=peerName; vcPeerPhoto=peerPhoto;
+    vcRole='caller'; vcCallId=getCallId(MY_UID,peerUid);
+    try{ vcLocalStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }
+    catch(e){alert('Tidak bisa akses kamera/mikrofon: '+(e.message||e));return;}
+    const lv=document.getElementById('vcLocalVideo'); if(lv) lv.srcObject=vcLocalStream;
+    setCallerInfo(peerName,peerPhoto); setStatus('Memanggil...'); showStatusPanel();
+    showOverlay(true); vcMicOn=vcCamOn=true; updateBtns();
+    await setupPC();
+    const offer=await vcPc.createOffer();
     await vcPc.setLocalDescription(offer);
-
-    // Tulis offer ke Firebase
-    await window.rtdbSet(vcRef(`calls/${vcCallId}`), {
-      caller: MY_UID,
-      callee: peerUid,
-      callerName: peerName.trim() !== peerName ? peerName : (typeof myProfile !== 'undefined' && myProfile ? (myProfile.displayName||myProfile.storeName||'Pengguna') : 'Pengguna'),
-      callerPhoto: (typeof myProfile !== 'undefined' && myProfile ? myProfile.profilePhotoUrl||'' : ''),
-      status: 'calling',
-      offer: { type: offer.type, sdp: offer.sdp },
-      ts: Date.now()
-    });
-
-    // Dengarkan answer dari callee
-    vcSignalUnsub = window.rtdbOnValue(vcRef(`calls/${vcCallId}`), async snap => {
-      const data = snap.val();
-      if(!data) return;
-      if(data.status === 'answered' && data.answer && vcPc && !vcPc.remoteDescription){
-        try{
-          await vcPc.setRemoteDescription(new RTCSessionDescription(data.answer));
-          setVcStatus('Terhubung');
-        }catch(e){ console.warn('vc setRemoteDescription err',e); }
+    const myName=(typeof myProfile!=='undefined'&&myProfile)?(myProfile.displayName||myProfile.storeName||'Pengguna'):'Pengguna';
+    const myPhoto=(typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||'':'';
+    await window.rtdbSet(vcRef(`calls/${vcCallId}`),{caller:MY_UID,callee:peerUid,callerName:myName,callerPhoto:myPhoto,status:'calling',offer:{type:offer.type,sdp:offer.sdp},ts:Date.now()});
+    vcSignalUnsub=window.rtdbOnValue(vcRef(`calls/${vcCallId}`),async snap=>{
+      const d=snap.val(); if(!d) return;
+      if(d.status==='answered'&&d.answer&&vcPc&&!vcPc.remoteDescription){
+        try{await vcPc.setRemoteDescription(new RTCSessionDescription(d.answer));setStatus('Terhubung');}catch(e){}
       }
-      if(data.status === 'rejected' || data.status === 'ended'){
-        _vcCleanup('Panggilan ditolak / diakhiri');
-      }
-      // Proses ICE candidates dari callee
-      if(data.iceCandidatesCallee){
-        Object.values(data.iceCandidatesCallee).forEach(async c => {
-          try{ if(vcPc && vcPc.remoteDescription) await vcPc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){}
-        });
-      }
+      if(d.status==='rejected'||d.status==='ended') cleanup('Ditolak/diakhiri');
+      if(d.iceCandidatesCallee) Object.values(d.iceCandidatesCallee).forEach(async c=>{try{if(vcPc&&vcPc.remoteDescription)await vcPc.addIceCandidate(new RTCIceCandidate(c));}catch(e){}});
     });
   };
 
-  // ── Answer (callee menerima panggilan) ──────────────────────────────────────
-  window.answerVideoCall = async function(){
-    if(!vcCallId || !vcPeerUid) return;
-    showIncomingBar(false);
-
-    try {
-      vcLocalStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-    } catch(e){
-      alert('Tidak bisa mengakses kamera/mikrofon: ' + (e.message||e));
-      rejectVideoCall();
-      return;
-    }
-
-    const localVid = document.getElementById('vcLocalVideo');
-    if(localVid){ localVid.srcObject = vcLocalStream; }
-
-    setVcCallerInfo(vcPeerName, vcPeerPhoto);
-    setVcStatus('Menghubungkan...');
-    showVcStatusOverlay();
-    showVcOverlay(true);
-    vcMicOn = vcCamOn = true;
-    _updateVcBtnIcons();
-
-    await _setupPeerConnection();
-
-    // Ambil offer
-    const snap = await window.rtdbGet(vcRef(`calls/${vcCallId}`));
-    const data  = snap.val();
-    if(!data || !data.offer){ endVideoCall(); return; }
-
+  window.answerVideoCall=async function(){
+    showBar(false);
+    try{ vcLocalStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }
+    catch(e){alert('Tidak bisa akses kamera/mikrofon: '+(e.message||e));rejectVideoCall();return;}
+    const lv=document.getElementById('vcLocalVideo'); if(lv) lv.srcObject=vcLocalStream;
+    setCallerInfo(vcPeerName,vcPeerPhoto); setStatus('Menghubungkan...'); showStatusPanel();
+    showOverlay(true); vcMicOn=vcCamOn=true; updateBtns();
+    await setupPC();
+    const snap=await window.rtdbGet(vcRef(`calls/${vcCallId}`));
+    const data=snap.val();
+    if(!data||!data.offer){endVideoCall();return;}
     await vcPc.setRemoteDescription(new RTCSessionDescription(data.offer));
-    const answer = await vcPc.createAnswer();
+    const answer=await vcPc.createAnswer();
     await vcPc.setLocalDescription(answer);
-
-    await window.rtdbUpdate(vcRef(`calls/${vcCallId}`), {
-      status: 'answered',
-      answer: { type: answer.type, sdp: answer.sdp }
-    });
-
-    // Dengarkan ICE dari caller & status ended
-    vcSignalUnsub = window.rtdbOnValue(vcRef(`calls/${vcCallId}`), async snap => {
-      const d = snap.val();
-      if(!d) return;
-      if(d.status === 'ended'){ _vcCleanup('Panggilan diakhiri'); return; }
-      if(d.iceCandidatesCaller){
-        Object.values(d.iceCandidatesCaller).forEach(async c => {
-          try{ if(vcPc && vcPc.remoteDescription) await vcPc.addIceCandidate(new RTCIceCandidate(c)); }catch(e){}
-        });
-      }
+    await window.rtdbUpdate(vcRef(`calls/${vcCallId}`),{status:'answered',answer:{type:answer.type,sdp:answer.sdp}});
+    vcSignalUnsub=window.rtdbOnValue(vcRef(`calls/${vcCallId}`),async snap=>{
+      const d=snap.val(); if(!d) return;
+      if(d.status==='ended') cleanup('Diakhiri');
+      if(d.iceCandidatesCaller) Object.values(d.iceCandidatesCaller).forEach(async c=>{try{if(vcPc&&vcPc.remoteDescription)await vcPc.addIceCandidate(new RTCIceCandidate(c));}catch(e){}});
     });
   };
 
-  window.rejectVideoCall = async function(){
-    showIncomingBar(false);
-    if(vcCallId && fbReady()){
-      try{ await window.rtdbUpdate(vcRef(`calls/${vcCallId}`), { status:'rejected' }); }catch(e){}
-    }
-    _vcCleanup();
+  window.rejectVideoCall=async function(){
+    showBar(false);
+    if(vcCallId&&fb()) try{await window.rtdbUpdate(vcRef(`calls/${vcCallId}`),{status:'rejected'});}catch(e){}
+    cleanup();
   };
-
-  window.endVideoCall = async function(){
-    if(vcCallId && fbReady()){
-      try{ await window.rtdbUpdate(vcRef(`calls/${vcCallId}`), { status:'ended' }); }catch(e){}
-    }
-    _vcCleanup('Panggilan selesai');
+  window.endVideoCall=async function(){
+    if(vcCallId&&fb()) try{await window.rtdbUpdate(vcRef(`calls/${vcCallId}`),{status:'ended'});}catch(e){}
+    cleanup('Selesai');
   };
+  window.vcToggleMic=function(){ vcMicOn=!vcMicOn; if(vcLocalStream) vcLocalStream.getAudioTracks().forEach(t=>t.enabled=vcMicOn); updateBtns(); };
+  window.vcToggleCam=function(){ vcCamOn=!vcCamOn; if(vcLocalStream) vcLocalStream.getVideoTracks().forEach(t=>t.enabled=vcCamOn); updateBtns(); };
 
-  window.vcToggleMic = function(){
-    vcMicOn = !vcMicOn;
-    if(vcLocalStream) vcLocalStream.getAudioTracks().forEach(t => { t.enabled = vcMicOn; });
-    _updateVcBtnIcons();
-  };
-  window.vcToggleCam = function(){
-    vcCamOn = !vcCamOn;
-    if(vcLocalStream) vcLocalStream.getVideoTracks().forEach(t => { t.enabled = vcCamOn; });
-    _updateVcBtnIcons();
-  };
-
-  function _updateVcBtnIcons(){
-    const micBtn = document.getElementById('vcToggleMic');
-    const camBtn = document.getElementById('vcToggleCam');
-    if(micBtn){ micBtn.innerHTML = vcMicOn ? '🎙️' : '🔇'; micBtn.style.background = vcMicOn ? 'rgba(255,255,255,0.18)' : 'rgba(200,79,47,0.7)'; }
-    if(camBtn){ camBtn.innerHTML = vcCamOn ? '📷' : '🚫'; camBtn.style.background = vcCamOn ? 'rgba(255,255,255,0.18)' : 'rgba(200,79,47,0.7)'; }
-  }
-
-  // ── Setup RTCPeerConnection ─────────────────────────────────────────────────
-  async function _setupPeerConnection(){
-    vcPc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-
-    // Tambah local tracks
-    if(vcLocalStream) vcLocalStream.getTracks().forEach(t => vcPc.addTrack(t, vcLocalStream));
-
-    // Remote track → remote video
-    vcPc.ontrack = e => {
-      const remoteVid = document.getElementById('vcRemoteVideo');
-      if(remoteVid && e.streams && e.streams[0]){
-        remoteVid.srcObject = e.streams[0];
-        hideVcStatusOverlay();
-      }
-    };
-
-    // ICE candidate → kirim ke Firebase
-    vcPc.onicecandidate = async e => {
-      if(!e.candidate || !vcCallId || !fbReady()) return;
-      const key   = vcRole === 'caller' ? 'iceCandidatesCaller' : 'iceCandidatesCallee';
-      const newRef = window.rtdbPush(vcRef(`calls/${vcCallId}/${key}`));
-      try{ await window.rtdbSet(newRef, e.candidate.toJSON()); }catch(err){}
-    };
-
-    vcPc.onconnectionstatechange = () => {
-      const s = vcPc?.connectionState;
-      if(s === 'connected'){ setVcStatus('Terhubung ✅'); hideVcStatusOverlay(); }
-      if(s === 'disconnected' || s === 'failed'){ _vcCleanup('Koneksi terputus'); }
-    };
-  }
-
-  // ── Cleanup semua resource ──────────────────────────────────────────────────
-  function _vcCleanup(msg){
-    if(vcLocalStream){ vcLocalStream.getTracks().forEach(t=>t.stop()); vcLocalStream=null; }
-    if(vcPc){ try{vcPc.close();}catch(e){} vcPc=null; }
-    if(vcSignalUnsub){ try{vcSignalUnsub();}catch(e){} vcSignalUnsub=null; }
-
-    const remoteVid = document.getElementById('vcRemoteVideo');
-    const localVid  = document.getElementById('vcLocalVideo');
-    if(remoteVid) remoteVid.srcObject = null;
-    if(localVid)  localVid.srcObject  = null;
-
-    showVcOverlay(false);
-    showIncomingBar(false);
-    vcCallId = vcPeerUid = vcRole = null;
-
-    if(msg) console.log('[VideoCall]', msg);
-  }
-
-  // ── Listen incoming calls ───────────────────────────────────────────────────
-  function startIncomingCallListener(){
-    if(!fbReady() || vcIncomingUnsub) return;
-    const callsRef = vcRef('calls');
-    vcIncomingUnsub = window.rtdbOnValue(callsRef, snap => {
-      const all = snap.val() || {};
-      // Cari panggilan yang masuk untuk diri sendiri, status 'calling', baru (< 60 detik)
-      const now = Date.now();
-      for(const [id, d] of Object.entries(all)){
-        if(d.callee === MY_UID && d.status === 'calling' && d.ts && (now - d.ts) < 60000){
-          // Jangan tampilkan kalau sedang VC aktif
+  // Listen panggilan masuk
+  function listenIncoming(){
+    if(!fb()||vcIncomingUnsub) return;
+    vcIncomingUnsub=window.rtdbOnValue(vcRef('calls'),snap=>{
+      const all=snap.val()||{};
+      const now=Date.now();
+      for(const [id,d] of Object.entries(all)){
+        if(d.callee===MY_UID&&d.status==='calling'&&d.ts&&(now-d.ts)<60000){
           if(vcCallId) break;
-          vcCallId    = id;
-          vcPeerUid   = d.caller;
-          vcPeerName  = d.callerName || 'Pengguna';
-          vcPeerPhoto = d.callerPhoto || '';
-          vcRole      = 'callee';
-
-          // Isi UI incoming bar
-          const nameEl   = document.getElementById('vcIncomingName');
-          const avatarEl = document.getElementById('vcIncomingAvatar');
-          if(nameEl)   nameEl.textContent = vcPeerName;
-          if(avatarEl) avatarEl.innerHTML = vcPeerPhoto
-            ? `<img src="${vcPeerPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`
-            : '👤';
-
-          showIncomingBar(true);
-          // Auto-dismiss kalau tidak diangkat dalam 30 detik
-          setTimeout(()=>{ if(document.getElementById('vcIncomingBar')?.style.display==='flex') showIncomingBar(false); },30000);
+          vcCallId=id; vcPeerUid=d.caller; vcPeerName=d.callerName||'Pengguna'; vcPeerPhoto=d.callerPhoto||''; vcRole='callee';
+          const ne=document.getElementById('vcIncomingName'),ae=document.getElementById('vcIncomingAvatar');
+          if(ne) ne.textContent=vcPeerName;
+          if(ae) ae.innerHTML=vcPeerPhoto?`<img src="${vcPeerPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">`:'👤';
+          showBar(true);
+          setTimeout(()=>{ if(document.getElementById('vcIncomingBar')?.style.display==='flex') showBar(false); },30000);
           break;
         }
       }
     });
   }
 
-  // Start listener saat Firebase siap dan user sudah login
-  function tryStartIncoming(){
-    if(fbReady()){ startIncomingCallListener(); }
-    else {
-      document.addEventListener('firebase-ready', ()=>{
-        if(window.fbOnAuthStateChanged && window.fbAuth){
-          window.fbOnAuthStateChanged(window.fbAuth, user=>{
-            if(user){ setTimeout(startIncomingCallListener, 1000); }
-            else { if(vcIncomingUnsub){ try{vcIncomingUnsub();}catch(e){} vcIncomingUnsub=null; } }
-          });
-        }
+  document.addEventListener('firebase-ready',()=>{
+    if(window.fbOnAuthStateChanged&&window.fbAuth){
+      window.fbOnAuthStateChanged(window.fbAuth,user=>{
+        if(user) setTimeout(listenIncoming,1000);
+        else{ if(vcIncomingUnsub){try{vcIncomingUnsub();}catch(e){} vcIncomingUnsub=null;} }
       });
     }
-  }
-  setTimeout(tryStartIncoming, 1200);
+  });
+  if(window.firebaseReady) setTimeout(listenIncoming,1200);
 })();
 </script>
 </body>

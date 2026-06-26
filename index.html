@@ -4386,11 +4386,12 @@ async function geocodeAddress(uid, address){
         }
         console.log('[v0] Geocode success with query "'+q+'":', coords);
         storeGeoCache[uid] = coords;
-        // Simpan ke Firebase agar render berikutnya langsung pakai storeCoords
-        // Jangan simpan jika uid adalah kunci toko ke-2 (suffix _s2) — penyimpanan
-        // dilakukan oleh saveProfileBtn dengan field store2Coords yang benar.
-        if(window.firebaseReady && !uid.endsWith('_s2')){
-          window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
+        // Simpan ke Firebase agar render berikutnya langsung pakai storeCoords.
+        // Jangan simpan jika uid adalah kunci toko ke-2 (suffix _s2) atau toko extra (_x0, _x1, dll).
+        // Kalau uid pakai prefix 'store_', strip dulu sebelum simpan ke Firebase path.
+        const _fbUid = uid.startsWith('store_') ? uid.slice(6) : uid;
+        if(window.firebaseReady && !uid.endsWith('_s2') && !/_x\d+$/.test(uid)){
+          window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+_fbUid), {storeCoords: coords}).catch(()=>{});
         }
         return coords;
       }
@@ -4472,7 +4473,9 @@ async function renderCommunityMap(){
     // Skip marker diri sendiri kalau:
     //  - myMarkerLive sudah ada (location sharing / nav aktif), ATAU
     //  - rute aktif dan route_user sudah ada (agar tidak dobel dengan marker rute)
-    if(p.isMe && (_savedMyLive || ((activeRoute || routePending) && _savedRouteUsr))) return;
+    // Skip marker Saya jika: (a) myMarkerLive sudah ada, (b) locWatchId aktif (share loc berjalan),
+    // atau (c) rute aktif dan route_user sudah ada. Ini mencegah duplikat marker.
+    if(p.isMe && (_savedMyLive || locWatchId !== null || ((activeRoute || routePending) && _savedRouteUsr))) return;
     const visBadge = p.isMe
       ? (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
@@ -4508,7 +4511,10 @@ async function renderCommunityMap(){
   for(const [uid, u] of storeEntries.slice(0, 8)){
     // Cek dulu kalau koordinat sudah tersimpan di Firebase
     let coords = u.storeCoords || null;
-    if(!coords) coords = await geocodeAddress(uid, u.address);
+    // PENTING: pakai prefix 'store_' supaya key geocode cache toko tidak pernah
+    // bertabrakan dengan key GPS user (uid telanjang). Ini mencegah marker toko
+    // ikut ke posisi GPS user saat share location aktif.
+    if(!coords) coords = await geocodeAddress('store_'+uid, u.address);
     if(!coords){
       console.warn('[v0] Skipping store', uid, 'because no coords available for:', u.address);
       continue;
@@ -5491,7 +5497,9 @@ function showMyLocationOnMap(loc, visibility){
   }
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
-  setTimeout(() => { if(typeof renderCommunityMap==='function' && !activeRoute && !routePending) renderCommunityMap(); }, 300);
+  // TIDAK memanggil renderCommunityMap di sini — marker sudah dikelola langsung
+  // di watchPosition callback (myMarkerLive). Memanggil renderCommunityMap di sini
+  // menyebabkan marker dobel karena race condition dengan myMarkerLive.
 }
 
 // Populate daftar user di modal privat

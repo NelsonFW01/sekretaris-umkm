@@ -4030,11 +4030,11 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   }
 
   const straightM=haversineM(fromLat,fromLng,destLat,destLng);
-  // Timeout lebih longgar supaya server publik punya cukup waktu merespons
   const timeoutMs = straightM > 100000 ? 25000 : straightM > 30000 ? 18000 : 13000;
 
-  // ── Helper: decode Google/OSRM encoded polyline ─────────────────────────────
-  function decodePolyline(encoded){
+  // Helper: decode Google/OSRM encoded polyline
+  function decodePolyline(encoded, precision){
+    const factor = Math.pow(10, precision||5);
     const pts=[]; let idx=0,lat=0,lng=0;
     while(idx<encoded.length){
       let b,shift=0,result=0;
@@ -4043,88 +4043,56 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
       shift=0;result=0;
       do{b=encoded.charCodeAt(idx++)-63;result|=(b&0x1f)<<shift;shift+=5;}while(b>=0x20);
       lng+=(result&1)?~(result>>1):(result>>1);
-      pts.push([lat/1e5,lng/1e5]);
+      pts.push([lat/factor,lng/factor]);
     }
     return pts;
   }
 
-  // ── Routing bertingkat: OSRM driving → OSRM walking → OSRM motorcycle →
-  //    Valhalla → GraphHopper → ORS → garis lurus ──────────────────────────────
+  // ── Routing bertingkat: OSRM driving → OSRM bike → OSRM walking →
+  //    Valhalla → GraphHopper → ORS driving → ORS walking → garis lurus ─────────
 
-  // OSRM: coba driving, walking, cycling di semua server publik yang tersedia
-  async function tryOSRM(srv, profile, timeoutOverride){
+  async function tryOSRM(srv, profile, to){
     const p = profile || 'driving';
-    // overview=full → semua titik koordinat jalan dikembalikan (bukan simplified)
-    // continue_straight=false → lebih natural di persimpangan
     const url = srv+'/'+p+'/'+fromLng+','+fromLat+';'+destLng+','+destLat
       +'?overview=full&geometries=geojson&steps=true&continue_straight=false';
-    const resp = await fetch(url, {signal: AbortSignal.timeout(timeoutOverride || timeoutMs-3000)});
+    const resp = await fetch(url, {signal: AbortSignal.timeout(to||timeoutMs-3000)});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
     const d = await resp.json();
     if(d.code!=='Ok'||!d.routes||!d.routes[0]) throw new Error('No route: '+d.code);
     const r = d.routes[0];
-    // Validasi: rute nyata harus setidaknya 1.05x jarak lurus (bukan teleport)
+    if(!r.geometry||!r.geometry.coordinates||r.geometry.coordinates.length<2) throw new Error('Empty geometry');
     if(r.distance < straightM * 0.9) throw new Error('Route too short, likely invalid');
     return r;
   }
 
-  // Valhalla (valhalla.openstreetmap.de) — engine OSM resmi, sangat bagus untuk Indonesia
   async function tryValhalla(costing){
-    const body = {
-      locations:[{lon:fromLng,lat:fromLat},{lon:destLng,lat:destLat}],
-      costing: costing || 'auto',
+    const body={locations:[{lon:fromLng,lat:fromLat},{lon:destLng,lat:destLat}],costing:costing||'auto',
       directions_options:{units:'kilometers',language:'id'},
-      costing_options:{ auto:{use_tolls:0.5,use_highways:0.5}, motorcycle:{use_tolls:0.5} }
-    };
-    const resp = await fetch('https://valhalla1.openstreetmap.de/route', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(body),
-      signal:AbortSignal.timeout(timeoutMs-3000)
-    });
+      costing_options:{auto:{use_tolls:0.5,use_highways:0.5},motorcycle:{use_tolls:0.5}}};
+    const resp=await fetch('https://valhalla1.openstreetmap.de/route',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),
+      signal:AbortSignal.timeout(timeoutMs-3000)});
     if(!resp.ok) throw new Error('Valhalla HTTP '+resp.status);
-    const d = await resp.json();
+    const d=await resp.json();
     if(!d.trip||!d.trip.legs||!d.trip.legs[0]) throw new Error('Valhalla no legs');
-    const leg = d.trip.legs[0];
-    // Decode polyline6 (presisi 6 desimal) dari Valhalla
-    const pts = decodePolyline(leg.shape); // Valhalla pakai encoded polyline
-    // Valhalla pakai polyline dengan presisi 6
-    function decodeP6(enc){
-      const r=[]; let i=0,la=0,lo=0;
-      while(i<enc.length){
-        let b,s=0,res=0;
-        do{b=enc.charCodeAt(i++)-63;res|=(b&0x1f)<<s;s+=5;}while(b>=0x20);
-        la+=(res&1)?~(res>>1):(res>>1);
-        s=0;res=0;
-        do{b=enc.charCodeAt(i++)-63;res|=(b&0x1f)<<s;s+=5;}while(b>=0x20);
-        lo+=(res&1)?~(res>>1):(res>>1);
-        r.push([la/1e6,lo/1e6]);
-      }
-      return r;
-    }
-    const coords6 = decodeP6(leg.shape);
-    const summary = d.trip.summary;
-    return {
-      distance: (summary.length||0)*1000, // km → m
-      duration: summary.time||0,
-      geometry: { type:'LineString', coordinates: coords6.map(p=>[p[1],p[0]]) },
-      legs:[{steps:(leg.maneuvers||[]).map(m=>({
-        distance: m.length*1000,
-        maneuver:{
-          location:[ coords6[m.begin_shape_index]?.[1]||fromLng, coords6[m.begin_shape_index]?.[0]||fromLat ],
-          type:'turn',
-          modifier: m.type<=2?'straight': m.type<=5?'right': m.type<=8?'left':'straight'
-        },
-        name: m.street_names ? m.street_names.join(', ') : ''
-      }))}]
-    };
+    const leg=d.trip.legs[0];
+    // Valhalla pakai polyline6
+    const coords6=decodePolyline(leg.shape,6);
+    if(coords6.length<2) throw new Error('Valhalla empty coords');
+    const summary=d.trip.summary;
+    return{distance:(summary.length||0)*1000,duration:summary.time||0,
+      geometry:{type:'LineString',coordinates:coords6.map(p=>[p[1],p[0]])},
+      legs:[{steps:(leg.maneuvers||[]).map(m=>({distance:m.length*1000,
+        maneuver:{location:[coords6[m.begin_shape_index]?.[1]||fromLng,coords6[m.begin_shape_index]?.[0]||fromLat],
+        type:'turn',modifier:m.type<=2?'straight':m.type<=5?'right':m.type<=8?'left':'straight'},
+        name:m.street_names?m.street_names.join(', '):''}))}]};
   }
 
-  async function tryGraphHopper(){
-    // GraphHopper public API — tanpa key juga bisa (rate limited tapi tetap jalan)
+  async function tryGraphHopper(vehicle){
+    const v=vehicle||'car';
     const url='https://graphhopper.com/api/1/route'
       +'?point='+fromLat+','+fromLng+'&point='+destLat+','+destLng
-      +'&vehicle=car&locale=id&points_encoded=false&instructions=true'
+      +'&vehicle='+v+'&locale=id&points_encoded=false&instructions=true'
       +'&key=LijBPDQGfu7Iiq80ebFCtWMuznIa7Nq3iyBcId9V';
     const resp=await fetch(url,{signal:AbortSignal.timeout(timeoutMs-3000)});
     if(!resp.ok) throw new Error('GH HTTP '+resp.status);
@@ -4132,53 +4100,20 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     if(!d.paths||!d.paths[0]) throw new Error('GH no path');
     const path=d.paths[0];
     if(!path.points||!path.points.coordinates||path.points.coordinates.length<2) throw new Error('GH empty coords');
-    return {
-      distance:path.distance, duration:path.time/1000,
-      geometry:path.points,
-      legs:[{steps:(path.instructions||[]).map(ins=>({
-        distance:ins.distance,
-        maneuver:{
-          location:[path.points.coordinates[ins.interval[0]][0],path.points.coordinates[ins.interval[0]][1]],
-          type:'turn', modifier:ins.sign>0?'right':ins.sign<0?'left':'straight'
-        },
-        name:ins.street_name||''
-      }))}]
-    };
+    return{distance:path.distance,duration:path.time/1000,geometry:path.points,
+      legs:[{steps:(path.instructions||[]).map(ins=>({distance:ins.distance,
+        maneuver:{location:[path.points.coordinates[ins.interval[0]][0],path.points.coordinates[ins.interval[0]][1]],
+        type:'turn',modifier:ins.sign>0?'right':ins.sign<0?'left':'straight'},
+        name:ins.street_name||''}))}]};
   }
 
-  // GraphHopper fallback pakai mode motorcycle (lebih bisa masuk gang)
-  async function tryGraphHopperMoto(){
-    const url='https://graphhopper.com/api/1/route'
-      +'?point='+fromLat+','+fromLng+'&point='+destLat+','+destLng
-      +'&vehicle=motorcycle&locale=id&points_encoded=false&instructions=true'
-      +'&key=LijBPDQGfu7Iiq80ebFCtWMuznIa7Nq3iyBcId9V';
-    const resp=await fetch(url,{signal:AbortSignal.timeout(timeoutMs-3000)});
-    if(!resp.ok) throw new Error('GH-moto HTTP '+resp.status);
-    const d=await resp.json();
-    if(!d.paths||!d.paths[0]) throw new Error('GH-moto no path');
-    const path=d.paths[0];
-    if(!path.points||!path.points.coordinates||path.points.coordinates.length<2) throw new Error('GH-moto empty coords');
-    return {
-      distance:path.distance, duration:path.time/1000,
-      geometry:path.points,
-      legs:[{steps:(path.instructions||[]).map(ins=>({
-        distance:ins.distance,
-        maneuver:{
-          location:[path.points.coordinates[ins.interval[0]][0],path.points.coordinates[ins.interval[0]][1]],
-          type:'turn', modifier:ins.sign>0?'right':ins.sign<0?'left':'straight'
-        },
-        name:ins.street_name||''
-      }))}]
-    };
-  }
-
-  async function tryORS(){
-    const resp=await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'5b3ce3597851110001cf6248a3c69e728c4d44a49b057de5e62f4b2a'},
+  async function tryORS(profile){
+    const pr=profile||'driving-car';
+    const resp=await fetch('https://api.openrouteservice.org/v2/directions/'+pr+'/geojson',{
+      method:'POST',headers:{'Content-Type':'application/json',
+      'Authorization':'5b3ce3597851110001cf6248a3c69e728c4d44a49b057de5e62f4b2a'},
       body:JSON.stringify({coordinates:[[fromLng,fromLat],[destLng,destLat]]}),
-      signal:AbortSignal.timeout(timeoutMs-3000)
-    });
+      signal:AbortSignal.timeout(timeoutMs-3000)});
     if(!resp.ok) throw new Error('ORS HTTP '+resp.status);
     const d=await resp.json();
     const feat=d.features&&d.features[0];
@@ -4186,57 +4121,23 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     const coords=feat.geometry&&feat.geometry.coordinates;
     if(!coords||coords.length<2) throw new Error('ORS empty coords');
     const seg=feat.properties.segments&&feat.properties.segments[0];
-    return {
-      distance:feat.properties.summary.distance, duration:feat.properties.summary.duration,
-      geometry:feat.geometry,
-      legs:[{steps:seg?seg.steps.map(s=>({
-        distance:s.distance,
+    return{distance:feat.properties.summary.distance,duration:feat.properties.summary.duration,
+      geometry:feat.geometry,legs:[{steps:seg?seg.steps.map(s=>({distance:s.distance,
         maneuver:{location:feat.geometry.coordinates[s.way_points[0]],type:'turn',modifier:'straight'},
-        name:s.name||''
-      })):[]}]
-    };
-  }
-
-  // ORS walking — bisa lewat gang, jalan kecil
-  async function tryORSWalk(){
-    const resp=await fetch('https://api.openrouteservice.org/v2/directions/foot-walking/geojson',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'5b3ce3597851110001cf6248a3c69e728c4d44a49b057de5e62f4b2a'},
-      body:JSON.stringify({coordinates:[[fromLng,fromLat],[destLng,destLat]]}),
-      signal:AbortSignal.timeout(timeoutMs-3000)
-    });
-    if(!resp.ok) throw new Error('ORS-walk HTTP '+resp.status);
-    const d=await resp.json();
-    const feat=d.features&&d.features[0];
-    if(!feat) throw new Error('ORS-walk no feature');
-    const coords=feat.geometry&&feat.geometry.coordinates;
-    if(!coords||coords.length<2) throw new Error('ORS-walk empty coords');
-    const seg=feat.properties.segments&&feat.properties.segments[0];
-    return {
-      distance:feat.properties.summary.distance, duration:feat.properties.summary.duration,
-      geometry:feat.geometry,
-      legs:[{steps:seg?seg.steps.map(s=>({
-        distance:s.distance,
-        maneuver:{location:feat.geometry.coordinates[s.way_points[0]],type:'turn',modifier:'straight'},
-        name:s.name||''
-      })):[]}]
-    };
+        name:s.name||''})):[]}]};
   }
 
   let route=null, routeEngine='';
 
-  // 1. OSRM driving — 2 server publik (project-osrm.org + openstreetmap.de)
-  const osrmDrivingSrvs = ['https://router.project-osrm.org/route/v1','https://routing.openstreetmap.de/routed-car/route/v1'];
-  for(const srv of osrmDrivingSrvs){
+  // 1. OSRM driving — 2 server publik
+  for(const srv of ['https://router.project-osrm.org/route/v1','https://routing.openstreetmap.de/routed-car/route/v1']){
     try{ route=await tryOSRM(srv,'driving'); routeEngine='osrm-driving'; break; }
     catch(e){ console.warn('OSRM driving failed:',srv,e.message); }
   }
-  // 2. OSRM motorcycle — bisa masuk jalan kecil / gang lebih baik dari car
+  // 2. OSRM bike — bisa masuk jalan lebih kecil
   if(!route){
-    for(const srv of ['https://routing.openstreetmap.de/routed-bike/route/v1']){
-      try{ route=await tryOSRM(srv,'bike',10000); routeEngine='osrm-bike'; break; }
-      catch(e){ console.warn('OSRM bike failed:',srv,e.message); }
-    }
+    try{ route=await tryOSRM('https://routing.openstreetmap.de/routed-bike/route/v1','bike',9000); routeEngine='osrm-bike'; }
+    catch(e){ console.warn('OSRM bike failed:',e.message); }
   }
   // 3. OSRM walking — bisa lewat gang/jalan setapak
   if(!route){
@@ -4245,17 +4146,17 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
       catch(e){ console.warn('OSRM walking failed:',srv,e.message); }
     }
   }
-  // 4. Valhalla (valhalla.openstreetmap.de) — engine OSM resmi, sangat akurat untuk Indonesia
+  // 4. Valhalla — engine OSM resmi, sangat akurat untuk Indonesia
   if(!route){ try{ route=await tryValhalla('auto'); routeEngine='valhalla-auto'; }catch(e){ console.warn('Valhalla auto failed:',e.message); } }
   if(!route){ try{ route=await tryValhalla('motorcycle'); routeEngine='valhalla-moto'; }catch(e){ console.warn('Valhalla moto failed:',e.message); } }
-  // 5. GraphHopper car — engine berbeda, coverage lebih luas
-  if(!route){ try{ route=await tryGraphHopper(); routeEngine='graphhopper-car'; }catch(e){ console.warn('GraphHopper car failed:',e.message); } }
+  // 5. GraphHopper car
+  if(!route){ try{ route=await tryGraphHopper('car'); routeEngine='graphhopper-car'; }catch(e){ console.warn('GH car failed:',e.message); } }
   // 6. GraphHopper motorcycle — lebih bisa masuk jalan kecil
-  if(!route){ try{ route=await tryGraphHopperMoto(); routeEngine='graphhopper-moto'; }catch(e){ console.warn('GraphHopper moto failed:',e.message); } }
-  // 7. OpenRouteService driving
-  if(!route){ try{ route=await tryORS(); routeEngine='ors-driving'; }catch(e){ console.warn('ORS driving failed:',e.message); } }
+  if(!route){ try{ route=await tryGraphHopper('motorcycle'); routeEngine='graphhopper-moto'; }catch(e){ console.warn('GH moto failed:',e.message); } }
+  // 7. ORS driving
+  if(!route){ try{ route=await tryORS('driving-car'); routeEngine='ors-driving'; }catch(e){ console.warn('ORS driving failed:',e.message); } }
   // 8. ORS walking — fallback terakhir sebelum garis lurus
-  if(!route){ try{ route=await tryORSWalk(); routeEngine='ors-walking'; }catch(e){ console.warn('ORS walking failed:',e.message); } }
+  if(!route){ try{ route=await tryORS('foot-walking'); routeEngine='ors-walking'; }catch(e){ console.warn('ORS walking failed:',e.message); } }
 
   console.log('[routing] engine:',routeEngine||'fallback garis lurus');
 
@@ -4530,13 +4431,18 @@ async function geocodeAddress(uid, address){
         if(isNaN(coords.lat)||isNaN(coords.lng)||Math.abs(coords.lat)>90||Math.abs(coords.lng)>180){
           console.warn('[v0] Invalid coords from query:', q, coords); continue;
         }
+        // Validasi: harus dalam bounding box Indonesia
+        // Lat: -11 s/d 6.5, Lng: 95 s/d 141.5
+        if(coords.lat < -11 || coords.lat > 6.5 || coords.lng < 95 || coords.lng > 141.5){
+          console.warn('[v0] Geocode result outside Indonesia bbox, skipping:', q, coords); continue;
+        }
         console.log('[v0] Geocode success with query "'+q+'":', coords);
         storeGeoCache[uid] = coords;
-        // Simpan ke Firebase agar render berikutnya langsung pakai storeCoords
-        // Jangan simpan jika uid adalah kunci toko ke-2 (suffix _s2) — penyimpanan
-        // dilakukan oleh saveProfileBtn dengan field store2Coords yang benar.
-        if(window.firebaseReady && !uid.endsWith('_s2')){
-          window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {storeCoords: coords}).catch(()=>{});
+        // Simpan ke Firebase — strip prefix 'store_' kalau ada sebelum tulis ke path Firebase.
+        // Jangan simpan jika uid adalah kunci toko ke-2 (_s2) atau extra (_x0, dst).
+        const _fbUid = uid.startsWith('store_') ? uid.slice(6) : uid;
+        if(window.firebaseReady && !uid.endsWith('_s2') && !/_x\d+$/.test(uid) && !_fbUid.endsWith('_s2')){
+          window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+_fbUid), {storeCoords: coords}).catch(()=>{});
         }
         return coords;
       }
@@ -4618,7 +4524,10 @@ async function renderCommunityMap(){
     // Skip marker diri sendiri kalau:
     //  - myMarkerLive sudah ada (location sharing / nav aktif), ATAU
     //  - rute aktif dan route_user sudah ada (agar tidak dobel dengan marker rute)
-    if(p.isMe && (_savedMyLive || ((activeRoute || routePending) && _savedRouteUsr))) return;
+    // Skip marker Saya jika share-loc aktif (locWatchId !== null) ATAU myMarkerLive sudah ada
+    // ATAU rute aktif dan route_user sudah ada. Cek locWatchId penting untuk mencegah double
+    // di window antara myMarkerLive = null dan marker baru terbuat (race condition).
+    if(p.isMe && (locWatchId !== null || _savedMyLive || ((activeRoute || routePending) && _savedRouteUsr))) return;
     const visBadge = p.isMe
       ? (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
@@ -4654,7 +4563,9 @@ async function renderCommunityMap(){
   for(const [uid, u] of storeEntries.slice(0, 8)){
     // Cek dulu kalau koordinat sudah tersimpan di Firebase
     let coords = u.storeCoords || null;
-    if(!coords) coords = await geocodeAddress(uid, u.address);
+    // Pakai prefix 'store_' supaya geocode cache toko tidak pernah tabrakan
+    // dengan key uid GPS user (uid telanjang). Mencegah marker toko ikut ke posisi GPS.
+    if(!coords) coords = await geocodeAddress('store_'+uid, u.address);
     if(!coords){
       console.warn('[v0] Skipping store', uid, 'because no coords available for:', u.address);
       continue;
@@ -4964,6 +4875,7 @@ document.addEventListener('click', async (e) => {
       delete allUsersCache[uid].address;
     }
     delete storeGeoCache[uid];
+    delete storeGeoCache['store_'+uid];
 
     // ── LANGKAH 2: Hapus marker dari peta & tutup popup SEBELUM await ───────
     if(communityMap) communityMap.closePopup();
@@ -5380,8 +5292,10 @@ $('saveProfileBtn').addEventListener('click', async () => {
       $('profileSaveStatus').style.color = 'var(--ink)';
       try{
         // FIX: hapus cache SEBELUM geocode agar alamat baru benar-benar di-fetch ulang
+        // Hapus kedua key (dengan dan tanpa prefix store_) untuk sinkronisasi
         delete storeGeoCache[MY_UID];
-        const geoResult = await geocodeAddress(MY_UID, myProfile.address);
+        delete storeGeoCache['store_'+MY_UID];
+        const geoResult = await geocodeAddress('store_'+MY_UID, myProfile.address);
         if(geoResult && geoResult.lat && geoResult.lng){
           coordsToSave.storeCoords = geoResult;
           console.log('[v0] Auto-geocoded store address:', myProfile.address, '→', geoResult);
@@ -5637,7 +5551,10 @@ function showMyLocationOnMap(loc, visibility){
   }
   $('shareLocBtn').style.display = 'none';
   $('stopShareLocBtn').style.display = 'block';
-  setTimeout(() => { if(typeof renderCommunityMap==='function' && !activeRoute && !routePending) renderCommunityMap(); }, 300);
+  // TIDAK panggil renderCommunityMap di sini — marker sudah dikelola langsung
+  // di watchPosition callback (myMarkerLive). Kalau dipanggil di sini akan
+  // double karena race condition: myMarkerLive baru saja dibuat tapi
+  // renderCommunityMap belum tahu soal itu dan buat marker kedua dari Firebase data.
 }
 
 // Populate daftar user di modal privat
@@ -6203,6 +6120,7 @@ document.addEventListener('click', async (e) => {
     // Bersihkan lokal dulu agar map & UI langsung reaktif
     delete allUsersCache[uid];
     delete storeGeoCache[uid];
+    delete storeGeoCache['store_'+uid];
     if(communityMap){
       ['store_', 'store2_', 'user_'].forEach(prefix => {
         const mk = communityMapMarkers[prefix+uid];
@@ -6233,6 +6151,7 @@ document.addEventListener('click', async (e) => {
   try{
     delete allUsersCache[uid];
     delete storeGeoCache[uid];
+    delete storeGeoCache['store_'+uid];
     delete storeGeoCache[uid+'_s2'];
     if(communityMap){
       ['store_', 'store2_', 'user_'].forEach(prefix => {

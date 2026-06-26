@@ -116,14 +116,53 @@
     --shadow: 0 4px 24px rgba(42,38,34,0.06);
   }
   body.dark-mode {
-    --bg: #1A1A1A;
-    --bg-card: #242424;
-    --sand: #2E2E2E;
-    --ink: #F0EDE8;
-    --ink-soft: #A09A90;
-    --line: #3A3A3A;
-    --shadow: 0 4px 24px rgba(0,0,0,0.3);
+    --bg: #141414;
+    --bg-card: #1F1F1F;
+    --sand: #2A2A2A;
+    --ink: #F2EFE9;
+    --ink-soft: #A8A09A;
+    --line: #383838;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --teal: #2A6E6A;
+    --teal-dark: #1D5250;
+    color-scheme: dark;
   }
+  body.dark-mode input,
+  body.dark-mode textarea,
+  body.dark-mode select {
+    background: var(--bg) !important;
+    color: var(--ink) !important;
+    border-color: var(--line) !important;
+  }
+  body.dark-mode input::placeholder,
+  body.dark-mode textarea::placeholder {
+    color: var(--ink-soft) !important;
+  }
+  body.dark-mode .kongsi-form,
+  body.dark-mode .kongsi-card,
+  body.dark-mode .brain-status,
+  body.dark-mode .brain-insight,
+  body.dark-mode .brain-anomalies,
+  body.dark-mode .brain-loss {
+    background: var(--bg-card) !important;
+    border-color: var(--line) !important;
+    color: var(--ink) !important;
+  }
+  body.dark-mode .kongsi-form label { color: var(--ink) !important; }
+  body.dark-mode .kongsi-card .kc-title { color: var(--ink) !important; }
+  body.dark-mode .kongsi-card .kc-desc,
+  body.dark-mode .kongsi-card .kc-meta { color: var(--ink-soft) !important; }
+  body.dark-mode .kongsi-mode {
+    background: var(--bg-card) !important;
+    border-color: var(--line) !important;
+    color: var(--ink) !important;
+  }
+  body.dark-mode .kongsi-mode.active { background: var(--teal) !important; color: #fff !important; }
+  body.dark-mode .pay-option { background: var(--sand) !important; color: var(--ink) !important; }
+  body.dark-mode .key-banner { background: #2A1E0A !important; color: #D4A96A !important; border-color: #5A3E1A !important; }
+  body.dark-mode .km-route-info { background: #152218 !important; border-color: #2D6040 !important; color: var(--ink) !important; }
+  body.dark-mode .leaflet-routing-container-custom { background: var(--bg-card) !important; color: var(--ink) !important; }
+  body.dark-mode .modal-box { background: var(--bg-card) !important; }
   /* ===== FULLSCREEN IMAGE VIEWER ===== */
   #imgFullscreenOverlay {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
@@ -221,9 +260,9 @@
   }
   .tabs::-webkit-scrollbar{ height:0; }
   .tab{
-    flex:0 0 auto; padding: 11px 14px; text-align:center; border:none; background:transparent;
+    flex:0 0 auto; padding: 11px 15px; text-align:center; border:none; background:transparent;
     border-radius:11px; font-family:'Plus Jakarta Sans', sans-serif; font-weight:600;
-    font-size: 13px; color: var(--ink-soft); cursor:pointer; transition: all .25s ease;
+    font-size: 14px; color: var(--ink-soft); cursor:pointer; transition: all .25s ease;
     white-space:nowrap; scroll-snap-align:start;
   }
   .tab.active{ background: var(--teal); color: white; box-shadow: 0 3px 10px rgba(27,77,74,0.25); }
@@ -255,13 +294,13 @@
     70%{ box-shadow: 0 8px 22px rgba(232,99,63,0.35), 0 0 0 18px rgba(232,99,63,0); }
     100%{ box-shadow: 0 8px 22px rgba(232,99,63,0.35), 0 0 0 0 rgba(232,99,63,0); }
   }
-  .mic-status{ font-size: 13px; color: var(--ink-soft); font-weight:500; min-height:18px; }
+  .mic-status{ font-size: 14px; color: var(--ink-soft); font-weight:500; min-height:18px; }
   .mic-status.live{ color: var(--coral); font-weight:600; }
 
   .text-fallback{ display:flex; gap:8px; margin-top:18px; width:100%; box-sizing:border-box; }
   .text-fallback input{
     flex:1; min-width:0; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line);
-    font-size: 14px; font-family: inherit; background: var(--bg); box-sizing:border-box;
+    font-size: 15px; font-family: inherit; background: var(--bg); color: var(--ink); box-sizing:border-box;
   }
   .text-fallback input:focus{ outline:none; border-color: var(--teal); }
   .text-fallback button{
@@ -272,7 +311,7 @@
 
   .transcript-preview{
     margin-top: 14px; padding: 12px 14px; background: var(--sand); border-radius: 12px;
-    font-size: 13.5px; color: var(--ink); text-align:left; display:none;
+    font-size: 15px; color: var(--ink); text-align:left; display:none;
   }
   .transcript-preview.show{ display:block; }
 
@@ -285,14 +324,14 @@
     border-bottom: 1px solid rgba(255,255,255,0.12);
   }
   .summary-row:last-child{ border-bottom:none; }
-  .summary-row .label{ font-size: 13px; opacity:0.75; }
-  .summary-row .value{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size: 16px; }
+  .summary-row .label{ font-size: 14px; opacity:0.75; }
+  .summary-row .value{ font-family:'Plus Jakarta Sans'; font-weight:700; font-size: 17px; }
   .summary-row .value.pos{ color: #8FE3B0; }
   .summary-row .value.neg{ color: #F2A88C; }
 
   .ai-note{
     background: rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px;
-    margin-top: 14px; font-size: 13.5px; line-height:1.5; border-left: 3px solid var(--coral);
+    margin-top: 14px; font-size: 14.5px; line-height:1.55; border-left: 3px solid var(--coral);
   }
 
   .lang-toggle{
@@ -570,8 +609,8 @@
   .user-directory{display:flex;flex-direction:column;gap:8px;}
   .user-card{background:var(--bg-card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s;}
   .user-card:hover{border-color:var(--teal);}
-  .user-card .uc-name{font-weight:700;font-size:13.5px;}
-  .user-card .uc-sub{font-size:11.5px;color:var(--ink-soft);margin-top:1px;}
+  .user-card .uc-name{font-weight:700;font-size:15px;}
+  .user-card .uc-sub{font-size:13px;color:var(--ink-soft);margin-top:1px;}
   .user-card .uc-right{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-soft);text-align:right;}
   .profile-detail-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13.5px;}
   .profile-detail-label{font-size:11px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;}
@@ -758,109 +797,158 @@
   .splash-nav .sn-start:active{opacity:0.85;}
 </style>
 <style>
-/* ===== CHAT SYSTEM ===== */
+/* ===== CHAT SYSTEM — redesigned ===== */
 .chat-modal-overlay {
   display:none; position:fixed; inset:0; z-index:9500;
-  background:rgba(42,38,34,0.55); align-items:flex-end; justify-content:center;
-  backdrop-filter:blur(3px);
+  background:rgba(10,10,10,0.65); align-items:flex-end; justify-content:center;
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
 }
 .chat-modal-overlay.show { display:flex; }
+
+/* Main chat box — slides up */
 .chat-box {
   background:var(--bg-card); width:100%; max-width:560px;
-  border-radius:22px 22px 0 0; display:flex; flex-direction:column;
-  height:88vh; animation:fadeUp .28s ease; overflow:hidden;
-  box-shadow:0 -8px 40px rgba(42,38,34,0.18);
+  border-radius:26px 26px 0 0; display:flex; flex-direction:column;
+  height:92vh; animation:chatSlideUp .3s cubic-bezier(.32,1,.5,1); overflow:hidden;
+  box-shadow:0 -12px 60px rgba(0,0,0,0.22);
 }
+@keyframes chatSlideUp {
+  from { transform:translateY(60px); opacity:0; }
+  to   { transform:translateY(0);    opacity:1; }
+}
+
+/* Drag handle pill */
+.chat-box::before {
+  content:''; display:block; width:40px; height:4px;
+  background:var(--line); border-radius:2px;
+  margin:12px auto 0; flex-shrink:0;
+}
+
+/* Header */
 .chat-header {
-  padding:16px 18px 14px; border-bottom:1px solid var(--line);
-  display:flex; align-items:center; gap:11px; flex-shrink:0;
+  padding:14px 18px 12px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:12px; flex-shrink:0;
   background:var(--bg-card);
 }
 .chat-header-avatar {
-  width:40px; height:40px; border-radius:50%; background:var(--sand);
+  width:44px; height:44px; border-radius:50%; background:var(--sand);
   border:2.5px solid var(--teal); overflow:hidden; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:18px;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+  box-shadow:0 2px 8px rgba(27,77,74,0.2);
 }
 .chat-header-avatar img { width:100%; height:100%; object-fit:cover; }
 .chat-header-info { flex:1; min-width:0; }
-.chat-header-name { font-weight:700; font-size:15px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.chat-header-sub { font-size:12px; color:var(--ink-soft); margin-top:1px; }
+.chat-header-name {
+  font-weight:700; font-size:16px; line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  color:var(--ink);
+}
+.chat-header-sub { font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
 .chat-header-close {
-  width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
-  background:var(--bg); cursor:pointer; font-size:16px; display:flex;
+  width:36px; height:36px; border-radius:50%; border:none;
+  background:var(--sand); cursor:pointer; font-size:18px; display:flex;
   align-items:center; justify-content:center; flex-shrink:0; color:var(--ink-soft);
+  transition:background .15s;
 }
+.chat-header-close:hover { background:var(--line); }
+
+/* Messages area */
 .chat-messages {
-  flex:1; overflow-y:auto; padding:14px 16px; display:flex;
-  flex-direction:column; gap:8px; scroll-behavior:smooth;
+  flex:1; overflow-y:auto; padding:16px 16px 8px; display:flex;
+  flex-direction:column; gap:10px; scroll-behavior:smooth;
+  background:var(--bg);
 }
-.chat-messages::-webkit-scrollbar { width:4px; }
+.chat-messages::-webkit-scrollbar { width:3px; }
 .chat-messages::-webkit-scrollbar-track { background:transparent; }
-.chat-messages::-webkit-scrollbar-thumb { background:var(--line); border-radius:4px; }
+.chat-messages::-webkit-scrollbar-thumb { background:var(--line); border-radius:3px; }
+
+/* Bubble wrapper */
 .chat-bubble-wrap {
-  display:flex; flex-direction:column; gap:2px;
-  max-width:82%;
+  display:flex; flex-direction:column; gap:3px;
+  max-width:78%;
 }
 .chat-bubble-wrap.mine { align-self:flex-end; align-items:flex-end; }
 .chat-bubble-wrap.theirs { align-self:flex-start; align-items:flex-start; }
+
+/* Bubbles */
 .chat-bubble {
-  padding:9px 13px; border-radius:18px; font-size:13.5px; line-height:1.5;
+  padding:11px 15px; border-radius:20px; font-size:15px; line-height:1.55;
   word-break:break-word; position:relative;
 }
 .chat-bubble.mine {
-  background:var(--teal); color:white;
-  border-bottom-right-radius:5px;
+  background:var(--teal); color:#fff;
+  border-bottom-right-radius:6px;
+  box-shadow:0 2px 8px rgba(27,77,74,0.25);
 }
 .chat-bubble.theirs {
-  background:var(--sand); color:var(--ink);
-  border-bottom-left-radius:5px;
+  background:var(--bg-card); color:var(--ink);
+  border-bottom-left-radius:6px;
+  border:1px solid var(--line);
+  box-shadow:0 1px 4px rgba(0,0,0,0.06);
 }
 .chat-bubble-meta {
-  font-size:10.5px; color:var(--ink-soft); padding:0 4px;
+  font-size:11px; color:var(--ink-soft); padding:0 5px;
 }
+
+/* Date divider */
 .chat-date-divider {
-  text-align:center; font-size:11px; color:var(--ink-soft); font-weight:600;
-  padding:6px 0; letter-spacing:0.03em;
+  display:flex; align-items:center; gap:10px;
+  font-size:11.5px; color:var(--ink-soft); font-weight:600;
+  padding:4px 0; letter-spacing:0.04em; text-transform:uppercase;
 }
+.chat-date-divider::before, .chat-date-divider::after {
+  content:''; flex:1; height:1px; background:var(--line);
+}
+
+/* Empty state */
 .chat-empty {
   flex:1; display:flex; flex-direction:column; align-items:center;
-  justify-content:center; color:var(--ink-soft); font-size:13px; gap:8px;
-  text-align:center; padding:20px;
+  justify-content:center; color:var(--ink-soft); font-size:14px; gap:10px;
+  text-align:center; padding:24px;
 }
-.chat-empty .ce-icon { font-size:38px; margin-bottom:4px; }
+.chat-empty .ce-icon { font-size:44px; margin-bottom:6px; }
+.chat-empty p { color:var(--ink-soft); line-height:1.5; max-width:220px; }
+
+/* Input bar */
 .chat-input-bar {
-  padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:8px;
+  padding:12px 14px 16px; border-top:1px solid var(--line); display:flex; gap:10px;
   align-items:flex-end; flex-shrink:0; background:var(--bg-card);
 }
 .chat-input-bar textarea {
-  flex:1; padding:10px 13px; border-radius:20px; border:1.5px solid var(--line);
-  font-family:inherit; font-size:13.5px; resize:none; max-height:100px;
-  min-height:40px; line-height:1.45; background:var(--bg);
-  outline:none; transition:border-color .2s;
+  flex:1; padding:12px 16px; border-radius:22px; border:1.5px solid var(--line);
+  font-family:inherit; font-size:15px; resize:none; max-height:110px;
+  min-height:44px; line-height:1.5; background:var(--bg); color:var(--ink);
+  outline:none; transition:border-color .2s, box-shadow .2s;
 }
-.chat-input-bar textarea:focus { border-color:var(--teal); }
+.chat-input-bar textarea::placeholder { color:var(--ink-soft); }
+.chat-input-bar textarea:focus {
+  border-color:var(--teal);
+  box-shadow:0 0 0 3px rgba(27,77,74,0.12);
+}
 .chat-send-btn {
-  width:42px; height:42px; border-radius:50%; border:none;
+  width:44px; height:44px; border-radius:50%; border:none;
   background:var(--teal); color:white; cursor:pointer; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:17px;
-  transition:background .15s, transform .1s;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+  transition:background .15s, transform .1s, box-shadow .15s;
+  box-shadow:0 3px 10px rgba(27,77,74,0.3);
 }
-.chat-send-btn:active { transform:scale(0.92); }
-.chat-send-btn:disabled { background:var(--sand); cursor:not-allowed; }
+.chat-send-btn:hover { background:var(--teal-dark); box-shadow:0 4px 14px rgba(27,77,74,0.4); }
+.chat-send-btn:active { transform:scale(0.90); }
+.chat-send-btn:disabled { background:var(--sand); box-shadow:none; cursor:not-allowed; }
 
-/* Unread badge on user-card */
+/* Unread badge */
 .uc-unread {
   display:inline-flex; align-items:center; justify-content:center;
   background:var(--coral); color:white; font-size:10px; font-weight:700;
-  min-width:18px; height:18px; border-radius:9px; padding:0 4px;
-  margin-left:4px; vertical-align:middle;
+  min-width:18px; height:18px; border-radius:9px; padding:0 5px;
+  margin-left:5px; vertical-align:middle;
 }
 
 /* Chat button in kongsi card */
 .kc-chat-btn {
   display:inline-flex; align-items:center; gap:5px;
-  padding:7px 13px; border-radius:10px; border:1.5px solid var(--teal);
-  background:transparent; color:var(--teal); font-weight:700; font-size:12px;
+  padding:8px 14px; border-radius:10px; border:1.5px solid var(--teal);
+  background:transparent; color:var(--teal); font-weight:700; font-size:13px;
   cursor:pointer; font-family:inherit; transition:background .15s, color .15s;
 }
 .kc-chat-btn:hover { background:var(--teal); color:white; }
@@ -868,8 +956,8 @@
 /* Chat tab button in community */
 .chat-tab-btn {
   display:flex; align-items:center; gap:6px;
-  padding:10px 16px; border-radius:12px; border:1.5px solid var(--teal);
-  background:transparent; color:var(--teal); font-weight:700; font-size:13px;
+  padding:12px 16px; border-radius:14px; border:1.5px solid var(--teal);
+  background:transparent; color:var(--teal); font-weight:700; font-size:14px;
   cursor:pointer; font-family:inherit; width:100%; justify-content:center;
   margin-bottom:10px; transition:background .15s, color .15s;
 }
@@ -878,32 +966,230 @@
 /* Conversation list */
 .conv-list { display:flex; flex-direction:column; gap:6px; }
 .conv-item {
-  display:flex; align-items:center; gap:10px; padding:11px 14px;
-  border:1px solid var(--line); border-radius:13px; background:var(--bg-card);
-  cursor:pointer; transition:border-color .15s;
+  display:flex; align-items:center; gap:12px; padding:13px 15px;
+  border:1px solid var(--line); border-radius:14px; background:var(--bg-card);
+  cursor:pointer; transition:border-color .15s, background .15s;
 }
-.conv-item:hover { border-color:var(--teal); }
+.conv-item:hover { border-color:var(--teal); background:var(--sand); }
 .conv-item .ci-avatar {
-  width:38px; height:38px; border-radius:50%; background:var(--sand);
+  width:44px; height:44px; border-radius:50%; background:var(--sand);
   border:2px solid var(--line); overflow:hidden; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; font-size:17px;
+  display:flex; align-items:center; justify-content:center; font-size:20px;
 }
 .conv-item .ci-avatar img { width:100%; height:100%; object-fit:cover; }
 .conv-item .ci-body { flex:1; min-width:0; }
-.conv-item .ci-name { font-weight:700; font-size:13.5px; }
-.conv-item .ci-last { font-size:12px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.conv-item .ci-right { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
-.conv-item .ci-time { font-size:10.5px; color:var(--ink-soft); }
+.conv-item .ci-name { font-weight:700; font-size:14.5px; color:var(--ink); }
+.conv-item .ci-last { font-size:13px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+.conv-item .ci-right { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:4px; }
+.conv-item .ci-time { font-size:11px; color:var(--ink-soft); }
 
 /* Typing indicator */
-.typing-indicator { display:flex; gap:4px; align-items:center; padding:8px 12px; }
-.typing-dot { width:6px; height:6px; border-radius:50%; background:var(--ink-soft); animation:typingBounce 1.2s infinite; }
+.typing-indicator { display:flex; gap:5px; align-items:center; padding:10px 14px; }
+.typing-dot { width:7px; height:7px; border-radius:50%; background:var(--ink-soft); animation:typingBounce 1.2s infinite; }
 .typing-dot:nth-child(2) { animation-delay:.15s; }
 .typing-dot:nth-child(3) { animation-delay:.3s; }
-@keyframes typingBounce { 0%,80%,100%{transform:translateY(0);opacity:0.4;} 40%{transform:translateY(-5px);opacity:1;} }
-</style>
-<style>
-.leaflet-routing-container-custom { 
+@keyframes typingBounce { 0%,80%,100%{transform:translateY(0);opacity:0.35;} 40%{transform:translateY(-6px);opacity:1;} }
+
+/* ===== WEATHER MACHINE ===== */
+#weatherCanvas {
+  position:absolute; inset:0; pointer-events:none; z-index:0;
+  width:100%; height:100%;
+}
+.chat-messages { position:relative; overflow:hidden; }
+.chat-messages > *:not(#weatherCanvas) { position:relative; z-index:1; }
+
+/* Weather picker modal */
+.weather-picker-overlay {
+  display:none; position:fixed; inset:0; z-index:9600;
+  background:rgba(0,0,0,0.55); align-items:flex-end; justify-content:center;
+  backdrop-filter:blur(6px);
+}
+.weather-picker-overlay.show { display:flex; }
+.weather-picker-box {
+  background:var(--bg-card); width:100%; max-width:560px;
+  border-radius:24px 24px 0 0; padding:0 0 32px;
+  animation:chatSlideUp .3s cubic-bezier(.32,1,.5,1); position:relative;
+  max-height:88vh; overflow-y:auto; display:flex; flex-direction:column;
+}
+.weather-picker-box h3 {
+  font-size:17px; font-weight:800; margin-bottom:4px; color:var(--ink);
+  font-family:'Plus Jakarta Sans',sans-serif;
+}
+.weather-picker-box .wp-sub { font-size:13px; color:var(--ink-soft); margin-bottom:14px; }
+
+/* Tabs */
+.wp-tabs {
+  display:flex; gap:0; border-bottom:1px solid var(--line);
+  padding:14px 20px 0; flex-shrink:0; background:var(--bg-card);
+  position:sticky; top:0; z-index:2;
+}
+.wp-tab {
+  flex:1; padding:10px 6px 10px; border:none; background:transparent;
+  font-family:'Plus Jakarta Sans',sans-serif; font-weight:700; font-size:13.5px;
+  color:var(--ink-soft); cursor:pointer; border-bottom:2.5px solid transparent;
+  margin-bottom:-1px; transition:all .2s; white-space:nowrap;
+}
+.wp-tab.active { color:var(--teal); border-bottom-color:var(--teal); }
+.wp-panel { display:none; padding:16px 20px 0; }
+.wp-panel.active { display:block; }
+
+.weather-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+.weather-option {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  padding:14px 8px; border-radius:16px; border:2px solid var(--line);
+  background:var(--bg); cursor:pointer; transition:all .2s;
+  font-size:12.5px; font-weight:700; color:var(--ink-soft); text-align:center;
+}
+.weather-option .wo-icon { font-size:28px; }
+.weather-option:hover { border-color:var(--teal); color:var(--teal); background:var(--sand); }
+.weather-option.active { border-color:var(--teal); background:var(--teal); color:white; box-shadow:0 4px 14px rgba(27,77,74,0.3); }
+
+/* Upload zone */
+.wp-upload-zone {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  border:2px dashed var(--line); border-radius:16px; padding:22px 16px;
+  text-align:center; cursor:pointer; margin-bottom:12px;
+  transition:border-color .2s, background .2s;
+}
+.wp-upload-zone:hover { border-color:var(--teal); background:var(--sand); }
+.wuz-icon { font-size:28px; }
+.wuz-title { font-size:14px; font-weight:700; color:var(--ink); }
+.wuz-sub  { font-size:12px; color:var(--ink-soft); }
+.wp-music-zone { padding:14px; }
+.wp-music-zone .wuz-icon { font-size:22px; }
+
+/* Upload progress */
+.wp-upload-progress { margin-bottom:12px; }
+.wp-upload-bar { height:7px; background:var(--sand); border-radius:10px; overflow:hidden; }
+.wp-upload-bar > div { height:100%; background:var(--teal); border-radius:10px; width:0%; transition:width .3s; }
+
+/* Dimmer / volume row */
+.wp-dimmer-row {
+  display:flex; align-items:center; gap:10px; margin-bottom:12px;
+  background:var(--bg); border-radius:12px; padding:10px 12px; border:1px solid var(--line);
+}
+.wp-dimmer-row input[type=range] {
+  flex:1; accent-color:var(--teal);
+}
+
+/* Video opts */
+.wp-video-opts {
+  background:var(--bg); border-radius:12px; padding:10px 12px;
+  border:1px solid var(--line); margin-bottom:12px;
+}
+
+/* BG preview */
+.wp-bg-preview {
+  border-radius:14px; overflow:hidden; border:2px solid var(--teal);
+  margin-bottom:12px; position:relative;
+}
+.wp-bg-label {
+  position:absolute; top:8px; left:10px; background:rgba(0,0,0,0.55);
+  color:white; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; z-index:2;
+}
+.wp-bg-preview img, .wp-bg-preview video {
+  width:100%; height:120px; object-fit:cover; display:block;
+}
+.wp-bg-remove {
+  position:absolute; top:8px; right:8px; background:rgba(200,79,47,0.9);
+  color:white; border:none; border-radius:20px; padding:5px 10px;
+  font-size:11.5px; font-weight:700; cursor:pointer; z-index:2;
+}
+
+/* Music grid */
+.wp-music-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
+.wp-music-item {
+  display:flex; align-items:center; gap:10px; padding:11px 12px;
+  border-radius:14px; border:2px solid var(--line); background:var(--bg);
+  cursor:pointer; transition:all .2s;
+}
+.wp-music-item:hover { border-color:var(--teal); background:var(--sand); }
+.wp-music-item.active { border-color:var(--teal); background:var(--teal); color:white; }
+.wp-music-item .wmi-icon { font-size:22px; flex-shrink:0; }
+.wp-music-item .wmi-info { min-width:0; }
+.wp-music-item .wmi-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wp-music-item .wmi-sub  { font-size:11px; color:var(--ink-soft); }
+.wp-music-item.active .wmi-sub { color:rgba(255,255,255,0.7); }
+
+/* Now playing bar */
+.wp-now-playing {
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  background:linear-gradient(135deg,var(--teal),var(--teal-dark));
+  border-radius:14px; margin-bottom:14px; color:white;
+}
+.wnp-icon { font-size:26px; animation:musicPulse 1.4s ease-in-out infinite; }
+@keyframes musicPulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+.wnp-info { flex:1; min-width:0; }
+.wnp-title { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wnp-sub { font-size:11.5px; opacity:.8; }
+.wnp-stop { background:rgba(255,255,255,0.2); border:none; color:white; border-radius:50%;
+  width:34px; height:34px; font-size:16px; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; }
+
+/* Global weather banner */
+.global-weather-banner {
+  display:none; align-items:center; gap:8px; padding:8px 16px;
+  background:var(--sand); font-size:12.5px; font-weight:600;
+  color:var(--ink-soft); border-bottom:1px solid var(--line);
+}
+.global-weather-banner.show { display:flex; }
+.global-weather-banner .gwb-icon { font-size:18px; }
+
+/* Admin section */
+.wp-admin-section { display:none; border-top:1px solid var(--line); padding:16px 20px 0; margin-top:4px; }
+.wp-admin-section.show { display:block; }
+.wp-admin-label {
+  font-size:12px; font-weight:700; color:var(--coral); text-transform:uppercase;
+  letter-spacing:0.05em; margin-bottom:10px; display:flex; align-items:center; gap:6px;
+}
+.wp-save-global {
+  width:100%; padding:13px; border-radius:14px; border:none;
+  background:linear-gradient(135deg,var(--coral),var(--coral-dark));
+  color:white; font-weight:800; font-size:14px; cursor:pointer;
+  font-family:'Plus Jakarta Sans',sans-serif;
+  box-shadow:0 4px 14px rgba(232,99,63,0.3); margin-top:8px;
+}
+.wp-close {
+  position:absolute; top:14px; right:16px; background:var(--sand); border:none;
+  border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; color:var(--ink-soft); z-index:10;
+}
+/* Weather button in chat header */
+.chat-weather-btn {
+  width:34px; height:34px; border-radius:50%; border:none;
+  background:var(--sand); cursor:pointer; font-size:17px;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  transition:background .15s; position:relative;
+}
+.chat-weather-btn:hover { background:var(--line); }
+.chat-weather-btn .cwb-dot {
+  position:absolute; top:2px; right:2px; width:8px; height:8px;
+  background:var(--coral); border-radius:50%; border:1.5px solid var(--bg-card); display:none;
+}
+.chat-weather-btn .cwb-dot.show { display:block; }
+/* Drag handle */
+.chat-drag-handle {
+  width:40px; height:5px; background:var(--line); border-radius:3px;
+  margin:10px auto 4px; flex-shrink:0; cursor:grab; touch-action:none;
+}
+/* weather bg tint on chat-messages */
+.weather-bg-night .chat-messages   { background:linear-gradient(180deg,#0d0d1a 0%,#1a1a2e 100%); }
+.weather-bg-sunset .chat-messages  { background:linear-gradient(180deg,#1a0a2e 0%,#3d1f5e 50%,#1a0a2e 100%); }
+.weather-bg-morning .chat-messages { background:linear-gradient(180deg,#ffe0b2 0%,#fff8e1 100%); }
+.weather-bg-dusk .chat-messages    { background:linear-gradient(180deg,#2d1b4e 0%,#e64a19 50%,#f9a825 100%); }
+
+/* Custom BG overlay inside chat-messages */
+#chatBgLayer {
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  border-radius:0; overflow:hidden;
+}
+#chatBgLayer img, #chatBgLayer video {
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+#chatBgDimmer {
+  position:absolute; inset:0; background:rgba(0,0,0,var(--dim,0.3)); z-index:1;
+}
+.chat-messages > *:not(#weatherCanvas):not(#chatBgLayer) { position:relative; z-index:2; } 
   background: white; border-radius: 12px; padding: 10px 12px; 
   box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-width: 280px; 
   font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12px;
@@ -1873,6 +2159,13 @@
 <!-- ===== CHAT MODAL ===== -->
 <div class="chat-modal-overlay" id="chatModalOverlay">
   <div class="chat-box" id="chatBox">
+    <!-- Drag handle to swipe-close -->
+    <div class="chat-drag-handle" id="chatDragHandle"></div>
+    <!-- Global weather banner -->
+    <div class="global-weather-banner" id="globalWeatherBanner">
+      <span class="gwb-icon" id="globalWeatherIcon">🌤️</span>
+      <span id="globalWeatherLabel">Cuaca global aktif</span>
+    </div>
     <div class="chat-header">
       <div class="chat-header-avatar" id="chatHeaderAvatar">👤</div>
       <div class="chat-header-info">
@@ -1881,9 +2174,15 @@
       </div>
       <!-- tombol telepon WA hanya tampil kalau ada nomor WA dari profil -->
       <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;display:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+      <!-- Weather machine button -->
+      <button class="chat-weather-btn" id="chatWeatherBtn" title="Weather Machine 🌤️">
+        🌤️<span class="cwb-dot" id="chatWeatherDot"></span>
+      </button>
       <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
     </div>
     <div class="chat-messages" id="chatMessages">
+      <canvas id="weatherCanvas"></canvas>
+      <div id="chatBgLayer" style="display:none;"><div id="chatBgDimmer"></div></div>
       <div class="chat-empty">
         <div class="ce-icon">💬</div>
         <div>Memuat pesan...</div>
@@ -1898,6 +2197,115 @@
     <div class="chat-input-bar">
       <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
       <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== WEATHER PICKER MODAL ===== -->
+<div class="weather-picker-overlay" id="weatherPickerOverlay">
+  <div class="weather-picker-box" id="weatherPickerBox">
+    <button class="wp-close" id="weatherPickerClose">✕</button>
+
+    <!-- Tabs -->
+    <div class="wp-tabs">
+      <button class="wp-tab active" data-tab="particles">🌤️ Cuaca</button>
+      <button class="wp-tab" data-tab="background">🖼️ Latar</button>
+      <button class="wp-tab" data-tab="music">🎵 Musik</button>
+    </div>
+
+    <!-- TAB: Particles / Weather -->
+    <div class="wp-panel active" id="wptab-particles">
+      <div class="wp-sub">Pilih efek partikel ruang chat</div>
+      <div class="weather-grid" id="weatherGrid"></div>
+    </div>
+
+    <!-- TAB: Background -->
+    <div class="wp-panel" id="wptab-background">
+      <div class="wp-sub">Upload gambar atau video sebagai latar chat-mu</div>
+
+      <!-- Current preview -->
+      <div class="wp-bg-preview" id="wpBgPreview" style="display:none;">
+        <div class="wp-bg-label">Latar aktif:</div>
+        <div id="wpBgPreviewInner"></div>
+        <button class="wp-bg-remove" id="wpBgRemove">✕ Hapus latar</button>
+      </div>
+
+      <!-- Upload area -->
+      <label class="wp-upload-zone" id="wpUploadZone" for="wpBgFileInput">
+        <div class="wuz-icon">📁</div>
+        <div class="wuz-title">Klik atau seret file ke sini</div>
+        <div class="wuz-sub">Gambar: JPG, PNG, GIF • Video: MP4, WebM (maks 50MB)</div>
+        <input type="file" id="wpBgFileInput" accept="image/*,video/mp4,video/webm" style="display:none;">
+      </label>
+      <div class="wp-upload-progress" id="wpUploadProgress" style="display:none;">
+        <div class="wp-upload-bar"><div id="wpUploadFill"></div></div>
+        <div id="wpUploadLabel" style="font-size:12px;color:var(--ink-soft);margin-top:5px;text-align:center;">Mengupload...</div>
+      </div>
+
+      <!-- Dimmer slider -->
+      <div class="wp-dimmer-row" id="wpDimmerRow" style="display:none;">
+        <label style="font-size:13px;font-weight:600;color:var(--ink);">🌑 Redupkan latar</label>
+        <input type="range" id="wpDimmer" min="0" max="80" value="30" style="flex:1;">
+        <span id="wpDimmerVal" style="font-size:12px;color:var(--ink-soft);width:32px;text-align:right;">30%</span>
+      </div>
+
+      <!-- Video options (only for video) -->
+      <div class="wp-video-opts" id="wpVideoOpts" style="display:none;">
+        <label style="font-size:13px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="wpVideoMute" checked> 🔇 Bisukan video
+        </label>
+      </div>
+    </div>
+
+    <!-- TAB: Music -->
+    <div class="wp-panel" id="wptab-music">
+      <div class="wp-sub">Putar musik / suara ambiens di ruang chat</div>
+
+      <!-- Current playing -->
+      <div id="wpMusicNowPlaying" style="display:none;" class="wp-now-playing">
+        <div class="wnp-icon" id="wpMusicIcon">🎵</div>
+        <div class="wnp-info">
+          <div class="wnp-title" id="wpMusicTitle">–</div>
+          <div class="wnp-sub" id="wpMusicSub">Sedang diputar</div>
+        </div>
+        <button class="wnp-stop" id="wpMusicStop">⏹</button>
+      </div>
+
+      <!-- Volume -->
+      <div class="wp-dimmer-row" id="wpVolumeRow">
+        <label style="font-size:13px;font-weight:600;color:var(--ink);">🔊 Volume</label>
+        <input type="range" id="wpVolume" min="0" max="100" value="40" style="flex:1;">
+        <span id="wpVolumeVal" style="font-size:12px;color:var(--ink-soft);width:32px;text-align:right;">40%</span>
+      </div>
+
+      <!-- Preset ambients -->
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:12px 0 8px;">🌿 Suara Ambiens</div>
+      <div class="wp-music-grid" id="wpMusicGrid">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Upload music -->
+      <div style="font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 8px;">📁 Upload Lagu Sendiri</div>
+      <label class="wp-upload-zone wp-music-zone" for="wpMusicFileInput">
+        <div class="wuz-icon">🎵</div>
+        <div class="wuz-title">Klik untuk upload audio</div>
+        <div class="wuz-sub">MP3, OGG, WAV (maks 20MB)</div>
+        <input type="file" id="wpMusicFileInput" accept="audio/*" style="display:none;">
+      </label>
+      <div class="wp-upload-progress" id="wpMusicUploadProgress" style="display:none;">
+        <div class="wp-upload-bar"><div id="wpMusicUploadFill"></div></div>
+        <div id="wpMusicUploadLabel" style="font-size:12px;color:var(--ink-soft);margin-top:5px;text-align:center;">Mengupload...</div>
+      </div>
+    </div>
+
+    <!-- Admin-only section -->
+    <div class="wp-admin-section" id="wpAdminSection">
+      <div class="wp-admin-label">👑 Kontrol Global (Admin)</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;line-height:1.5;">
+        Terapkan cuaca, latar, dan musik ke semua pengguna secara real-time.
+      </div>
+      <button class="wp-save-global" id="wpSaveGlobal">🌍 Terapkan ke Semua Pengguna</button>
+      <div id="wpGlobalStatus" style="font-size:12px;color:var(--good);margin-top:8px;display:none;text-align:center;font-weight:600;"></div>
     </div>
   </div>
 </div>
@@ -9181,6 +9589,979 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       });
     }
   });
+
+})();
+</script>
+
+<!-- ===== WEATHER MACHINE + SWIPE-TO-CLOSE ===== -->
+<script>
+(function(){
+'use strict';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WEATHER DEFINITIONS
+// ─────────────────────────────────────────────────────────────────────────────
+const WEATHERS = [
+  { id:'none',    icon:'✨', label:'Normal',    particles:0  },
+  { id:'snow',    icon:'❄️',  label:'Salju',     particles:120, color:'rgba(255,255,255,0.85)', speed:1.2, size:[3,7], drift:0.5 },
+  { id:'rain',    icon:'🌧️', label:'Hujan',     particles:150, color:'rgba(150,200,255,0.7)',  speed:8,   size:[1,2], drift:-1,  length:14 },
+  { id:'sakura',  icon:'🌸', label:'Sakura',    particles:70,  color:'#FFB7C5',                speed:1.0, size:[5,9], drift:0.8 },
+  { id:'leaves',  icon:'🍂', label:'Daun',      particles:55,  color:'#D4690A',                speed:1.4, size:[6,11],drift:0.7 },
+  { id:'stars',   icon:'⭐', label:'Bintang',   particles:80,  color:'rgba(255,230,100,0.9)',  speed:0.2, size:[1,3], drift:0.1 },
+  { id:'firefly', icon:'🌿', label:'Kunang',    particles:35,  color:'#80FF80',                speed:0.6, size:[3,5], drift:0.6, glow:true },
+  { id:'bubble',  icon:'🫧', label:'Gelembung', particles:45,  color:'rgba(130,200,255,0.4)',  speed:0.8, size:[6,18],drift:0.4, outline:true },
+  { id:'night',   icon:'🌙', label:'Malam',     particles:60,  color:'rgba(255,255,255,0.7)',  speed:0.15,size:[1,2], drift:0.05, bg:'night' },
+  { id:'sunrise', icon:'🌅', label:'Sunset',    particles:0,   bg:'dusk' },
+  { id:'morning', icon:'🌤️', label:'Pagi',      particles:25,  color:'rgba(255,200,80,0.5)',  speed:0.4, size:[4,8], drift:0.3, bg:'morning' },
+  { id:'magic',   icon:'🪄', label:'Sihir',     particles:90,  color:'#B47AFF',               speed:1.0, size:[2,6], drift:0.6, glow:true, rainbow:true },
+];
+
+const MUSIC_PRESETS = [
+  { id:'rain_cafe',   icon:'☕', name:'Rain Café',    sub:'Hujan + kafe',   url:'https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3' },
+  { id:'lofi',        icon:'🎹', name:'Lo-Fi Beats',  sub:'Santai fokus',   url:'https://cdn.pixabay.com/download/audio/2023/06/28/audio_3abfb3b4ab.mp3' },
+  { id:'forest',      icon:'🌲', name:'Hutan',        sub:'Suara alam',     url:'https://cdn.pixabay.com/download/audio/2022/02/12/audio_fbc08d99fa.mp3' },
+  { id:'ocean',       icon:'🌊', name:'Ombak',        sub:'Laut tenang',    url:'https://cdn.pixabay.com/download/audio/2021/09/06/audio_2517abef0f.mp3' },
+  { id:'fire',        icon:'🔥', name:'Api Unggun',   sub:'Malam hangat',   url:'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d1718ab41b.mp3' },
+  { id:'city',        icon:'🏙️', name:'Kota Malam',   sub:'Ambiens urban',  url:'https://cdn.pixabay.com/download/audio/2022/08/02/audio_884fe92c21.mp3' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let localWeather  = localStorage.getItem('wm_local') || 'none';
+let globalWeather = 'none';
+let selectedInPicker = localWeather;
+let animFrame = null, particles = [];
+
+// BG state
+let localBg  = JSON.parse(localStorage.getItem('wm_bg')  || 'null');  // {type,url,dim,muted}
+let globalBg = null;
+let dimmerVal = localBg?.dim ?? 30;
+
+// Music state
+let musicAudio = null;
+let currentMusicId = null;
+let musicVolume = 40;
+let localMusic  = JSON.parse(localStorage.getItem('wm_music') || 'null'); // {id,url,name,icon}
+let globalMusic = null;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+function getActiveWeather(){ return localWeather !== 'none' ? localWeather : globalWeather; }
+function getActiveBg()     { return localBg || globalBg; }
+function getActiveMusic()  { return localMusic || globalMusic; }
+function getWeatherDef(id) { return WEATHERS.find(w=>w.id===id)||WEATHERS[0]; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BACKGROUND LAYER
+// ─────────────────────────────────────────────────────────────────────────────
+function applyBgLayer(bgData){
+  const layer   = document.getElementById('chatBgLayer');
+  const dimmer  = document.getElementById('chatBgDimmer');
+  if(!layer) return;
+  if(!bgData){ layer.style.display='none'; return; }
+
+  // Remove old media
+  layer.querySelectorAll('img,video').forEach(el=>el.remove());
+  const dim = (bgData.dim ?? 30)/100;
+  if(dimmer) dimmer.style.setProperty('--dim', dim);
+
+  if(bgData.type === 'image'){
+    const img = document.createElement('img');
+    img.src = bgData.url; img.alt=''; img.style.cssText='width:100%;height:100%;object-fit:cover;display:block;';
+    layer.insertBefore(img, dimmer);
+  } else if(bgData.type === 'video'){
+    const vid = document.createElement('video');
+    vid.src = bgData.url; vid.loop=true; vid.autoplay=true;
+    vid.muted = bgData.muted !== false;
+    vid.style.cssText='width:100%;height:100%;object-fit:cover;display:block;';
+    vid.play().catch(()=>{});
+    layer.insertBefore(vid, dimmer);
+  }
+  layer.style.display='block';
+  refreshBgPreviewUI();
+}
+
+function removeBg(){
+  localBg = null;
+  localStorage.removeItem('wm_bg');
+  applyBgLayer(getActiveBg());
+  refreshBgPreviewUI();
+}
+
+function refreshBgPreviewUI(){
+  const bg = localBg;
+  const previewWrap  = document.getElementById('wpBgPreview');
+  const previewInner = document.getElementById('wpBgPreviewInner');
+  const dimmerRow    = document.getElementById('wpDimmerRow');
+  const videoOpts    = document.getElementById('wpVideoOpts');
+  if(!previewWrap) return;
+  if(bg){
+    previewWrap.style.display = 'block';
+    if(bg.type==='image'){
+      previewInner.innerHTML = `<img src="${bg.url}" style="width:100%;height:120px;object-fit:cover;display:block;">`;
+    } else {
+      previewInner.innerHTML = `<video src="${bg.url}" muted loop autoplay style="width:100%;height:120px;object-fit:cover;display:block;"></video>`;
+    }
+    if(dimmerRow){ dimmerRow.style.display='flex'; }
+    if(videoOpts){ videoOpts.style.display = bg.type==='video' ? 'block' : 'none'; }
+  } else {
+    previewWrap.style.display = 'none';
+    if(dimmerRow) dimmerRow.style.display='none';
+    if(videoOpts) videoOpts.style.display='none';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MUSIC
+// ─────────────────────────────────────────────────────────────────────────────
+function playMusic(musicDef){
+  stopMusic();
+  if(!musicDef || !musicDef.url) return;
+  musicAudio = new Audio(musicDef.url);
+  musicAudio.loop = true;
+  musicAudio.volume = musicVolume/100;
+  musicAudio.play().catch(()=>{});
+  currentMusicId = musicDef.id || 'custom';
+  refreshMusicUI(musicDef);
+  renderMusicGrid();
+}
+
+function stopMusic(){
+  if(musicAudio){ musicAudio.pause(); musicAudio.src=''; musicAudio=null; }
+  currentMusicId = null;
+  refreshMusicUI(null);
+  renderMusicGrid();
+}
+
+function refreshMusicUI(def){
+  const bar   = document.getElementById('wpMusicNowPlaying');
+  const title = document.getElementById('wpMusicTitle');
+  const icon  = document.getElementById('wpMusicIcon');
+  if(!bar) return;
+  if(def){
+    bar.style.display='flex';
+    if(title) title.textContent = def.name||'Musik';
+    if(icon)  icon.textContent  = def.icon||'🎵';
+  } else {
+    bar.style.display='none';
+  }
+}
+
+function renderMusicGrid(){
+  const grid = document.getElementById('wpMusicGrid');
+  if(!grid) return;
+  grid.innerHTML = MUSIC_PRESETS.map(m=>`
+    <div class="wp-music-item${currentMusicId===m.id?' active':''}" onclick="window._wmPlayPreset('${m.id}')">
+      <div class="wmi-icon">${m.icon}</div>
+      <div class="wmi-info">
+        <div class="wmi-name">${m.name}</div>
+        <div class="wmi-sub">${currentMusicId===m.id?'▶ Sedang diputar':m.sub}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+window._wmPlayPreset = function(id){
+  if(currentMusicId === id){ stopMusic(); return; }
+  const def = MUSIC_PRESETS.find(m=>m.id===id);
+  if(def) playMusic(def);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTICLE SYSTEM (same as before)
+// ─────────────────────────────────────────────────────────────────────────────
+function initParticles(def){
+  const canvas = document.getElementById('weatherCanvas');
+  if(!canvas) return;
+  const msgs = document.getElementById('chatMessages');
+  if(!msgs) return;
+  canvas.width  = msgs.clientWidth||360;
+  canvas.height = msgs.clientHeight||500;
+  particles = [];
+  if(!def||def.particles===0) return;
+  for(let i=0;i<def.particles;i++) particles.push(makeParticle(def,canvas.width,canvas.height,true));
+}
+
+function makeParticle(def,W,H,randomY){
+  const size = def.size[0]+Math.random()*(def.size[1]-def.size[0]);
+  const colors = def.rainbow?['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff']:[def.color];
+  return { x:Math.random()*W, y:randomY?Math.random()*H:-size*2, size,
+    speed:def.speed*(0.6+Math.random()*0.8), drift:(def.drift||0)*(Math.random()-0.5)*2,
+    opacity:0.5+Math.random()*0.5, angle:Math.random()*Math.PI*2,
+    angVel:(Math.random()-0.5)*0.04, color:colors[Math.floor(Math.random()*colors.length)],
+    glow:def.glow||false, outline:def.outline||false, length:def.length||0, phase:Math.random()*Math.PI*2 };
+}
+
+function drawParticle(ctx,p,def){
+  ctx.save(); ctx.globalAlpha=p.opacity;
+  if(p.glow){ ctx.shadowBlur=p.size*3; ctx.shadowColor=p.color; }
+  if(def.id==='rain'){
+    ctx.strokeStyle=p.color; ctx.lineWidth=p.size;
+    ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x+p.drift*2,p.y+p.length); ctx.stroke();
+  } else if(p.outline){
+    ctx.strokeStyle=p.color; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size/2,0,Math.PI*2); ctx.stroke();
+  } else if(def.id==='sakura'||def.id==='leaves'){
+    ctx.translate(p.x,p.y); ctx.rotate(p.angle); ctx.fillStyle=p.color;
+    if(def.id==='sakura'){
+      ctx.beginPath();
+      for(let i=0;i<5;i++){ const a=(i*Math.PI*2/5)-Math.PI/2; const bx=Math.cos(a)*p.size*0.5; const by=Math.sin(a)*p.size*0.5; i===0?ctx.moveTo(bx,by):ctx.lineTo(bx,by); }
+      ctx.closePath(); ctx.fill();
+    } else { ctx.beginPath(); ctx.ellipse(0,0,p.size/2,p.size/4,0,0,Math.PI*2); ctx.fill(); }
+  } else if(def.id==='stars'){
+    ctx.fillStyle=p.color; ctx.beginPath();
+    for(let i=0;i<5;i++){ const a=(i*4*Math.PI/5)-Math.PI/2; i===0?ctx.moveTo(p.x+Math.cos(a)*p.size,p.y+Math.sin(a)*p.size):ctx.lineTo(p.x+Math.cos(a)*p.size,p.y+Math.sin(a)*p.size); }
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size/2,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function animate(){
+  const canvas=document.getElementById('weatherCanvas');
+  if(!canvas){ animFrame=null; return; }
+  const ctx=canvas.getContext('2d'); const W=canvas.width,H=canvas.height;
+  const def=getWeatherDef(getActiveWeather());
+  ctx.clearRect(0,0,W,H);
+  if(!particles.length){ animFrame=requestAnimationFrame(animate); return; }
+  const t=Date.now()/1000;
+  for(let i=0;i<particles.length;i++){
+    const p=particles[i];
+    if(def.id==='firefly'||def.id==='morning'||def.id==='stars') p.opacity=0.3+0.7*Math.abs(Math.sin(t*1.2+p.phase));
+    drawParticle(ctx,p,def);
+    p.y+=p.speed; p.x+=p.drift+Math.sin(t*0.8+p.phase)*0.3; p.angle+=p.angVel;
+    if(p.y>H+20||p.x<-30||p.x>W+30){ const np=makeParticle(def,W,H,false); np.y=def.id==='stars'?Math.random()*H:-20; particles[i]=np; }
+  }
+  animFrame=requestAnimationFrame(animate);
+}
+
+function applyWeather(id){
+  const def=getWeatherDef(id);
+  const chatBox=document.getElementById('chatBox');
+  WEATHERS.forEach(w=>{ if(w.bg) chatBox?.classList.remove('weather-bg-'+w.bg); });
+  if(def.bg) chatBox?.classList.add('weather-bg-'+def.bg);
+  if(animFrame){ cancelAnimationFrame(animFrame); animFrame=null; }
+  const canvas=document.getElementById('weatherCanvas');
+  const msgs=document.getElementById('chatMessages');
+  if(canvas&&msgs){ canvas.width=msgs.clientWidth||360; canvas.height=msgs.clientHeight||500; canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height); }
+  if(def.particles>0){ initParticles(def); animFrame=requestAnimationFrame(animate); } else particles=[];
+  const btn=document.getElementById('chatWeatherBtn');
+  if(btn) btn.innerHTML=def.icon+'<span class="cwb-dot'+(id!=='none'?' show':'')+'"></span>';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GLOBAL BANNER
+// ─────────────────────────────────────────────────────────────────────────────
+function updateGlobalBanner(){
+  const banner=document.getElementById('globalWeatherBanner');
+  const icon=document.getElementById('globalWeatherIcon');
+  const label=document.getElementById('globalWeatherLabel');
+  if(!banner) return;
+  const hasGlobalWeather = globalWeather!=='none' && localWeather==='none';
+  const hasGlobalBg      = globalBg && !localBg;
+  const hasGlobalMusic   = globalMusic && !localMusic;
+  if(hasGlobalWeather||hasGlobalBg||hasGlobalMusic){
+    const def=getWeatherDef(globalWeather);
+    let parts=[];
+    if(hasGlobalWeather) parts.push(def.label);
+    if(hasGlobalBg)      parts.push('Latar '+globalBg.name);
+    if(hasGlobalMusic)   parts.push(globalMusic.name||'Musik');
+    if(icon) icon.textContent=def.icon||(hasGlobalBg?'🖼️':'🎵');
+    if(label) label.textContent='Global: '+parts.join(' · ');
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PICKER UI
+// ─────────────────────────────────────────────────────────────────────────────
+function renderPickerGrid(){
+  const grid=document.getElementById('weatherGrid');
+  if(!grid) return;
+  grid.innerHTML=WEATHERS.map(w=>`
+    <div class="weather-option${selectedInPicker===w.id?' active':''}" data-wid="${w.id}" onclick="window._wmSelect('${w.id}')">
+      <div class="wo-icon">${w.icon}</div><div>${w.label}</div>
+    </div>`).join('');
+}
+
+window._wmSelect = function(id){
+  selectedInPicker=id; localWeather=id;
+  localStorage.setItem('wm_local',id);
+  renderPickerGrid();
+  applyWeather(getActiveWeather());
+  updateGlobalBanner();
+};
+
+// Tab switching
+document.querySelectorAll('.wp-tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.wp-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.wp-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('wptab-'+btn.dataset.tab)?.classList.add('active');
+    if(btn.dataset.tab==='music') renderMusicGrid();
+    if(btn.dataset.tab==='background') refreshBgPreviewUI();
+  });
+});
+
+// Dimmer slider
+document.getElementById('wpDimmer')?.addEventListener('input',function(){
+  dimmerVal=+this.value;
+  document.getElementById('wpDimmerVal').textContent=dimmerVal+'%';
+  if(localBg){ localBg.dim=dimmerVal; localStorage.setItem('wm_bg',JSON.stringify(localBg)); applyBgLayer(localBg); }
+});
+
+// Video mute toggle
+document.getElementById('wpVideoMute')?.addEventListener('change',function(){
+  if(localBg&&localBg.type==='video'){
+    localBg.muted=this.checked; localStorage.setItem('wm_bg',JSON.stringify(localBg));
+    const vid=document.querySelector('#chatBgLayer video');
+    if(vid) vid.muted=this.checked;
+  }
+});
+
+// Remove bg
+document.getElementById('wpBgRemove')?.addEventListener('click', removeBg);
+
+// Volume slider
+document.getElementById('wpVolume')?.addEventListener('input',function(){
+  musicVolume=+this.value;
+  document.getElementById('wpVolumeVal').textContent=musicVolume+'%';
+  if(musicAudio) musicAudio.volume=musicVolume/100;
+});
+
+// Stop music btn
+document.getElementById('wpMusicStop')?.addEventListener('click', stopMusic);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE UPLOAD: Background
+// ─────────────────────────────────────────────────────────────────────────────
+function uploadFileToFirebase(file, pathPrefix, onProgress){
+  return new Promise((resolve,reject)=>{
+    if(!window.firebaseReady||!window.storageRef||!window.storageUploadBytes||!window.storageGetDownloadURL){
+      // Fallback: use object URL (local only)
+      resolve({ url: URL.createObjectURL(file), local:true });
+      return;
+    }
+    const ref = window.storageRef(window.firebaseStorage, `${pathPrefix}/${Date.now()}_${file.name}`);
+    window.storageUploadBytes(ref, file).then(snap=>{
+      return window.storageGetDownloadURL(snap.ref);
+    }).then(url=>resolve({url,local:false})).catch(reject);
+  });
+}
+
+document.getElementById('wpBgFileInput')?.addEventListener('change', async function(){
+  const file = this.files[0]; if(!file) return;
+  const maxMB = 50;
+  if(file.size > maxMB*1024*1024){ alert(`File terlalu besar. Maks ${maxMB}MB.`); return; }
+  const isVideo = file.type.startsWith('video/');
+  const isImage = file.type.startsWith('image/');
+  if(!isImage&&!isVideo){ alert('Format tidak didukung. Gunakan JPG/PNG/GIF/MP4/WebM.'); return; }
+
+  const prog = document.getElementById('wpUploadProgress');
+  const fill = document.getElementById('wpUploadFill');
+  const lbl  = document.getElementById('wpUploadLabel');
+  if(prog){ prog.style.display='block'; fill.style.width='10%'; }
+  if(lbl) lbl.textContent = 'Mengupload...';
+
+  try {
+    // Simulate progress
+    let pct=10; const timer=setInterval(()=>{ pct=Math.min(pct+8,85); if(fill)fill.style.width=pct+'%'; },300);
+    const result = await uploadFileToFirebase(file, 'chat_backgrounds');
+    clearInterval(timer);
+    if(fill) fill.style.width='100%';
+    if(lbl) lbl.textContent = result.local ? '✅ Latar dipasang (lokal)' : '✅ Upload berhasil!';
+
+    localBg = { type:isVideo?'video':'image', url:result.url, dim:dimmerVal, muted:true, name:file.name };
+    localStorage.setItem('wm_bg', JSON.stringify(localBg));
+    applyBgLayer(localBg);
+    refreshBgPreviewUI();
+    // update dimmer input
+    const dimSlider = document.getElementById('wpDimmer');
+    if(dimSlider) dimSlider.value = dimmerVal;
+    setTimeout(()=>{ if(prog) prog.style.display='none'; }, 2500);
+  } catch(err){
+    if(fill) fill.style.width='0%';
+    if(lbl) lbl.textContent = '❌ Gagal upload: '+err.message;
+    console.error(err);
+  }
+  this.value='';
+});
+
+// Drag-and-drop on upload zone
+const uploadZone = document.getElementById('wpUploadZone');
+uploadZone?.addEventListener('dragover',e=>{ e.preventDefault(); uploadZone.style.borderColor='var(--teal)'; });
+uploadZone?.addEventListener('dragleave',()=>{ uploadZone.style.borderColor=''; });
+uploadZone?.addEventListener('drop',e=>{
+  e.preventDefault(); uploadZone.style.borderColor='';
+  const file=e.dataTransfer.files[0];
+  if(file){ const inp=document.getElementById('wpBgFileInput'); const dt=new DataTransfer(); dt.items.add(file); inp.files=dt.files; inp.dispatchEvent(new Event('change')); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE UPLOAD: Music
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('wpMusicFileInput')?.addEventListener('change', async function(){
+  const file = this.files[0]; if(!file) return;
+  if(file.size > 20*1024*1024){ alert('File terlalu besar. Maks 20MB.'); return; }
+  if(!file.type.startsWith('audio/')){ alert('Format tidak didukung.'); return; }
+
+  const prog = document.getElementById('wpMusicUploadProgress');
+  const fill = document.getElementById('wpMusicUploadFill');
+  const lbl  = document.getElementById('wpMusicUploadLabel');
+  if(prog) prog.style.display='block';
+  if(fill) fill.style.width='15%';
+  if(lbl) lbl.textContent = 'Mengupload...';
+
+  try {
+    let pct=15; const timer=setInterval(()=>{ pct=Math.min(pct+10,85); if(fill)fill.style.width=pct+'%'; },300);
+    const result = await uploadFileToFirebase(file, 'chat_music');
+    clearInterval(timer);
+    if(fill) fill.style.width='100%';
+    if(lbl) lbl.textContent = result.local ? '✅ Memutar (lokal)' : '✅ Upload berhasil!';
+
+    const musicDef = { id:'custom_'+Date.now(), icon:'🎵', name:file.name.replace(/\.[^.]+$/,''), url:result.url };
+    localMusic = musicDef;
+    localStorage.setItem('wm_music', JSON.stringify(musicDef));
+    playMusic(musicDef);
+    setTimeout(()=>{ if(prog) prog.style.display='none'; }, 2000);
+  } catch(err){
+    if(lbl) lbl.textContent = '❌ Gagal: '+err.message;
+  }
+  this.value='';
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OPEN / CLOSE PICKER
+// ─────────────────────────────────────────────────────────────────────────────
+function openWeatherPicker(){
+  selectedInPicker = localWeather;
+  renderPickerGrid();
+  renderMusicGrid();
+  refreshBgPreviewUI();
+  refreshMusicUI(currentMusicId ? (MUSIC_PRESETS.find(m=>m.id===currentMusicId)||localMusic) : null);
+  const adminSec = document.getElementById('wpAdminSection');
+  if(adminSec) adminSec.classList.toggle('show', typeof isAdmin!=='undefined' && isAdmin);
+  const dimSlider=document.getElementById('wpDimmer');
+  if(dimSlider){ dimSlider.value=dimmerVal; document.getElementById('wpDimmerVal').textContent=dimmerVal+'%'; }
+  const volSlider=document.getElementById('wpVolume');
+  if(volSlider){ volSlider.value=musicVolume; document.getElementById('wpVolumeVal').textContent=musicVolume+'%'; }
+  document.getElementById('weatherPickerOverlay')?.classList.add('show');
+}
+
+function closeWeatherPicker(){
+  document.getElementById('weatherPickerOverlay')?.classList.remove('show');
+}
+
+document.getElementById('chatWeatherBtn')?.addEventListener('click', openWeatherPicker);
+document.getElementById('weatherPickerClose')?.addEventListener('click', closeWeatherPicker);
+document.getElementById('weatherPickerOverlay')?.addEventListener('click', e=>{ if(e.target===e.currentTarget) closeWeatherPicker(); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN: SAVE GLOBAL
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('wpSaveGlobal')?.addEventListener('click', ()=>{
+  if(!window.firebaseReady||!window.rtdbSet||!window.rtdbRef) return;
+  const status = document.getElementById('wpGlobalStatus');
+  const payload = {
+    weather: selectedInPicker,
+    bg: localBg || null,
+    music: (currentMusicId ? (MUSIC_PRESETS.find(m=>m.id===currentMusicId)||localMusic) : localMusic) || null,
+    updatedAt: Date.now()
+  };
+  window.rtdbSet(window.rtdbRef(window.firebaseDb,'globalChatRoom'), payload)
+    .then(()=>{
+      if(status){ status.textContent='✅ Berhasil diterapkan ke semua pengguna!'; status.style.display='block'; setTimeout(()=>status.style.display='none',3000); }
+    })
+    .catch(err=>{ if(status){ status.textContent='❌ Gagal: '+err.message; status.style.display='block'; } });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LISTEN GLOBAL from Firebase
+// ─────────────────────────────────────────────────────────────────────────────
+function listenGlobalRoom(){
+  if(!window.firebaseReady||!window.rtdbOnValue||!window.rtdbRef) return;
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'globalChatRoom'), snap=>{
+    const val = snap.val()||{};
+    globalWeather = val.weather||'none';
+    globalBg      = val.bg||null;
+    globalMusic   = val.music||null;
+    const chatOpen = document.getElementById('chatModalOverlay')?.classList.contains('show');
+    if(chatOpen){
+      applyWeather(getActiveWeather());
+      applyBgLayer(getActiveBg());
+      const am=getActiveMusic();
+      if(am&&!musicAudio) playMusic(am);
+    }
+    updateGlobalBanner();
+  });
+  // legacy key
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'globalWeather'), snap=>{
+    const val=snap.val()||'none';
+    if(typeof val==='string') globalWeather=val;
+    updateGlobalBanner();
+  });
+}
+
+if(window.firebaseReady){ setTimeout(listenGlobalRoom,1000); }
+else { document.addEventListener('firebase-ready',()=>setTimeout(listenGlobalRoom,1000)); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APPLY ON CHAT OPEN (MutationObserver)
+// ─────────────────────────────────────────────────────────────────────────────
+const chatOverlay = document.getElementById('chatModalOverlay');
+if(chatOverlay){
+  new MutationObserver(()=>{
+    if(chatOverlay.classList.contains('show')){
+      setTimeout(()=>{
+        applyWeather(getActiveWeather());
+        applyBgLayer(getActiveBg());
+        const am=getActiveMusic();
+        if(am&&!musicAudio) playMusic(am);
+        updateGlobalBanner();
+      }, 120);
+    } else {
+      // pause music when chat closed (don't stop — resumes on reopen)
+      if(musicAudio) musicAudio.pause();
+    }
+  }).observe(chatOverlay,{attributes:true,attributeFilter:['class']});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SWIPE-TO-CLOSE
+// ─────────────────────────────────────────────────────────────────────────────
+(function(){
+  const chatBox=document.getElementById('chatBox');
+  const handle =document.getElementById('chatDragHandle');
+  const overlay=document.getElementById('chatModalOverlay');
+  if(!chatBox||!handle||!overlay) return;
+  let startY=0, currentY=0, dragging=false;
+  function onStart(y){ dragging=true; startY=y; currentY=0; chatBox.style.transition='none'; }
+  function onMove(y){ if(!dragging) return; const dy=y-startY; if(dy<0) return; currentY=dy; chatBox.style.transform=`translateY(${dy}px)`; overlay.style.opacity=Math.max(0,1-dy/300); }
+  function onEnd(){
+    if(!dragging) return; dragging=false;
+    chatBox.style.transition='transform .3s cubic-bezier(.32,1,.5,1)';
+    if(currentY>140){
+      chatBox.style.transform='translateY(100%)'; overlay.style.opacity='0';
+      setTimeout(()=>{ chatBox.style.transform=''; overlay.style.opacity=''; chatBox.style.transition='';
+        if(typeof closeChat==='function') closeChat(); else overlay.classList.remove('show'); }, 300);
+    } else {
+      chatBox.style.transform=''; overlay.style.opacity='';
+      setTimeout(()=>chatBox.style.transition='',300);
+    }
+    currentY=0;
+  }
+  handle.addEventListener('touchstart',e=>onStart(e.touches[0].clientY),{passive:true});
+  document.addEventListener('touchmove',e=>{ if(dragging) onMove(e.touches[0].clientY); },{passive:true});
+  document.addEventListener('touchend',()=>onEnd());
+  handle.addEventListener('mousedown',e=>{ onStart(e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove',e=>{ if(dragging) onMove(e.clientY); });
+  document.addEventListener('mouseup',()=>onEnd());
+})();
+
+// Init on load: restore saved bg/music if chat somehow already open
+(function(){
+  const bg=getActiveBg();
+  if(bg) applyBgLayer(bg);
+  const m=getActiveMusic();
+  // don't autoplay on page load — wait for chat open
+})();
+
+})();
+</script>
+</body>
+</html>
+
+// ── Weather definitions ─────────────────────────────────────────────────────
+const WEATHERS = [
+  { id:'none',    icon:'✨', label:'Normal',    particles:0  },
+  { id:'snow',    icon:'❄️',  label:'Salju',     particles:120, color:'rgba(255,255,255,0.85)', speed:1.2, size:[3,7], drift:0.5 },
+  { id:'rain',    icon:'🌧️', label:'Hujan',     particles:150, color:'rgba(150,200,255,0.7)',  speed:8,   size:[1,2], drift:-1,  length:14 },
+  { id:'sakura',  icon:'🌸', label:'Sakura',    particles:70,  color:'#FFB7C5',                speed:1.0, size:[5,9], drift:0.8  },
+  { id:'leaves',  icon:'🍂', label:'Daun',      particles:55,  color:'#D4690A',                speed:1.4, size:[6,11],drift:0.7  },
+  { id:'stars',   icon:'⭐', label:'Bintang',   particles:80,  color:'rgba(255,230,100,0.9)',  speed:0.2, size:[1,3], drift:0.1  },
+  { id:'firefly', icon:'🌿', label:'Kunang',    particles:35,  color:'#80FF80',                speed:0.6, size:[3,5], drift:0.6, glow:true },
+  { id:'bubble',  icon:'🫧', label:'Gelembung', particles:45,  color:'rgba(130,200,255,0.4)',  speed:0.8, size:[6,18],drift:0.4, outline:true },
+  { id:'night',   icon:'🌙', label:'Malam',     particles:60,  color:'rgba(255,255,255,0.7)',  speed:0.15,size:[1,2], drift:0.05, bg:'night' },
+  { id:'sunrise', icon:'🌅', label:'Sunset',    particles:0,   bg:'dusk' },
+  { id:'morning', icon:'🌤️', label:'Pagi',      particles:25,  color:'rgba(255,200,80,0.5)',  speed:0.4, size:[4,8], drift:0.3, bg:'morning' },
+  { id:'magic',   icon:'🪄', label:'Sihir',     particles:90,  color:'#B47AFF',               speed:1.0, size:[2,6], drift:0.6, glow:true, rainbow:true },
+];
+
+let localWeather  = localStorage.getItem('wm_local') || 'none';
+let globalWeather = 'none';
+let selectedInPicker = localWeather;
+let animFrame = null;
+let particles = [];
+
+// ── Canvas particle system ──────────────────────────────────────────────────
+function getActiveWeather(){
+  // Local overrides global (unless local is 'none', use global)
+  if(localWeather !== 'none') return localWeather;
+  return globalWeather;
+}
+
+function getWeatherDef(id){ return WEATHERS.find(w=>w.id===id) || WEATHERS[0]; }
+
+function initParticles(def){
+  const canvas = document.getElementById('weatherCanvas');
+  if(!canvas) return;
+  const msgs = document.getElementById('chatMessages');
+  if(!msgs) return;
+  const W = msgs.clientWidth || 360;
+  const H = msgs.clientHeight || 500;
+  canvas.width  = W;
+  canvas.height = H;
+
+  particles = [];
+  if(!def || def.particles === 0) return;
+  for(let i=0;i<def.particles;i++){
+    particles.push(makeParticle(def, W, H, true));
+  }
+}
+
+function makeParticle(def, W, H, randomY){
+  const size = def.size[0] + Math.random()*(def.size[1]-def.size[0]);
+  const colors = def.rainbow
+    ? ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff']
+    : [def.color];
+  return {
+    x: Math.random()*W,
+    y: randomY ? Math.random()*H : -size*2,
+    size,
+    speed: def.speed * (0.6 + Math.random()*0.8),
+    drift: (def.drift||0) * (Math.random()-0.5)*2,
+    opacity: 0.5 + Math.random()*0.5,
+    angle: Math.random()*Math.PI*2,
+    angVel: (Math.random()-0.5)*0.04,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    glow: def.glow||false,
+    outline: def.outline||false,
+    length: def.length||0,
+    phase: Math.random()*Math.PI*2,   // for firefly pulsing
+  };
+}
+
+function drawParticle(ctx, p, def){
+  ctx.save();
+  ctx.globalAlpha = p.opacity;
+  if(p.glow){
+    ctx.shadowBlur = p.size*3;
+    ctx.shadowColor = p.color;
+  }
+
+  if(def.id === 'rain'){
+    // rain streaks
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = p.size;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x + p.drift*2, p.y + p.length);
+    ctx.stroke();
+  } else if(p.outline){
+    // bubble
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size/2, 0, Math.PI*2);
+    ctx.stroke();
+    // shine
+    ctx.globalAlpha = p.opacity*0.4;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(p.x - p.size*0.15, p.y - p.size*0.15, p.size*0.15, 0, Math.PI*2);
+    ctx.fill();
+  } else if(def.id === 'sakura' || def.id === 'leaves'){
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+    ctx.fillStyle = p.color;
+    if(def.id==='sakura'){
+      // petal shape
+      ctx.beginPath();
+      for(let i=0;i<5;i++){
+        const a = (i*Math.PI*2/5) - Math.PI/2;
+        const bx = Math.cos(a)*p.size*0.5;
+        const by = Math.sin(a)*p.size*0.5;
+        i===0 ? ctx.moveTo(bx,by) : ctx.lineTo(bx,by);
+      }
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(0,0,p.size/2,p.size/4,0,0,Math.PI*2);
+      ctx.fill();
+    }
+  } else if(def.id==='stars'){
+    drawStar(ctx, p.x, p.y, p.size, p.color);
+  } else {
+    // default circle (snow, firefly, magic, morning, bubble)
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size/2, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawStar(ctx, x, y, r, color){
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  for(let i=0;i<5;i++){
+    const a = (i*4*Math.PI/5) - Math.PI/2;
+    const ix = x+Math.cos(a)*r;
+    const iy = y+Math.sin(a)*r;
+    i===0 ? ctx.moveTo(ix,iy) : ctx.lineTo(ix,iy);
+  }
+  ctx.closePath(); ctx.fill();
+}
+
+function animate(){
+  const canvas = document.getElementById('weatherCanvas');
+  if(!canvas){ animFrame=null; return; }
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const activeId = getActiveWeather();
+  const def = getWeatherDef(activeId);
+
+  ctx.clearRect(0,0,W,H);
+
+  if(particles.length === 0){ animFrame = requestAnimationFrame(animate); return; }
+
+  const t = Date.now()/1000;
+  for(let i=0;i<particles.length;i++){
+    const p = particles[i];
+    // firefly pulse opacity
+    if(def.id==='firefly'){ p.opacity = 0.3 + 0.7*Math.abs(Math.sin(t*1.2+p.phase)); }
+    // morning shimmer
+    if(def.id==='morning'){ p.opacity = 0.2 + 0.4*Math.abs(Math.sin(t*0.8+p.phase)); }
+    // stars twinkle
+    if(def.id==='stars'){ p.opacity = 0.4 + 0.6*Math.abs(Math.sin(t*1.5+p.phase)); }
+
+    drawParticle(ctx, p, def);
+
+    // move
+    p.y += p.speed;
+    p.x += p.drift + Math.sin(t*0.8+p.phase)*0.3;
+    p.angle += p.angVel;
+
+    // recycle
+    if(p.y > H+20 || p.x < -30 || p.x > W+30){
+      const np = makeParticle(def, W, H, false);
+      np.y = def.id==='stars' ? Math.random()*H : -20;
+      particles[i] = np;
+    }
+  }
+  animFrame = requestAnimationFrame(animate);
+}
+
+function applyWeather(id){
+  const def = getWeatherDef(id);
+  const chatBox = document.getElementById('chatBox');
+  const chatMessages = document.getElementById('chatMessages');
+  const canvas = document.getElementById('weatherCanvas');
+
+  // Remove old bg classes
+  WEATHERS.forEach(w=>{ if(w.bg) chatBox?.classList.remove('weather-bg-'+w.bg); });
+
+  // Apply bg class if any
+  if(def.bg && chatMessages) chatBox?.classList.add('weather-bg-'+def.bg);
+
+  // Stop old animation
+  if(animFrame){ cancelAnimationFrame(animFrame); animFrame=null; }
+
+  // Resize canvas
+  if(canvas && chatMessages){
+    canvas.width  = chatMessages.clientWidth || 360;
+    canvas.height = chatMessages.clientHeight || 500;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+
+  if(def.particles > 0){
+    initParticles(def);
+    animFrame = requestAnimationFrame(animate);
+  } else {
+    particles = [];
+  }
+
+  // Update weather btn icon
+  const btn = document.getElementById('chatWeatherBtn');
+  if(btn) btn.textContent = def.icon + ' ';
+  const dot = document.getElementById('chatWeatherDot');
+  if(dot){
+    dot.className = 'cwb-dot' + (id !== 'none' ? ' show' : '');
+    btn?.appendChild(dot);
+  }
+}
+
+function updateGlobalBanner(){
+  const banner = document.getElementById('globalWeatherBanner');
+  const icon   = document.getElementById('globalWeatherIcon');
+  const label  = document.getElementById('globalWeatherLabel');
+  if(!banner) return;
+  if(globalWeather !== 'none' && localWeather === 'none'){
+    const def = getWeatherDef(globalWeather);
+    if(icon) icon.textContent = def.icon;
+    if(label) label.textContent = 'Cuaca komunitas: ' + def.label;
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// ── Picker UI ───────────────────────────────────────────────────────────────
+function renderPickerGrid(){
+  const grid = document.getElementById('weatherGrid');
+  if(!grid) return;
+  grid.innerHTML = WEATHERS.map(w=>`
+    <div class="weather-option${selectedInPicker===w.id?' active':''}" data-wid="${w.id}" onclick="window._wmSelect('${w.id}')">
+      <div class="wo-icon">${w.icon}</div>
+      <div>${w.label}</div>
+    </div>
+  `).join('');
+}
+
+window._wmSelect = function(id){
+  selectedInPicker = id;
+  renderPickerGrid();
+  // Apply locally immediately
+  localWeather = id;
+  localStorage.setItem('wm_local', id);
+  applyWeather(getActiveWeather());
+  updateGlobalBanner();
+};
+
+function openWeatherPicker(){
+  selectedInPicker = localWeather;
+  renderPickerGrid();
+  // Show admin section if admin
+  const adminSec = document.getElementById('wpAdminSection');
+  if(adminSec){
+    adminSec.classList.toggle('show', typeof isAdmin !== 'undefined' && isAdmin);
+  }
+  document.getElementById('weatherPickerOverlay')?.classList.add('show');
+}
+
+function closeWeatherPicker(){
+  document.getElementById('weatherPickerOverlay')?.classList.remove('show');
+}
+
+document.getElementById('chatWeatherBtn')?.addEventListener('click', openWeatherPicker);
+document.getElementById('weatherPickerClose')?.addEventListener('click', closeWeatherPicker);
+document.getElementById('weatherPickerOverlay')?.addEventListener('click', e=>{
+  if(e.target === e.currentTarget) closeWeatherPicker();
+});
+
+// ── Admin: save global weather ──────────────────────────────────────────────
+document.getElementById('wpSaveGlobal')?.addEventListener('click', ()=>{
+  if(!window.firebaseReady || !window.rtdbSet || !window.rtdbRef) return;
+  const status = document.getElementById('wpGlobalStatus');
+  window.rtdbSet(window.rtdbRef(window.firebaseDb,'globalWeather'), selectedInPicker)
+    .then(()=>{
+      if(status){ status.textContent='✅ Cuaca global berhasil diset!'; status.style.display='block'; setTimeout(()=>status.style.display='none',3000); }
+    })
+    .catch(err=>{ if(status){ status.textContent='❌ Gagal: '+err.message; status.style.display='block'; } });
+});
+
+// ── Listen global weather from Firebase ────────────────────────────────────
+function listenGlobalWeather(){
+  if(!window.firebaseReady || !window.rtdbOnValue || !window.rtdbRef) return;
+  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'globalWeather'), snap=>{
+    const val = snap.val() || 'none';
+    globalWeather = val;
+    const chatOpen = document.getElementById('chatModalOverlay')?.classList.contains('show');
+    if(chatOpen){ applyWeather(getActiveWeather()); }
+    updateGlobalBanner();
+  });
+}
+
+// Start listening when firebase is ready
+if(window.firebaseReady){ setTimeout(listenGlobalWeather,1000); }
+else { document.addEventListener('firebase-ready', ()=>setTimeout(listenGlobalWeather,1000)); }
+
+// Apply saved weather when chat opens — hook into openChat
+const _origOpenChat = window.openChat;
+if(typeof _origOpenChat === 'function'){
+  window.openChat = function(){
+    const result = _origOpenChat.apply(this, arguments);
+    setTimeout(()=>{ applyWeather(getActiveWeather()); updateGlobalBanner(); },100);
+    return result;
+  };
+}
+
+// Also apply on overlay show via MutationObserver
+const chatOverlay = document.getElementById('chatModalOverlay');
+if(chatOverlay){
+  new MutationObserver(()=>{
+    if(chatOverlay.classList.contains('show')){
+      setTimeout(()=>{ applyWeather(getActiveWeather()); updateGlobalBanner(); },120);
+    }
+  }).observe(chatOverlay,{attributes:true,attributeFilter:['class']});
+}
+
+// ── Swipe-to-close ─────────────────────────────────────────────────────────
+(function(){
+  const chatBox    = document.getElementById('chatBox');
+  const handle     = document.getElementById('chatDragHandle');
+  const overlay    = document.getElementById('chatModalOverlay');
+  if(!chatBox || !handle || !overlay) return;
+
+  let startY = 0, currentY = 0, dragging = false;
+
+  function onStart(clientY){
+    dragging = true;
+    startY = clientY;
+    currentY = 0;
+    chatBox.style.transition = 'none';
+  }
+  function onMove(clientY){
+    if(!dragging) return;
+    const dy = clientY - startY;
+    if(dy < 0) return; // don't allow dragging up
+    currentY = dy;
+    chatBox.style.transform = `translateY(${dy}px)`;
+    const opacity = Math.max(0, 1 - dy/300);
+    overlay.style.opacity = opacity;
+  }
+  function onEnd(){
+    if(!dragging) return;
+    dragging = false;
+    chatBox.style.transition = 'transform .3s cubic-bezier(.32,1,.5,1)';
+    if(currentY > 140){
+      // close
+      chatBox.style.transform = `translateY(100%)`;
+      overlay.style.opacity = '0';
+      setTimeout(()=>{
+        chatBox.style.transform = '';
+        overlay.style.opacity  = '';
+        chatBox.style.transition = '';
+        // call the existing closeChat
+        if(typeof closeChat === 'function') closeChat();
+        else overlay.classList.remove('show');
+      }, 300);
+    } else {
+      // snap back
+      chatBox.style.transform = '';
+      overlay.style.opacity   = '';
+      setTimeout(()=>{ chatBox.style.transition = ''; }, 300);
+    }
+    currentY = 0;
+  }
+
+  // Touch
+  handle.addEventListener('touchstart', e=>onStart(e.touches[0].clientY), {passive:true});
+  document.addEventListener('touchmove',  e=>{ if(dragging) onMove(e.touches[0].clientY); }, {passive:true});
+  document.addEventListener('touchend',   ()=>onEnd());
+
+  // Mouse (desktop)
+  handle.addEventListener('mousedown', e=>{ onStart(e.clientY); e.preventDefault(); });
+  document.addEventListener('mousemove', e=>{ if(dragging) onMove(e.clientY); });
+  document.addEventListener('mouseup',   ()=>onEnd());
+})();
 
 })();
 </script>

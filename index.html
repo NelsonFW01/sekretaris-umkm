@@ -758,6 +758,151 @@
   .splash-nav .sn-start:active{opacity:0.85;}
 </style>
 <style>
+/* ===== CHAT SYSTEM ===== */
+.chat-modal-overlay {
+  display:none; position:fixed; inset:0; z-index:9500;
+  background:rgba(42,38,34,0.55); align-items:flex-end; justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.chat-modal-overlay.show { display:flex; }
+.chat-box {
+  background:var(--bg-card); width:100%; max-width:560px;
+  border-radius:22px 22px 0 0; display:flex; flex-direction:column;
+  height:88vh; animation:fadeUp .28s ease; overflow:hidden;
+  box-shadow:0 -8px 40px rgba(42,38,34,0.18);
+}
+.chat-header {
+  padding:16px 18px 14px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; gap:11px; flex-shrink:0;
+  background:var(--bg-card);
+}
+.chat-header-avatar {
+  width:40px; height:40px; border-radius:50%; background:var(--sand);
+  border:2.5px solid var(--teal); overflow:hidden; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+}
+.chat-header-avatar img { width:100%; height:100%; object-fit:cover; }
+.chat-header-info { flex:1; min-width:0; }
+.chat-header-name { font-weight:700; font-size:15px; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chat-header-sub { font-size:12px; color:var(--ink-soft); margin-top:1px; }
+.chat-header-close {
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--line);
+  background:var(--bg); cursor:pointer; font-size:16px; display:flex;
+  align-items:center; justify-content:center; flex-shrink:0; color:var(--ink-soft);
+}
+.chat-messages {
+  flex:1; overflow-y:auto; padding:14px 16px; display:flex;
+  flex-direction:column; gap:8px; scroll-behavior:smooth;
+}
+.chat-messages::-webkit-scrollbar { width:4px; }
+.chat-messages::-webkit-scrollbar-track { background:transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background:var(--line); border-radius:4px; }
+.chat-bubble-wrap {
+  display:flex; flex-direction:column; gap:2px;
+  max-width:82%;
+}
+.chat-bubble-wrap.mine { align-self:flex-end; align-items:flex-end; }
+.chat-bubble-wrap.theirs { align-self:flex-start; align-items:flex-start; }
+.chat-bubble {
+  padding:9px 13px; border-radius:18px; font-size:13.5px; line-height:1.5;
+  word-break:break-word; position:relative;
+}
+.chat-bubble.mine {
+  background:var(--teal); color:white;
+  border-bottom-right-radius:5px;
+}
+.chat-bubble.theirs {
+  background:var(--sand); color:var(--ink);
+  border-bottom-left-radius:5px;
+}
+.chat-bubble-meta {
+  font-size:10.5px; color:var(--ink-soft); padding:0 4px;
+}
+.chat-date-divider {
+  text-align:center; font-size:11px; color:var(--ink-soft); font-weight:600;
+  padding:6px 0; letter-spacing:0.03em;
+}
+.chat-empty {
+  flex:1; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; color:var(--ink-soft); font-size:13px; gap:8px;
+  text-align:center; padding:20px;
+}
+.chat-empty .ce-icon { font-size:38px; margin-bottom:4px; }
+.chat-input-bar {
+  padding:12px 14px; border-top:1px solid var(--line); display:flex; gap:8px;
+  align-items:flex-end; flex-shrink:0; background:var(--bg-card);
+}
+.chat-input-bar textarea {
+  flex:1; padding:10px 13px; border-radius:20px; border:1.5px solid var(--line);
+  font-family:inherit; font-size:13.5px; resize:none; max-height:100px;
+  min-height:40px; line-height:1.45; background:var(--bg);
+  outline:none; transition:border-color .2s;
+}
+.chat-input-bar textarea:focus { border-color:var(--teal); }
+.chat-send-btn {
+  width:42px; height:42px; border-radius:50%; border:none;
+  background:var(--teal); color:white; cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px;
+  transition:background .15s, transform .1s;
+}
+.chat-send-btn:active { transform:scale(0.92); }
+.chat-send-btn:disabled { background:var(--sand); cursor:not-allowed; }
+
+/* Unread badge on user-card */
+.uc-unread {
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--coral); color:white; font-size:10px; font-weight:700;
+  min-width:18px; height:18px; border-radius:9px; padding:0 4px;
+  margin-left:4px; vertical-align:middle;
+}
+
+/* Chat button in kongsi card */
+.kc-chat-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:7px 13px; border-radius:10px; border:1.5px solid var(--teal);
+  background:transparent; color:var(--teal); font-weight:700; font-size:12px;
+  cursor:pointer; font-family:inherit; transition:background .15s, color .15s;
+}
+.kc-chat-btn:hover { background:var(--teal); color:white; }
+
+/* Chat tab button in community */
+.chat-tab-btn {
+  display:flex; align-items:center; gap:6px;
+  padding:10px 16px; border-radius:12px; border:1.5px solid var(--teal);
+  background:transparent; color:var(--teal); font-weight:700; font-size:13px;
+  cursor:pointer; font-family:inherit; width:100%; justify-content:center;
+  margin-bottom:10px; transition:background .15s, color .15s;
+}
+.chat-tab-btn:hover { background:var(--teal); color:white; }
+
+/* Conversation list */
+.conv-list { display:flex; flex-direction:column; gap:6px; }
+.conv-item {
+  display:flex; align-items:center; gap:10px; padding:11px 14px;
+  border:1px solid var(--line); border-radius:13px; background:var(--bg-card);
+  cursor:pointer; transition:border-color .15s;
+}
+.conv-item:hover { border-color:var(--teal); }
+.conv-item .ci-avatar {
+  width:38px; height:38px; border-radius:50%; background:var(--sand);
+  border:2px solid var(--line); overflow:hidden; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:17px;
+}
+.conv-item .ci-avatar img { width:100%; height:100%; object-fit:cover; }
+.conv-item .ci-body { flex:1; min-width:0; }
+.conv-item .ci-name { font-weight:700; font-size:13.5px; }
+.conv-item .ci-last { font-size:12px; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.conv-item .ci-right { flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+.conv-item .ci-time { font-size:10.5px; color:var(--ink-soft); }
+
+/* Typing indicator */
+.typing-indicator { display:flex; gap:4px; align-items:center; padding:8px 12px; }
+.typing-dot { width:6px; height:6px; border-radius:50%; background:var(--ink-soft); animation:typingBounce 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay:.15s; }
+.typing-dot:nth-child(3) { animation-delay:.3s; }
+@keyframes typingBounce { 0%,80%,100%{transform:translateY(0);opacity:0.4;} 40%{transform:translateY(-5px);opacity:1;} }
+</style>
+<style>
 .leaflet-routing-container-custom { 
   background: white; border-radius: 12px; padding: 10px 12px; 
   box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-width: 280px; 
@@ -765,6 +910,81 @@
   max-height: 200px; overflow-y: auto;
 }
 .leaflet-routing-container { display: none !important; }
+
+/* ===== KURIR ROUTE MAP UPGRADE ===== */
+.kurir-map-wrap { position:relative; border-radius:13px; overflow:hidden; border:1.5px solid #EFE6D8; }
+.kurir-map-wrap .km-inner { width:100%; height:300px; }
+.kurir-map-controls {
+  display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;
+}
+.km-mode-btn {
+  flex:1; min-width:80px; padding:8px 6px; border-radius:10px; border:1.5px solid #EFE6D8;
+  background:white; color:#1B4D4A; font-weight:700; font-size:12px; cursor:pointer;
+  text-align:center; transition:all .15s; font-family:inherit;
+}
+.km-mode-btn.active { background:#1B4D4A; color:white; border-color:#1B4D4A; }
+.km-route-info {
+  background:#F0F9F4; border:1.5px solid #B7DFC8; border-radius:11px;
+  padding:10px 13px; margin-top:8px; font-size:12.5px;
+  display:none;
+}
+.km-route-info.show { display:block; }
+.km-route-info .kri-row { display:flex; justify-content:space-between; margin-bottom:4px; }
+.km-route-info .kri-label { color:#666; }
+.km-route-info .kri-val { font-weight:700; color:#1B4D4A; }
+.km-traffic-badge {
+  display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; margin-left:6px;
+}
+.km-traffic-lancar { background:#DCFCE7; color:#166534; }
+.km-traffic-sedang { background:#FEF3C7; color:#92400E; }
+.km-traffic-macet { background:#FEE2E2; color:#991B1B; }
+.km-streetview-btn {
+  width:100%; padding:10px; border-radius:10px; border:none;
+  background:linear-gradient(135deg,#1a73e8,#1557b0); color:white;
+  font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;
+  margin-top:8px; display:flex; align-items:center; justify-content:center; gap:7px;
+}
+.km-streetview-panel {
+  display:none; margin-top:8px; border-radius:12px; overflow:hidden;
+  border:1.5px solid #EFE6D8; background:#000; position:relative;
+}
+.km-streetview-panel.open { display:block; }
+.km-streetview-panel iframe { width:100%; height:280px; border:none; display:block; }
+.km-streetview-close {
+  position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.6); color:white;
+  border:none; border-radius:50%; width:30px; height:30px; font-size:16px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:10;
+}
+.km-steps-list { margin-top:8px; display:none; }
+.km-steps-list.show { display:block; }
+.km-step-item {
+  display:flex; align-items:flex-start; gap:8px; padding:8px 0;
+  border-bottom:1px dashed #EFE6D8; font-size:12px; color:#333;
+}
+.km-step-item:last-child { border-bottom:none; }
+.km-step-icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+.km-steps-toggle {
+  width:100%; padding:9px; border-radius:10px; border:1.5px solid #EFE6D8;
+  background:transparent; color:#1B4D4A; font-weight:700; font-size:12.5px;
+  cursor:pointer; font-family:inherit; margin-top:8px;
+}
+/* Live kurir dot pulse */
+.kurir-live-pulse {
+  width:18px; height:18px; border-radius:50%; background:#E8633F;
+  border:3px solid white; box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  animation: kurirPulse 1.5s infinite;
+}
+@keyframes kurirPulse {
+  0%,100% { box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 0 rgba(232,99,63,0.5); }
+  50% { box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 10px rgba(232,99,63,0); }
+}
+/* Street view fallback notice */
+.sv-fallback {
+  padding:20px; text-align:center; color:rgba(255,255,255,0.7); font-size:13px;
+  background:#1a1a2e; min-height:200px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px;
+}
+.sv-fallback a { color:#4FC3F7; text-decoration:none; font-weight:700; }
 </style>
 <style>
 /* ===== INNOVATION MODULES: Pasar Kongsi + Otak AI ===== */
@@ -1395,6 +1615,21 @@
 
       <div class="section-divider">Status Saya di Komunitas</div>
       <div id="mySelfCard" style="margin-bottom:12px;"></div>
+      <!-- ===== CHAT SECTION ===== -->
+      <div class="section-divider" id="chatSectionDivider" style="cursor:pointer;" onclick="toggleChatSection()">
+        💬 Pesan — Chat Komunitas
+        <span id="chatSectionToggleIcon" style="font-size:12px;font-weight:700;color:var(--teal);margin-left:6px;">▼ Buka</span>
+        <span id="chatSectionUnreadBadge" style="display:none;background:var(--coral);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;margin-left:6px;"></span>
+      </div>
+      <div id="chatSection" style="display:none;margin-bottom:18px;">
+        <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:10px;">
+          <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;">Chat langsung dengan sesama UMKM. Klik nama pengguna di bawah untuk mulai chat.</div>
+          <div id="convList" class="conv-list">
+            <div class="empty-state" style="padding:16px 0;font-size:12.5px;">Belum ada percakapan. Pilih pengguna di bawah untuk memulai chat.</div>
+          </div>
+        </div>
+      </div>
+
       <div class="section-divider">Pengguna Lain</div>
       <div class="user-directory" id="userDirectory">
         <div class="empty-state">Memuat daftar pengguna...</div>
@@ -1472,8 +1707,26 @@
           <input type="number" id="kgPriceK" placeholder="0">
           <label>WhatsApp kurir</label>
           <input type="text" id="kgWaK" placeholder="08123456789">
-          <button type="button" id="kgPreviewRouteBtn" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:13px;cursor:pointer;">&#128506; Preview Rute di Peta</button>
-          <div id="kgRoutePreview" style="display:none;margin-top:8px;border-radius:11px;overflow:hidden;height:200px;border:1.5px solid #EFE6D8;"></div>
+
+          <!-- Mode rute -->
+          <label style="margin-top:10px;display:block;">Mode Rute</label>
+          <div class="kurir-map-controls" id="kgRouteModes">
+            <button class="km-mode-btn active" data-mode="driving">🚗 Kendaraan</button>
+            <button class="km-mode-btn" data-mode="walking">🚶 Jalan Kaki</button>
+            <button class="km-mode-btn" data-mode="cycling">🚲 Sepeda</button>
+          </div>
+
+          <button type="button" id="kgPreviewRouteBtn" style="margin-top:4px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:13px;cursor:pointer;">&#128506; Preview Rute di Peta</button>
+          <div id="kgRoutePreview" style="display:none;margin-top:8px;">
+            <div class="kurir-map-wrap">
+              <div id="kgRoutePreviewMap" class="km-inner"></div>
+            </div>
+            <div class="km-route-info" id="kgRouteInfo">
+              <div class="kri-row"><span class="kri-label">📏 Jarak</span><span class="kri-val" id="kgRouteDistance">—</span></div>
+              <div class="kri-row"><span class="kri-label">⏱️ Estimasi waktu</span><span class="kri-val" id="kgRouteDuration">—</span></div>
+              <div class="kri-row"><span class="kri-label">🚦 Kondisi jalan</span><span class="kri-val" id="kgRouteTraffic">—</span></div>
+            </div>
+          </div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <button class="kg-primary" id="kgSubmit" style="flex:1;">Posting</button>
@@ -1615,6 +1868,38 @@
   </div>
 
   <footer>Solusi Digital untuk UMKM · Ditenagai Groq &amp; OpenRouter AI</footer>
+</div>
+
+<!-- ===== CHAT MODAL ===== -->
+<div class="chat-modal-overlay" id="chatModalOverlay">
+  <div class="chat-box" id="chatBox">
+    <div class="chat-header">
+      <div class="chat-header-avatar" id="chatHeaderAvatar">👤</div>
+      <div class="chat-header-info">
+        <div class="chat-header-name" id="chatHeaderName">Nama</div>
+        <div class="chat-header-sub" id="chatHeaderSub">Menghubungkan...</div>
+      </div>
+      <!-- tombol telepon WA hanya tampil kalau ada nomor WA dari profil -->
+      <a id="chatHeaderWA" href="#" target="_blank" style="display:none;width:34px;height:34px;border-radius:50%;background:#25D366;color:white;text-decoration:none;display:none;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;" title="Hubungi via WhatsApp">📞</a>
+      <button class="chat-header-close" id="chatClose" title="Tutup chat">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">
+        <div class="ce-icon">💬</div>
+        <div>Memuat pesan...</div>
+      </div>
+    </div>
+    <div id="chatTypingRow" style="display:none;padding:0 16px 4px;min-height:22px;">
+      <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);">
+        <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+        <span id="chatTypingName"></span> sedang mengetik...
+      </div>
+    </div>
+    <div class="chat-input-bar">
+      <textarea id="chatInput" placeholder="Ketik pesan..." rows="1"></textarea>
+      <button class="chat-send-btn" id="chatSendBtn" disabled title="Kirim">➤</button>
+    </div>
+  </div>
 </div>
 
 <!-- ===== FULLSCREEN IMAGE VIEWER ===== -->
@@ -5804,7 +6089,10 @@ function renderUserDirectory(){
         <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}${uAdminBadge}${uTierBadge}</div>
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>
       </div>
-      <div class="uc-right">${u.online?'🟢 Online':'🔴 Offline'}</div>
+      <div class="uc-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+        <span>${u.online?'🟢 Online':'🔴 Offline'}</span>
+        <button class="uc-chat-btn" data-uid="${u.uid}" data-name="${escapeHtml(name)}" data-photo="${escapeHtml(u.profilePhotoUrl||'')}" onclick="event.stopPropagation();openChat('${u.uid}','${escapeHtml(name).replace(/'/g,'')}','${escapeHtml(u.profilePhotoUrl||'')}')" style="padding:4px 9px;border-radius:20px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">💬 Chat</button>
+      </div>
       ${delBtn}
     </div>`;
   }).join('');
@@ -7662,11 +7950,32 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <span style="background:#FFF1D6;color:#A07000;padding:3px 9px;border-radius:20px;font-weight:700;">🏁 ${escapeHtml(it.to||'—')}</span>
           ${trackStatus}
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:8px;">
-          <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
-          ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
+        <div class="kurir-map-controls" style="margin-bottom:6px;">
+          <button class="km-mode-btn active" data-mapmode="driving" data-mapid="${it.id}">🚗 Kendaraan</button>
+          <button class="km-mode-btn" data-mapmode="walking" data-mapid="${it.id}">🚶 Jalan Kaki</button>
+          <button class="km-mode-btn" data-mapmode="cycling" data-mapid="${it.id}">🚲 Sepeda</button>
         </div>
-        <div id="lrmap-${it.id}" style="display:none;height:200px;border-radius:10px;overflow:hidden;margin-bottom:8px;border:1.5px solid #EFE6D8;"></div>` : '';
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+          <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
+          <button class="kc-streetview-btn-open" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;font-weight:700;font-size:12px;cursor:pointer;">📸 Street View</button>
+          ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
+        </div>
+        <div id="lrmap-${it.id}" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:8px;">
+          <div class="kurir-map-wrap">
+            <div id="lrmap-inner-${it.id}" style="height:260px;"></div>
+          </div>
+          <div class="km-route-info" id="lrinfo-${it.id}">
+            <div class="kri-row"><span class="kri-label">📏 Jarak</span><span class="kri-val" id="lrdist-${it.id}">—</span></div>
+            <div class="kri-row"><span class="kri-label">⏱️ Estimasi</span><span class="kri-val" id="lrdur-${it.id}">—</span></div>
+            <div class="kri-row"><span class="kri-label">🚦 Kondisi</span><span class="kri-val" id="lrtraffic-${it.id}">—</span></div>
+          </div>
+          <button class="km-steps-toggle" id="lrstepsbtn-${it.id}">📋 Lihat Petunjuk Arah</button>
+          <div class="km-steps-list" id="lrsteps-${it.id}"></div>
+        </div>
+        <div class="km-streetview-panel" id="lrsv-${it.id}">
+          <button class="km-streetview-close" onclick="document.getElementById('lrsv-${it.id}').classList.remove('open')">✕</button>
+          <div id="lrsv-inner-${it.id}"></div>
+        </div>` : '';
       return `<div class="kongsi-card">
         <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
         <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
@@ -7674,7 +7983,10 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         <div class="kc-desc">${escapeHtml(it.desc||'')}</div>
         <div class="kc-foot">
           <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
-          ${wa?`<a class="kc-wa" href="${waLink}" target="_blank" rel="noopener">💬 Hubungi WA</a>`:''}
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Penjual')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> Chat Penjual</button>`:''}
+            ${wa?`<a class="kc-wa" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
+          </div>
         </div>
         ${isMine?`<div style="text-align:right;margin-top:6px;"><button class="kc-del" data-del="${it.id}">Hapus tawaran saya</button></div>`:''}
       </div>`;
@@ -7690,7 +8002,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(!navigator.geolocation){ alert('GPS tidak tersedia di perangkat ini.'); return; }
     if(!window.firebaseReady){ alert('Firebase belum tersambung.'); return; }
     kurirTrackingId = itemId;
-    // Tandai sedang tracking di Firebase
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId), {tracking:true});
     kurirWatchId = navigator.geolocation.watchPosition(async pos=>{
       const {latitude:lat,longitude:lng} = pos.coords;
@@ -7714,7 +8025,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     alert('⏹ Tracking GPS dihentikan.');
   }
 
-  // Realtime listener per peta yang terbuka — update marker kurir live
   const kurirPosListeners = {};
   function attachKurirPosListener(itemId, map){
     if(kurirPosListeners[itemId]) return;
@@ -7723,21 +8033,254 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const pos = snap.val();
       if(!pos||!pos.lat) return;
       if(kurirLiveMarker && map.hasLayer(kurirLiveMarker)) map.removeLayer(kurirLiveMarker);
-      const icon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+      const icon = L.divIcon({className:'',html:'<div class="kurir-live-pulse"></div>',iconSize:[18,18],iconAnchor:[9,9]});
       kurirLiveMarker = L.marker([pos.lat,pos.lng],{icon}).addTo(map)
-        .bindPopup('🛵 Kurir di sini'+(pos.speed?'<br>Kecepatan: '+pos.speed:'')).openPopup();
+        .bindPopup('🛵 Kurir sedang di sini'+(pos.speed?'<br>🚀 Kecepatan: '+pos.speed:'')).openPopup();
       map.panTo([pos.lat,pos.lng]);
     });
     kurirPosListeners[itemId] = unsub;
   }
 
+  // ===== OSRM ROUTING ENGINE (free, no API key) =====
+  // profile: driving / walking / cycling
+  async function getOSRMRoute(fromLatLon, toLatLon, profile='driving'){
+    try {
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${fromLatLon[1]},${fromLatLon[0]};${toLatLon[1]},${toLatLon[0]}?overview=full&geometries=geojson&steps=true&annotations=true`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if(d.code==='Ok' && d.routes && d.routes[0]) return d.routes[0];
+    } catch(e){}
+    return null;
+  }
+
+  // Decode polyline and estimate traffic by speed segments
+  function estimateTraffic(route){
+    if(!route || !route.legs) return 'lancar';
+    let totalDur=0, totalDist=0;
+    route.legs.forEach(leg=>{totalDur+=leg.duration; totalDist+=leg.distance;});
+    if(totalDist===0) return 'lancar';
+    const avgSpeedKmh = (totalDist/totalDur)*3.6; // m/s -> km/h
+    if(avgSpeedKmh < 10) return 'macet';
+    if(avgSpeedKmh < 25) return 'sedang';
+    return 'lancar';
+  }
+
+  function trafficBadge(status){
+    if(status==='macet') return '<span class="km-traffic-badge km-traffic-macet">🔴 Macet</span>';
+    if(status==='sedang') return '<span class="km-traffic-badge km-traffic-sedang">🟡 Sedang</span>';
+    return '<span class="km-traffic-badge km-traffic-lancar">🟢 Lancar</span>';
+  }
+
+  function trafficColor(status){
+    if(status==='macet') return '#DC2626';
+    if(status==='sedang') return '#D97706';
+    return '#059669';
+  }
+
+  function fmtDuration(seconds){
+    const h=Math.floor(seconds/3600), m=Math.floor((seconds%3600)/60);
+    if(h>0) return h+'j '+m+'m';
+    return m+' menit';
+  }
+  function fmtDistance(meters){
+    if(meters>=1000) return (meters/1000).toFixed(1)+' km';
+    return Math.round(meters)+' m';
+  }
+
+  function buildStepsHtml(route){
+    if(!route||!route.legs) return '';
+    const steps=[];
+    route.legs.forEach(leg=>{
+      if(leg.steps) leg.steps.forEach(s=>{
+        if(s.maneuver && s.name){
+          const t=s.maneuver.type||'';
+          let icon='➡️';
+          if(t==='turn'){ const mod=s.maneuver.modifier||''; if(mod.includes('left'))icon='↰'; else if(mod.includes('right'))icon='↱'; }
+          else if(t==='depart')icon='🟢';
+          else if(t==='arrive')icon='🏁';
+          else if(t==='roundabout'||t==='rotary')icon='🔄';
+          steps.push(`<div class="km-step-item"><span class="km-step-icon">${icon}</span><span>${escapeHtml(s.name||'Terus jalan')} <span style="color:#999;font-size:11px;">(${fmtDistance(s.distance||0)})</span></span></div>`);
+        }
+      });
+    });
+    return steps.join('');
+  }
+
+  // ===== TILE LAYER WITH LABELS =====
+  function addLabeledTileLayer(map){
+    // Use CartoDB Voyager which shows Indonesian city/area names clearly
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+      subdomains: 'abcd', maxZoom: 20
+    }).addTo(map);
+  }
+
+  // ===== DRAW ROUTE ON MAP =====
+  async function drawRouteOnMap(map, origLatLon, destLatLon, profile, routeInfoEl, stepsEl, stepsBtnEl){
+    // Clear existing route layers
+    map.eachLayer(layer=>{
+      if(layer._routeLayer) map.removeLayer(layer);
+    });
+
+    // Fallback straight line immediately
+    const fallbackLine = L.polyline([origLatLon, destLatLon],{color:'#94A3B8',weight:3,dashArray:'8,6'}).addTo(map);
+    fallbackLine._routeLayer = true;
+
+    const route = await getOSRMRoute(origLatLon, destLatLon, profile);
+    map.removeLayer(fallbackLine);
+
+    if(route && route.geometry){
+      const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+      const traffic = estimateTraffic(route);
+      const color = trafficColor(traffic);
+
+      // Draw thick route line
+      const routeLine = L.polyline(coords,{color, weight:5, opacity:0.9}).addTo(map);
+      routeLine._routeLayer = true;
+
+      // Casing (border) for visibility
+      const caseLine = L.polyline(coords,{color:'white', weight:8, opacity:0.4}).addTo(map);
+      caseLine._routeLayer = true;
+      caseLine.bringToBack();
+
+      map.fitBounds(routeLine.getBounds(),{padding:[30,30]});
+
+      // Update info
+      if(routeInfoEl){
+        routeInfoEl.classList.add('show');
+        // Support both named IDs and querySelector fallback
+        const distEl = routeInfoEl.querySelector('[id$="Distance"],[id^="lrdist"]');
+        const durEl = routeInfoEl.querySelector('[id$="Duration"],[id^="lrdur"]');
+        const trafEl = routeInfoEl.querySelector('[id$="Traffic"],[id^="lrtraffic"]');
+        if(distEl) distEl.innerHTML = fmtDistance(route.distance||0);
+        if(durEl) durEl.innerHTML = fmtDuration(route.duration||0);
+        if(trafEl) trafEl.innerHTML = trafficBadge(traffic);
+      }
+
+      // Steps
+      if(stepsEl){
+        stepsEl.innerHTML = buildStepsHtml(route);
+        if(stepsBtnEl) stepsBtnEl.style.display='block';
+      }
+    } else {
+      // Fallback: straight dashed line
+      const fallback2 = L.polyline([origLatLon, destLatLon],{color:'#1B4D4A',weight:4,dashArray:'8,6'}).addTo(map);
+      fallback2._routeLayer = true;
+      map.fitBounds(fallback2.getBounds(),{padding:[30,30]});
+      if(routeInfoEl) routeInfoEl.innerHTML='<div style="color:#666;font-size:12px;">⚠️ Rute detail tidak tersedia, tampil garis lurus estimasi.</div>', routeInfoEl.classList.add('show');
+    }
+  }
+
+  // ===== STREET VIEW via Mapillary =====
+  function openStreetView(containerId, lat, lng, fallbackName){
+    const panel = document.getElementById(containerId);
+    if(!panel) return;
+    panel.classList.add('open');
+    const inner = panel.querySelector('[id^=lrsv-inner]') || panel.querySelector('div:last-child');
+    if(!inner) return;
+
+    // Try Mapillary viewer (open platform, street-level imagery)
+    // Mapillary closest image API
+    const mapillaryUrl = `https://www.mapillary.com/embed?image_key=null&x=0.5&y=0.5&client_id=MLY%7C4381520045248549%7C8cb1978e46afe79b1e3d19b31e55e98c&style=photo&lat=${lat}&lng=${lng}`;
+
+    inner.innerHTML = `
+      <div style="background:#111827;padding:14px;text-align:center;">
+        <div style="font-size:13px;color:white;font-weight:700;margin-bottom:10px;">📸 Street View — ${escapeHtml(fallbackName)}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:12px;">Pilih sumber foto jalan nyata:</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <a href="https://www.google.com/maps/@${lat},${lng},3a,90y,0h,90t/data=!3m4!1e1!3m2!1s1!2e0" target="_blank" style="background:#1a73e8;color:white;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;">
+            🌐 Buka di Google Street View
+          </a>
+          <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}" target="_blank" style="background:#25863C;color:white;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;">
+            🗺️ Buka di OpenStreetMap
+          </a>
+          <a href="https://www.mapillary.com/app/?lat=${lat}&lng=${lng}&z=17" target="_blank" style="background:#E8633F;color:white;padding:10px 16px;border-radius:10px;text-decoration:none;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;">
+            📷 Lihat Foto Jalan di Mapillary
+          </a>
+        </div>
+        <div style="margin-top:14px;border-radius:10px;overflow:hidden;height:200px;border:1px solid rgba(255,255,255,0.1);">
+          <iframe src="https://www.mapillary.com/embed?image_key=null&x=0.5&y=0.5&client_id=MLY%7C4381520045248549%7C8cb1978e46afe79b1e3d19b31e55e98c&style=photo&lat=${lat}&lng=${lng}" 
+            style="width:100%;height:100%;border:none;" loading="lazy"
+            title="Street View ${escapeHtml(fallbackName)}"></iframe>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:8px;">Foto jalan nyata dari komunitas Mapillary (open source)</div>
+      </div>`;
+  }
+
+  // ===== Mode per map (driving/walking/cycling) =====
+  const listMapModes = {}; // id -> current mode
+
   $$('kgList').addEventListener('click', async e=>{
+    // Track button
     const trackBtn = e.target.closest('.kc-track-btn');
     if(trackBtn){
       const id = trackBtn.dataset.id;
       const isTracking = trackBtn.style.background.includes('FDE') || trackBtn.textContent.includes('Stop');
       if(isTracking){ await stopKurirTracking(id); }
       else { await startKurirTracking(id); }
+      return;
+    }
+
+    // Mode button inside card
+    const modeBtn = e.target.closest('[data-mapmode]');
+    if(modeBtn){
+      const id = modeBtn.dataset.mapid;
+      const mode = modeBtn.dataset.mapmode;
+      if(!id) return;
+      // Update active button
+      const card = modeBtn.closest('.kongsi-card');
+      if(card) card.querySelectorAll('[data-mapmode]').forEach(b=>b.classList.remove('active'));
+      modeBtn.classList.add('active');
+      listMapModes[id] = mode;
+      // Redraw if map is open
+      if(listRouteMaps[id]){
+        const item = cache.find(x=>x.id===id);
+        if(item){
+          const wrap = document.getElementById('lrmap-'+id);
+          if(wrap && wrap.style.display==='block'){
+            const orig = await geocode(item.from||item.city||'');
+            const dest = await geocode(item.to||'');
+            if(orig && dest){
+              const routeInfoEl = document.getElementById('lrinfo-'+id);
+              const stepsEl = document.getElementById('lrsteps-'+id);
+              const stepsBtnEl = document.getElementById('lrstepsbtn-'+id);
+              await drawRouteOnMap(listRouteMaps[id],[orig.lat,orig.lon],[dest.lat,dest.lon],mode,routeInfoEl,stepsEl,stepsBtnEl);
+            }
+          }
+        }
+      }
+      return;
+    }
+
+    // Street view button
+    const svBtn = e.target.closest('.kc-streetview-btn-open');
+    if(svBtn){
+      const id = svBtn.dataset.id;
+      const fromName = svBtn.dataset.from;
+      const svPanel = document.getElementById('lrsv-'+id);
+      if(svPanel && svPanel.classList.contains('open')){ svPanel.classList.remove('open'); return; }
+      // Geocode destination for street view
+      const dest = await geocode(svBtn.dataset.to || svBtn.dataset.from);
+      const orig = await geocode(svBtn.dataset.from || svBtn.dataset.to);
+      const loc = orig || dest;
+      if(loc){
+        openStreetView('lrsv-'+id, loc.lat, loc.lon, fromName);
+      } else {
+        alert('Lokasi tidak ditemukan untuk Street View.');
+      }
+      return;
+    }
+
+    // Steps toggle
+    const stepsBtn = e.target.closest('.km-steps-toggle');
+    if(stepsBtn){
+      const id = stepsBtn.id.replace('lrstepsbtn-','');
+      const stepsEl = document.getElementById('lrsteps-'+id);
+      if(stepsEl){
+        const isOpen = stepsEl.classList.contains('show');
+        stepsEl.classList.toggle('show');
+        stepsBtn.textContent = isOpen ? '📋 Lihat Petunjuk Arah' : '📋 Sembunyikan Petunjuk';
+      }
       return;
     }
   });
@@ -7747,27 +8290,50 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const btn=e.target.closest('.kc-show-route');
     if(!btn) return;
     const id=btn.dataset.id;
-    const from=btn.dataset.from.trim();
-    const to=btn.dataset.to.trim();
+    const from=(btn.dataset.from||'').trim();
+    const to=(btn.dataset.to||'').trim();
     const wrap=document.getElementById('lrmap-'+id);
     if(!wrap) return;
-    if(wrap.style.display==='block'){wrap.style.display='none';btn.textContent='🗺️ Lihat Rute di Peta';if(listRouteMaps[id]){listRouteMaps[id].remove();delete listRouteMaps[id];}return;}
+
+    if(wrap.style.display==='block'){
+      wrap.style.display='none';
+      btn.textContent='🗺️ Lihat Rute';
+      if(listRouteMaps[id]){listRouteMaps[id].remove();delete listRouteMaps[id];}
+      return;
+    }
+
     btn.textContent='⏳ Memuat peta...'; btn.disabled=true;
     const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
-    btn.textContent='🗺️ Sembunyikan Peta'; btn.disabled=false;
+    btn.textContent='🗺️ Sembunyikan Rute'; btn.disabled=false;
     if(!orig||!dest){alert('Lokasi tidak ditemukan.');return;}
+
     wrap.style.display='block';
     if(listRouteMaps[id]){listRouteMaps[id].remove();}
-    const m=L.map(wrap).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(m);
-    L.marker([orig.lat,orig.lon]).addTo(m).bindPopup('📍 Asal: '+from).openPopup();
-    L.marker([dest.lat,dest.lon]).addTo(m).bindPopup('🏁 Tujuan: '+to);
-    const line=L.polyline([[orig.lat,orig.lon],[dest.lat,dest.lon]],{color:'#1B4D4A',weight:4,dashArray:'8,6'}).addTo(m);
-    m.fitBounds(line.getBounds(),{padding:[20,20]});
-    if(window.L&&L.Routing&&L.Routing.control){try{L.Routing.control({waypoints:[L.latLng(orig.lat,orig.lon),L.latLng(dest.lat,dest.lon)],routeWhileDragging:false,show:false,addWaypoints:false,lineOptions:{styles:[{color:'#E8633F',weight:4}]}}).addTo(m);m.removeLayer(line);}catch(er){}}
+
+    const innerEl = document.getElementById('lrmap-inner-'+id);
+    if(!innerEl) return;
+
+    const m = L.map(innerEl,{zoomControl:true}).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+    addLabeledTileLayer(m);
+
+    // Start marker
+    const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(m)
+      .bindPopup(`<div style="font-size:12px;"><b>📍 Asal</b><br>${escapeHtml(from)}</div>`).openPopup();
+    L.marker([dest.lat,dest.lon],{icon:endIcon}).addTo(m)
+      .bindPopup(`<div style="font-size:12px;"><b>🏁 Tujuan</b><br>${escapeHtml(to)}</div>`);
+
     listRouteMaps[id]=m;
+    const currentMode = listMapModes[id] || 'driving';
+    const routeInfoEl = document.getElementById('lrinfo-'+id);
+    const stepsEl = document.getElementById('lrsteps-'+id);
+    const stepsBtnEl = document.getElementById('lrstepsbtn-'+id);
+    if(stepsBtnEl) stepsBtnEl.style.display='none';
+    await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],currentMode,routeInfoEl,stepsEl,stepsBtnEl);
     setTimeout(()=>m.invalidateSize(),150);
-    // Pasang listener posisi kurir live jika Firebase tersedia
+
+    // Pasang listener posisi kurir live
     if(window.firebaseReady && window.firebaseDb){ attachKurirPosListener(id,m); }
   });
 
@@ -7799,6 +8365,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   function addItem(item){
     item.ts=Date.now();
     item.ownerKey=getOwnerKey();
+    // Simpan UID Firebase & info pemilik agar user lain bisa chat langsung
+    if(typeof MY_UID !== 'undefined' && MY_UID) item.ownerUid = MY_UID;
+    if(typeof myProfile !== 'undefined' && myProfile){
+      item.ownerName = myProfile.displayName || myProfile.storeName || '';
+      item.ownerPhoto = myProfile.profilePhotoUrl || '';
+    }
     if(window.firebaseReady && window.firebaseDb){
       try{
         const r=window.rtdbRef(window.firebaseDb,'pasarKongsi');
@@ -7839,7 +8411,24 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     return null;
   }
 
+  // ===== PREVIEW RUTE (form) =====
   let kgRouteMap=null;
+  let kgPreviewMode='driving';
+
+  // Mode buttons in the form
+  document.querySelectorAll('#kgRouteModes .km-mode-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('#kgRouteModes .km-mode-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      kgPreviewMode = btn.dataset.mode;
+      // If map already open, redraw
+      if(kgRouteMap){
+        const from=$$('kgFrom').value.trim(), to=$$('kgTo').value.trim();
+        if(from && to) previewKurirRoute();
+      }
+    });
+  });
+
   async function previewKurirRoute(){
     const from=$$('kgFrom').value.trim();
     const to=$$('kgTo').value.trim();
@@ -7849,22 +8438,32 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
     btn.textContent='🗺️ Preview Rute di Peta'; btn.disabled=false;
     if(!orig||!dest){alert('Lokasi tidak ditemukan. Coba tulis lebih spesifik, contoh: "Ciledug, Tangerang".');return;}
+
     const wrap=$$('kgRoutePreview');
     wrap.style.display='block';
     if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
-    kgRouteMap=L.map(wrap).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(kgRouteMap);
-    const mFrom=L.marker([orig.lat,orig.lon]).addTo(kgRouteMap).bindPopup('📍 Asal: '+from).openPopup();
-    const mTo=L.marker([dest.lat,dest.lon]).addTo(kgRouteMap).bindPopup('🏁 Tujuan: '+to);
-    // Gambar garis lurus dulu sebagai fallback; coba routing machine jika tersedia
-    const line=L.polyline([[orig.lat,orig.lon],[dest.lat,dest.lon]],{color:'#1B4D4A',weight:4,dashArray:'8,6'}).addTo(kgRouteMap);
-    kgRouteMap.fitBounds(line.getBounds(),{padding:[20,20]});
-    if(window.L&&L.Routing&&L.Routing.control){
-      try{
-        L.Routing.control({waypoints:[L.latLng(orig.lat,orig.lon),L.latLng(dest.lat,dest.lon)],routeWhileDragging:false,show:false,addWaypoints:false,lineOptions:{styles:[{color:'#E8633F',weight:4}]}}).addTo(kgRouteMap);
-        kgRouteMap.removeLayer(line);
-      }catch(er){}
+
+    const mapEl = document.getElementById('kgRoutePreviewMap');
+    if(!mapEl){ return; }
+
+    kgRouteMap=L.map(mapEl,{zoomControl:true}).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+    addLabeledTileLayer(kgRouteMap);
+
+    const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+    L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(kgRouteMap).bindPopup(`<b>📍 Asal</b><br>${escapeHtml(from)}`).openPopup();
+    L.marker([dest.lat,dest.lon],{icon:endIcon}).addTo(kgRouteMap).bindPopup(`<b>🏁 Tujuan</b><br>${escapeHtml(to)}`);
+
+    const routeInfoEl = document.getElementById('kgRouteInfo');
+    if(routeInfoEl){
+      routeInfoEl.classList.add('show');
+      // Wire element IDs for drawRouteOnMap
+      routeInfoEl.querySelector('#kgRouteDistance').textContent='⏳ Menghitung...';
+      routeInfoEl.querySelector('#kgRouteDuration').textContent='⏳';
+      routeInfoEl.querySelector('#kgRouteTraffic').innerHTML='⏳';
     }
+
+    await drawRouteOnMap(kgRouteMap,[orig.lat,orig.lon],[dest.lat,dest.lon],kgPreviewMode,routeInfoEl,null,null);
     setTimeout(()=>kgRouteMap.invalidateSize(),150);
   }
 
@@ -7880,6 +8479,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         $$('kgForm').classList.remove('open');
         if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
         $$('kgRoutePreview').style.display='none';
+        const ri=$$('kgRouteInfo'); if(ri) ri.classList.remove('show');
         renderList(cache);
       });
     });
@@ -7891,6 +8491,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       $$('kgForm')?.classList.remove('open');
       if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
       $$('kgRoutePreview').style.display='none';
+      // Reset route info
+      const ri=$$('kgRouteInfo'); if(ri) ri.classList.remove('show');
     });
     $$('kgRefreshBtn')?.addEventListener('click',refresh);
     $$('kgPreviewRouteBtn')?.addEventListener('click',previewKurirRoute);
@@ -7919,6 +8521,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         ['kgTitleK','kgDescK','kgFrom','kgTo','kgPriceK','kgWaK'].forEach(id=>$$(id).value='');
         if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
         $$('kgRoutePreview').style.display='none';
+        const ri=$$('kgRouteInfo'); if(ri) ri.classList.remove('show');
       }
       addItem(item);
       $$('kgForm').classList.remove('open');
@@ -7929,7 +8532,17 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(id && confirm('Hapus tawaran ini?'))delItem(id);
   });
 
-  // Auto-refresh on tab open
+  // Chat dari kartu Kongsi
+  $$('kgList').addEventListener('click',e=>{
+    const btn=e.target.closest('.kc-chat-btn');
+    if(!btn) return;
+    const uid=btn.dataset.chatUid;
+    const name=btn.dataset.chatName||'Penjual';
+    const photo=btn.dataset.chatPhoto||'';
+    if(!uid){ alert('Penjual belum punya akun terdaftar, hubungi via WA.'); return; }
+    if(typeof openChat==='function') openChat(uid, name, photo);
+    else alert('Fitur chat sedang dimuat, coba lagi sebentar.');
+  });
   document.querySelectorAll('.tab[data-panel="kongsi"]').forEach(t=>t.addEventListener('click',refresh));
 
   function setupKongsiRealtime(){
@@ -8163,6 +8776,412 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   // Panggil refreshStatus segera (bukan hanya setelah 1 detik) agar tombol langsung aktif
   refreshStatus();
   setTimeout(refreshStatus,1000);
+})();
+
+/* =====================================================================
+   FITUR CHAT KOMUNITAS — Real-time dua arah via Firebase RTDB
+   path: chats/{chatId}/messages/{msgId}
+         chats/{chatId}/meta
+         typing/{chatId}/{uid}
+   chatId = [uid1, uid2].sort().join('_')
+   ===================================================================== */
+(function(){
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let activeChatUid   = null;   // UID lawan bicara
+  let activeChatId    = null;   // Firebase path key
+  let messagesUnsub   = null;   // Firebase listener pesan aktif
+  let typingUnsub     = null;   // Firebase listener typing lawan
+  let convListUnsub   = null;   // Firebase listener semua conversation saya
+  let typingTimer     = null;   // Debounce set typing=false
+  let lastDateLabel   = '';     // Untuk date divider
+
+  const totalUnread   = {};     // {chatId: count}
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function getChatId(uid1, uid2){ return [uid1, uid2].sort().join('_'); }
+  function fmtMsgTime(ts){
+    const d=new Date(ts);
+    return d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  }
+  function fmtMsgDate(ts){
+    const d=new Date(ts);
+    const today=new Date(); const yesterday=new Date(today); yesterday.setDate(today.getDate()-1);
+    if(d.toDateString()===today.toDateString()) return 'Hari ini';
+    if(d.toDateString()===yesterday.toDateString()) return 'Kemarin';
+    return d.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+  }
+  function scrollToBottom(smooth){
+    const el=document.getElementById('chatMessages');
+    if(!el) return;
+    el.scrollTo({top:el.scrollHeight, behavior:smooth?'smooth':'auto'});
+  }
+  function escHtml(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+
+  // ── Avatar helper ──────────────────────────────────────────────────────────
+  function avatarHtml(photoUrl, fallback){
+    if(photoUrl) return `<img src="${escHtml(photoUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='${fallback||'👤'}'">`; 
+    return fallback||'👤';
+  }
+
+  // ── Firebase guard ─────────────────────────────────────────────────────────
+  function fbReady(){ return !!(window.firebaseReady && window.firebaseDb && typeof MY_UID !== 'undefined' && MY_UID); }
+
+  // ── Open chat modal ────────────────────────────────────────────────────────
+  window.openChat = function(peerUid, peerName, peerPhoto){
+    if(!fbReady()){ alert('Login dulu untuk menggunakan fitur chat.'); return; }
+    if(peerUid === MY_UID){ alert('Kamu tidak bisa chat dengan dirimu sendiri.'); return; }
+
+    activeChatUid = peerUid;
+    activeChatId  = getChatId(MY_UID, peerUid);
+
+    // ── Isi header ──────────────────────────────────────────────────────────
+    const avatarEl = document.getElementById('chatHeaderAvatar');
+    if(avatarEl) avatarEl.innerHTML = peerPhoto
+      ? `<img src="${escHtml(peerPhoto)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.innerHTML='👤'">`
+      : '👤';
+
+    const nameEl = document.getElementById('chatHeaderName');
+    if(nameEl) nameEl.textContent = peerName || 'Pengguna';
+
+    // Status online dari cache
+    const peerPresence = (typeof allPresenceCache !== 'undefined' && allPresenceCache[peerUid]) || {};
+    const subEl = document.getElementById('chatHeaderSub');
+    if(subEl) subEl.textContent = peerPresence.online ? '🟢 Online sekarang' : '🔴 Terakhir aktif ' + (peerPresence.lastSeen ? new Date(peerPresence.lastSeen).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}) : 'beberapa saat lalu');
+
+    // Tombol WA jika peerProfile ada paymentId / WA
+    const peerProfile = (typeof allUsersCache !== 'undefined' && allUsersCache[peerUid]) || {};
+    const waEl = document.getElementById('chatHeaderWA');
+    if(waEl){
+      const waNum = (peerProfile.paymentId||'').replace(/\D/g,'');
+      if(waNum && waNum.length > 8){
+        const cleanWA = waNum.startsWith('0') ? '62'+waNum.slice(1) : waNum;
+        waEl.href = `https://wa.me/${cleanWA}`;
+        waEl.style.display='flex';
+      } else {
+        waEl.style.display='none';
+      }
+    }
+
+    // Reset input & messages
+    const inp = document.getElementById('chatInput');
+    if(inp){ inp.value=''; autoResizeTextarea(inp); }
+    const sendBtn = document.getElementById('chatSendBtn');
+    if(sendBtn) sendBtn.disabled = false;
+
+    document.getElementById('chatMessages').innerHTML = `<div class="chat-empty"><div class="ce-icon">⏳</div><div>Memuat pesan...</div></div>`;
+    document.getElementById('chatTypingRow').style.display='none';
+
+    // Show modal
+    document.getElementById('chatModalOverlay').classList.add('show');
+    document.body.style.overflow='hidden';
+    if(inp) setTimeout(()=>inp.focus(), 300);
+
+    // ── Bersihkan listener lama ─────────────────────────────────────────────
+    _detachListeners();
+
+    // ── Tandai pesan terbaca ────────────────────────────────────────────────
+    markAsRead(activeChatId);
+
+    // ── Pasang listener pesan ───────────────────────────────────────────────
+    const msgRef = window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`);
+    const msgQ   = window.rtdbQuery(msgRef, window.rtdbOrderByChild('ts'), window.rtdbLimitToLast(100));
+
+    let firstLoad = true;
+    messagesUnsub = window.rtdbOnValue(msgQ, snap=>{
+      const val = snap.val();
+      const msgEl = document.getElementById('chatMessages');
+      if(!msgEl) return;
+
+      if(!val){
+        msgEl.innerHTML = `<div class="chat-empty"><div class="ce-icon">💬</div><div>Belum ada pesan. Kirim yang pertama!</div></div>`;
+        return;
+      }
+
+      const msgs = Object.entries(val)
+        .map(([id,m])=>({id,...m}))
+        .sort((a,b)=>(a.ts||0)-(b.ts||0));
+
+      let html = '';
+      let lastDate = '';
+      msgs.forEach(m=>{
+        const isMine = m.from === MY_UID;
+        const dateStr = fmtMsgDate(m.ts||Date.now());
+        if(dateStr !== lastDate){
+          html += `<div class="chat-date-divider">${escHtml(dateStr)}</div>`;
+          lastDate = dateStr;
+        }
+        const timeStr = fmtMsgTime(m.ts||Date.now());
+        const readTick = isMine ? (m.read ? ' <span style="color:#8FE3B0;font-size:10px;">✓✓</span>' : ' <span style="opacity:0.5;font-size:10px;">✓</span>') : '';
+        html += `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">
+          <div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>
+          <div class="chat-bubble-meta">${timeStr}${readTick}</div>
+        </div>`;
+      });
+      msgEl.innerHTML = html;
+      scrollToBottom(!firstLoad);
+      firstLoad = false;
+
+      // Tandai terbaca saat dapat pesan baru
+      markAsRead(activeChatId);
+      // Update unread counter di conversation list
+      updateConvList();
+    });
+
+    // ── Pasang listener typing ──────────────────────────────────────────────
+    const typRef = window.rtdbRef(window.firebaseDb, `typing/${activeChatId}/${peerUid}`);
+    typingUnsub = window.rtdbOnValue(typRef, snap=>{
+      const isTyping = !!snap.val();
+      const row = document.getElementById('chatTypingRow');
+      const nm  = document.getElementById('chatTypingName');
+      if(row) row.style.display = isTyping ? 'block' : 'none';
+      if(nm)  nm.textContent   = peerName || 'Mereka';
+      if(isTyping) scrollToBottom(true);
+    });
+  };
+
+  // ── Close chat ─────────────────────────────────────────────────────────────
+  function closeChat(){
+    document.getElementById('chatModalOverlay').classList.remove('show');
+    document.body.style.overflow='';
+    _setTyping(false);
+    _detachListeners();
+    activeChatUid = null;
+    activeChatId  = null;
+  }
+
+  document.getElementById('chatClose')?.addEventListener('click', closeChat);
+  document.getElementById('chatModalOverlay')?.addEventListener('click', e=>{
+    if(e.target === e.currentTarget) closeChat();
+  });
+
+  // ── Detach Firebase listeners ──────────────────────────────────────────────
+  function _detachListeners(){
+    if(messagesUnsub){ try{messagesUnsub();}catch(e){} messagesUnsub=null; }
+    if(typingUnsub){   try{typingUnsub();}catch(e){} typingUnsub=null; }
+    clearTimeout(typingTimer);
+  }
+
+  // ── Send message ───────────────────────────────────────────────────────────
+  async function sendMessage(){
+    if(!fbReady() || !activeChatId || !activeChatUid) return;
+    const inp = document.getElementById('chatInput');
+    const text = (inp?.value || '').trim();
+    if(!text) return;
+    inp.value=''; autoResizeTextarea(inp);
+    _setTyping(false);
+
+    const myName = (typeof myProfile !== 'undefined' && myProfile)
+      ? (myProfile.displayName || myProfile.storeName || 'Saya')
+      : 'Saya';
+    const myPhoto = (typeof myProfile !== 'undefined' && myProfile) ? (myProfile.profilePhotoUrl||'') : '';
+
+    const msgData = {
+      from: MY_UID,
+      fromName: myName,
+      fromPhoto: myPhoto,
+      to: activeChatUid,
+      text, ts: Date.now(), read: false
+    };
+
+    try{
+      // Push pesan
+      const newMsgRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/messages`));
+      await window.rtdbSet(newMsgRef, msgData);
+
+      // Update meta (preview percakapan)
+      const peerName = document.getElementById('chatHeaderName')?.textContent || 'Pengguna';
+      const peerPhoto = document.getElementById('chatHeaderAvatar')?.querySelector('img')?.src || '';
+      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `chats/${activeChatId}/meta`), {
+        lastMsg: text,
+        lastTs: Date.now(),
+        [`participants/${MY_UID}`]: {name:myName, photo:myPhoto},
+        [`participants/${activeChatUid}`]: {name:peerName, photo:peerPhoto},
+        [`unread/${activeChatUid}`]: (window.rtdbServerTimestamp ? window.rtdbServerTimestamp() : Date.now())
+      });
+    } catch(err){
+      console.error('[chat] gagal kirim:', err);
+      alert('Gagal mengirim pesan: '+err.message);
+    }
+  }
+
+  // ── Typing indicator ────────────────────────────────────────────────────────
+  function _setTyping(isTyping){
+    if(!fbReady() || !activeChatId || !MY_UID) return;
+    try{
+      window.rtdbSet(window.rtdbRef(window.firebaseDb, `typing/${activeChatId}/${MY_UID}`), isTyping||null);
+    }catch(e){}
+  }
+
+  // ── Mark as read ────────────────────────────────────────────────────────────
+  function markAsRead(chatId){
+    if(!fbReady() || !chatId || !MY_UID) return;
+    try{
+      // Hapus unread counter untuk diri sendiri
+      window.rtdbSet(window.rtdbRef(window.firebaseDb, `chats/${chatId}/meta/unread/${MY_UID}`), null);
+      // Tandai semua pesan yang dikirim ke saya sebagai terbaca
+      const msgsRef = window.rtdbRef(window.firebaseDb, `chats/${chatId}/messages`);
+      window.rtdbGet(msgsRef).then(snap=>{
+        const val = snap.val()||{};
+        const updates={};
+        Object.entries(val).forEach(([id,m])=>{ if(m.to===MY_UID && !m.read) updates[`chats/${chatId}/messages/${id}/read`]=true; });
+        if(Object.keys(updates).length) window.rtdbUpdate(window.rtdbRef(window.firebaseDb), updates).catch(()=>{});
+      }).catch(()=>{});
+    }catch(e){}
+  }
+
+  // ── Textarea auto-resize ────────────────────────────────────────────────────
+  function autoResizeTextarea(el){
+    el.style.height='auto';
+    el.style.height=Math.min(el.scrollHeight, 100)+'px';
+  }
+
+  // ── Wire input ──────────────────────────────────────────────────────────────
+  const chatInputEl  = document.getElementById('chatInput');
+  const chatSendBtn  = document.getElementById('chatSendBtn');
+
+  chatInputEl?.addEventListener('input', function(){
+    autoResizeTextarea(this);
+    chatSendBtn.disabled = !this.value.trim();
+    // Typing indicator
+    _setTyping(true);
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(()=>_setTyping(false), 3000);
+  });
+
+  chatInputEl?.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+  });
+
+  chatSendBtn?.addEventListener('click', sendMessage);
+
+  // Escape key tutup chat
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeChat(); });
+
+  // ── Conversation list (percakapan aktif saya) ───────────────────────────────
+  function startConvListListener(){
+    if(!fbReady()) return;
+    if(convListUnsub){ try{convListUnsub();}catch(e){} convListUnsub=null; }
+
+    // Dengarkan semua chat yang melibatkan MY_UID
+    // Struktur: chats/{chatId}/meta.participants/{MY_UID} exists
+    const allChatsRef = window.rtdbRef(window.firebaseDb, 'chats');
+    convListUnsub = window.rtdbOnValue(allChatsRef, snap=>{
+      const all = snap.val()||{};
+      const myChats = Object.entries(all)
+        .filter(([chatId, data])=> chatId.includes(MY_UID) && data.meta)
+        .map(([chatId, data])=>({chatId, ...data.meta}))
+        .sort((a,b)=>(b.lastTs||0)-(a.lastTs||0));
+
+      updateConvListUI(myChats);
+    });
+  }
+
+  // Dipanggil ulang setelah login
+  window._startConvListListener = startConvListListener;
+
+  function updateConvList(){ /* dipanggil dari pesan listener — cukup trigger ulang conv list */ }
+
+  let totalUnreadCount = 0;
+  function updateConvListUI(chats){
+    const listEl = document.getElementById('convList');
+    const badge  = document.getElementById('chatSectionUnreadBadge');
+    if(!listEl) return;
+
+    if(!chats || chats.length === 0){
+      listEl.innerHTML = '<div class="empty-state" style="padding:16px 0;font-size:12.5px;">Belum ada percakapan. Klik Chat di profil pengguna lain untuk memulai.</div>';
+      if(badge) badge.style.display='none';
+      return;
+    }
+
+    let totalUnread = 0;
+    let html = '';
+    chats.forEach(c=>{
+      const chatId = c.chatId;
+      // Tentukan siapa lawan bicara
+      const peerUid = chatId.replace(MY_UID+'_','').replace('_'+MY_UID,'');
+      const peerInfo = (c.participants && c.participants[peerUid]) || {};
+      const myUnread = c.unread && c.unread[MY_UID];
+      const unreadCount = myUnread ? 1 : 0;
+      totalUnread += unreadCount;
+
+      const peerName = peerInfo.name || (typeof allUsersCache !== 'undefined' && allUsersCache[peerUid] && (allUsersCache[peerUid].displayName||allUsersCache[peerUid].storeName)) || 'Pengguna';
+      const peerPhoto= peerInfo.photo || (typeof allUsersCache !== 'undefined' && allUsersCache[peerUid] && allUsersCache[peerUid].profilePhotoUrl) || '';
+      const peerOnline = typeof allPresenceCache !== 'undefined' && !!(allPresenceCache[peerUid]||{}).online;
+      const timeStr = c.lastTs ? fmtMsgTime(c.lastTs) : '';
+      const lastMsgPreview = (c.lastMsg||'').slice(0,40) + ((c.lastMsg||'').length>40?'…':'');
+
+      html += `<div class="conv-item" onclick="openChat('${escHtml(peerUid)}','${escHtml(peerName).replace(/'/g,'')}','${escHtml(peerPhoto)}')">
+        <div class="ci-avatar" style="position:relative;">${peerPhoto ? `<img src="${escHtml(peerPhoto)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">` : '👤'}
+          ${peerOnline ? '<div style="position:absolute;bottom:0;right:0;width:10px;height:10px;background:#2D7A4F;border-radius:50%;border:2px solid white;"></div>' : ''}
+        </div>
+        <div class="ci-body">
+          <div class="ci-name">${escHtml(peerName)}${unreadCount>0?`<span class="uc-unread">${unreadCount}</span>`:''}</div>
+          <div class="ci-last">${escHtml(lastMsgPreview)}</div>
+        </div>
+        <div class="ci-right">
+          <span class="ci-time">${timeStr}</span>
+        </div>
+      </div>`;
+    });
+    listEl.innerHTML = html;
+
+    // Update global unread badge & notif dot
+    totalUnreadCount = totalUnread;
+    if(badge){
+      if(totalUnread > 0){ badge.textContent=totalUnread+' baru'; badge.style.display=''; }
+      else { badge.style.display='none'; }
+    }
+    // Notif dot di header
+    if(totalUnread > 0 && typeof addNotif==='function'){
+      document.getElementById('notifDot')?.classList.add('show');
+    }
+  }
+
+  // ── Toggle chat section ─────────────────────────────────────────────────────
+  window.toggleChatSection = function(){
+    const sec  = document.getElementById('chatSection');
+    const icon = document.getElementById('chatSectionToggleIcon');
+    if(!sec) return;
+    const isOpen = sec.style.display !== 'none';
+    sec.style.display = isOpen ? 'none' : 'block';
+    if(icon) icon.textContent = isOpen ? '▼ Buka' : '▲ Tutup';
+    if(!isOpen) startConvListListener();
+  };
+
+  // ── Start listener setelah login ─────────────────────────────────────────────
+  function onFirebaseReady(){
+    if(typeof MY_UID !== 'undefined' && MY_UID){
+      startConvListListener();
+    } else {
+      // Tunggu MY_UID tersedia
+      const _orig = window.fbOnAuthStateChanged;
+      if(_orig && window.fbAuth){
+        _orig(window.fbAuth, user=>{
+          if(user && user.uid){ startConvListListener(); }
+        });
+      }
+    }
+  }
+
+  if(window.firebaseReady){ setTimeout(onFirebaseReady, 800); }
+  else { document.addEventListener('firebase-ready', ()=>setTimeout(onFirebaseReady,800)); }
+
+  // Hook ke onAuthStateChanged yang sudah ada — pastikan conv list mulai setelah login
+  document.addEventListener('firebase-ready', ()=>{
+    if(window.fbOnAuthStateChanged && window.fbAuth){
+      window.fbOnAuthStateChanged(window.fbAuth, user=>{
+        if(user){ setTimeout(startConvListListener, 1200); }
+        else {
+          if(convListUnsub){ try{convListUnsub();}catch(e){} convListUnsub=null; }
+          const listEl=document.getElementById('convList');
+          if(listEl) listEl.innerHTML='<div class="empty-state" style="padding:16px 0;font-size:12.5px;">Login untuk melihat percakapan.</div>';
+        }
+      });
+    }
+  });
+
 })();
 </script>
 </body>

@@ -4386,16 +4386,19 @@ async function renderCommunityMap(){
     try{ communityMap.removeLayer(m); }catch(e){}
   });
   // Bersihkan cache marker tapi pertahankan live marker
-  const _savedLiveMk = communityMapMarkers['user_'+MY_UID] === myMarkerLive ? myMarkerLive : null;
+  // FIX BUG BERLIPAT: simpan myMarkerLive ke cache selama objeknya ada —
+  // tidak perlu cek locWatchId/navMode. locWatchId callback sudah punya guard
+  // sendiri (hasLayer + addTo), jadi marker live tidak akan dobel di peta.
   communityMapMarkers = {};
-  if(_savedLiveMk && (locWatchId !== null || navMode)){
-    communityMapMarkers['user_'+MY_UID] = _savedLiveMk;
+  if(myMarkerLive){
+    communityMapMarkers['user_'+MY_UID] = myMarkerLive;
   }
 
   // ── 5. Render marker GPS user ─────────────────────────────────
   userPoints.forEach(p => {
-    // Kalau ini marker "Saya" dan live tracking / navigasi aktif, skip — myMarkerLive yang mengurus
-    if(p.isMe && (locWatchId !== null || navMode) && myMarkerLive) return;
+    // Kalau ini marker "Saya" dan myMarkerLive sudah ada, skip —
+    // locWatchId/navWatchId callback yang mengurus posisi & keberadaannya di peta
+    if(p.isMe && myMarkerLive) return;
     const visBadge = p.isMe
       ? (p.visibility==='private'
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
@@ -4409,7 +4412,7 @@ async function renderCommunityMap(){
       +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">🏪 '+escapeHtml(p.storeName)+'</div>':'')
       +visBadge
       +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
-      +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<button onclick="goAddStoreFromMap()" style="margin-top:9px;width:100%;padding:7px 0;border:1.5px dashed #1B4D4A;border-radius:9px;background:transparent;color:#1B4D4A;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Tambah Toko</button>')
+      +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<button onclick="goAddStoreFromMap()" style="margin-top:9px;width:100%;padding:7px 0;border:1.5px dashed #1B4D4A;border-radius:9px;background:transparent;color:#1B4D4A;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Tambah Toko</button><button onclick="stopShareLocAndRemoveMarker()" style="margin-top:6px;width:100%;padding:7px 0;border:1.5px solid #C84F2F;border-radius:9px;background:#FFF0F0;color:#C84F2F;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Lokasiku dari Peta</button>')
       +'</div>';
     const _uPhotoUrl = (allUsersCache[p.uid] || {}).profilePhotoUrl || null;
     communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe, _uPhotoUrl)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
@@ -5541,6 +5544,27 @@ $('stopShareLocBtn').addEventListener('click', async () => {
     if(typeof renderCommunityMap==='function') renderCommunityMap();
   } catch(err){ alert('Gagal berhenti membagikan lokasi: '+err.message); }
 });
+
+// Dipanggil dari tombol "Hapus Lokasiku dari Peta" di popup marker GPS user sendiri
+async function stopShareLocAndRemoveMarker(){
+  if(communityMap) communityMap.closePopup();
+  if(!confirm('Hapus lokasi GPS-mu dari peta komunitas? Kamu bisa bagikan lagi kapan saja.')) return;
+  if(locWatchId !== null){ navigator.geolocation.clearWatch(locWatchId); locWatchId = null; }
+  if(myMarkerLive && communityMap){ try{ communityMap.removeLayer(myMarkerLive); }catch(e){} myMarkerLive = null; }
+  delete communityMapMarkers['user_'+MY_UID];
+  if(window.firebaseReady){
+    try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/location')); }
+    catch(err){ console.warn('Gagal hapus lokasi Firebase:', err.message); }
+  }
+  myLocation = null; locVisibilityMode = 'public'; locPrivateAllowedUIDs = new Set();
+  try{
+    $('locStatus').textContent = '📍 Lokasi belum dibagikan';
+    $('locVisibilityBadge').style.display = 'none';
+    $('shareLocBtn').style.display = 'block';
+    $('stopShareLocBtn').style.display = 'none';
+  }catch(e){}
+  if(typeof renderCommunityMap==='function') renderCommunityMap();
+}
 
 function renderUserDirectory(){
   if(typeof populateCollabInviteSelect === 'function') populateCollabInviteSelect();

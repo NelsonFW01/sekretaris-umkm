@@ -848,7 +848,8 @@
   word-break:break-word; position:relative;
 }
 .chat-bubble.mine { background:var(--teal); color:white; border-bottom-right-radius:5px; }
-.chat-bubble.theirs { background:var(--sand); color:var(--ink); border-bottom-left-radius:5px; }
+.chat-bubble.theirs { background:#FFFFFF; color:var(--ink); border-bottom-left-radius:5px; border:1px solid var(--line); }
+body.dark-mode .chat-bubble.theirs { background:#2C2C2C; border-color:#3A3A3A; }
 /* Image bubble */
 .chat-bubble-img { padding:4px; border-radius:14px; overflow:hidden; max-width:220px; cursor:zoom-in; }
 .chat-bubble-img img { width:100%; border-radius:10px; display:block; max-height:200px; object-fit:cover; }
@@ -4150,6 +4151,9 @@ function startNavigation(){
     // Throttle 800ms, geser kamera ke depan user mengikuti arah rute
     if(followCameraMode && communityMap && !mapUserInteracting){
       const now = Date.now();
+      // Hanya update bila user benar-benar bergerak >= 3 meter (cegah kamera jalan sendiri saat diam)
+      const _movedM = (lastNavLat!=null && lastNavLng!=null) ? haversineM(lastNavLat,lastNavLng,lat,lng) : 999;
+      if(_movedM < 3) return; // diam — jangan geser kamera/marker
       if(now - lastCameraUpdate > 800){
         lastCameraUpdate = now;
         let camLat = lat, camLng = lng;
@@ -4158,29 +4162,42 @@ function startNavigation(){
           // Geser 45% ke arah look-ahead agar rute terlihat "di depan" user
           camLat = lat + (la.lat - lat) * 0.45;
           camLng = lng + (la.lng - lng) * 0.45;
-          // Update marker user dengan ikon panah arah (bearing) jika bisa
+          // Update marker user dengan ikon panah arah (bearing) hanya saat bergerak
           try {
             const bearing = computeBearing(lat, lng, la.lat, la.lng);
             const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
             const arrowIcon = L.divIcon({
               className:'',
-              html:`<div style="position:relative;width:42px;height:42px;">
-                <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
+              html:`<div style="position:relative;width:42px;height:56px;">
+                <div style="position:absolute;top:14px;left:0;right:0;bottom:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
                   ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
                 </div>
-                <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:16px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">▲</div>
+                <div style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:16px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">▲</div>
               </div>`,
-              iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24]
+              iconSize:[42,56], iconAnchor:[21,42], popupAnchor:[0,-44]
             });
             if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
           } catch(e){}
         }
         const curZoom = communityMap.getZoom();
         const targetZoom = Math.max(curZoom, 17);
+        // POV FIX: offset kamera lebih jauh ke depan arah perjalanan (bukan hanya look-ahead 45%)
+        // Hitung jarak offset dalam derajat lat/lng berdasarkan bearing
+        let finalLat = camLat, finalLng = camLng;
+        if(activeRouteCoords && activeRouteCoords.length > 1){
+          try{
+            const la2 = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 400);
+            const brg = computeBearing(lat, lng, la2.lat, la2.lng) * Math.PI / 180;
+            // Geser pusat peta ~250m ke depan arah bearing agar user ada di bawah, rute di atas
+            const offsetDeg = 0.0018; // ~200m
+            finalLat = lat + Math.cos(brg) * offsetDeg;
+            finalLng = lng + Math.sin(brg) * offsetDeg;
+          }catch(e){ finalLat=camLat; finalLng=camLng; }
+        }
         if(curZoom !== targetZoom){
-          communityMap.setView([camLat,camLng], targetZoom, {animate:false});
+          communityMap.setView([finalLat,finalLng], targetZoom, {animate:false});
         } else {
-          communityMap.panTo([camLat,camLng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
+          communityMap.panTo([finalLat,finalLng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
         }
       }
     }
@@ -4745,13 +4762,13 @@ function makeUserIcon(isMe, photoUrl){
     return L.divIcon({
       className: '',
       html: '<div style="width:36px;height:36px;border-radius:50%;border:3px solid '+border+';box-shadow:0 2px 8px rgba(0,0,0,0.35);overflow:hidden;background:#fff;"><img src="'+photoUrl+'" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML=\''+fallback+'\'"></div>',
-      iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-20]
+      iconSize: [36,36], iconAnchor: [18,36], popupAnchor: [0,-38]
     });
   }
   return L.divIcon({
     className: '',
     html: '<div style="width:34px;height:34px;border-radius:50%;background:'+border+';border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">'+fallback+'</div>',
-    iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-18]
+    iconSize: [34,34], iconAnchor: [17,34], popupAnchor: [0,-36]
   });
 }
 

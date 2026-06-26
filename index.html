@@ -1783,6 +1783,24 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           </div>
         </div>
       </div>
+      <!-- ===== PANEL ADMIN: MONITOR SEMUA CHAT ===== -->
+      <div id="adminChatMonitorSection" style="display:none; margin-top:20px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <div style="flex:1;height:1px;background:linear-gradient(to right,#F5C2C2,#FEE2E2);"></div>
+          <span style="font-size:12px;font-weight:700;color:#991B1B;letter-spacing:0.05em;white-space:nowrap;">💬 MONITOR CHAT</span>
+          <div style="flex:1;height:1px;background:linear-gradient(to left,#F5C2C2,#FEE2E2);"></div>
+        </div>
+        <div style="background:#FFF8F8;border:1.5px solid #FECACA;border-radius:14px;padding:16px;">
+          <div style="font-size:13.5px;font-weight:700;color:#991B1B;margin-bottom:4px;">Semua Percakapan User</div>
+          <div style="font-size:12px;color:var(--ink-soft);margin-bottom:12px;">Admin bisa lihat &amp; hapus semua chat antar pengguna.</div>
+          <div id="adminChatList"><div class="empty-state">Memuat chat...</div></div>
+          <div id="adminChatDetail" style="display:none;margin-top:14px;">
+            <button id="adminChatBack" style="font-size:12px;padding:5px 12px;border:1px solid #ccc;border-radius:8px;background:#fff;cursor:pointer;margin-bottom:10px;">← Kembali</button>
+            <div id="adminChatDetailTitle" style="font-size:13px;font-weight:700;color:#991B1B;margin-bottom:8px;"></div>
+            <div id="adminChatMessages" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
+          </div>
+        </div>
+      </div>
     </section>
     <!-- ===== PASAR KONGSI PANEL ===== -->
     <section class="panel" id="panel-kongsi">
@@ -2846,6 +2864,18 @@ function initAuthGate(){
       if(typeof renderAdminUserList === 'function') renderAdminUserList();
       if(typeof renderGalleryFromCache === 'function') renderGalleryFromCache();
       if(typeof renderVideoGalleryFromCache === 'function') renderVideoGalleryFromCache();
+      // ── Simpan FCM token ke RTDB agar server bisa kirim push notif ──
+      if(window.getFcmToken){
+        window.getFcmToken().then(tok => {
+          if(tok && window.firebaseDb){
+            // Simpan token ke /fcmTokens/<uid>/<index>: <token_asli>
+            // Key harus valid Firebase path (tidak ada . # $ [ ])
+            const safeTok = btoa(tok.slice(-20)).replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
+            window.rtdbUpdate(window.rtdbRef(window.firebaseDb,`fcmTokens/${MY_UID}`),{[safeTok]: tok})
+              .catch(()=>{});
+          }
+        });
+      }
     } else {
       MY_UID = null;
       currentAuthEmail=''; isAdmin=false;
@@ -2863,6 +2893,33 @@ else { document.addEventListener('firebase-config-missing', ()=>{ $a('authError'
 // ============ STATE ============
 // KEY ADMIN — fallback kalau user belum isi key sendiri.
 // Kalau quota admin hampir habis (rate limit 429), user akan dapat warning.
+// ── Push notif server-side via notify.js (Vercel) ──────────────────────────
+// Ganti dengan URL deploy Vercel kamu, mis: https://nama-project.vercel.app/api/notify
+const NOTIFY_URL = ''; // <<< ISI URL VERCEL API DI SINI, contoh: 'https://xxx.vercel.app/api/notify'
+
+async function sendServerPush(toUid, title, body, url){
+  if(!NOTIFY_URL) return; // Belum dikonfigurasi
+  if(!window.firebaseDb) return;
+  try{
+    // Ambil semua FCM token milik penerima dari /fcmTokens/<uid>
+    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,`fcmTokens/${toUid}`));
+    const val = snap.val();
+    if(!val) return;
+    // Key di RTDB adalah token yang di-sanitize (. → _), tapi kita harus restore
+    // Simpan token asli: kita restore dari key tidak mungkin jadi kita simpan value=token
+    // Fallback: gunakan Object.keys jika value bukan true
+    const tokens = Object.entries(val)
+      .map(([k,v]) => (typeof v === 'string' ? v : k.replace(/_/g,'.')))
+      .filter(Boolean).slice(0,10);
+    if(tokens.length === 0) return;
+    await fetch(NOTIFY_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({tokens, title: String(title).slice(0,80), body: String(body||'').slice(0,150), url: url||'/'})
+    });
+  } catch(e){ /* silent — push notif bukan fitur kritis */ }
+}
+
 const ADMIN_GROQ_KEY = "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";
 const ADMIN_OPENROUTER_KEY = "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";
 
@@ -6570,6 +6627,113 @@ function renderAdminUserList(){
   }).join('');
 }
 
+// ===== ADMIN: MONITOR SEMUA CHAT =====
+(function(){
+  let _adminChatUnsub = null;
+  let _adminMsgUnsub = null;
+
+  function showAdminChatMonitor(){
+    const sec = document.getElementById('adminChatMonitorSection');
+    if(!sec || !isAdmin) return;
+    sec.style.display = 'block';
+    loadAdminChatList();
+  }
+
+  function loadAdminChatList(){
+    const listEl = document.getElementById('adminChatList');
+    if(!listEl || !window.firebaseDb) return;
+    if(_adminChatUnsub) { _adminChatUnsub(); _adminChatUnsub=null; }
+    listEl.innerHTML = '<div class="empty-state">Memuat...</div>';
+    _adminChatUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'chats'), snap => {
+      const chats = snap.val() || {};
+      const entries = Object.entries(chats);
+      if(entries.length === 0){ listEl.innerHTML='<div class="empty-state">Belum ada chat.</div>'; return; }
+      entries.sort(([,a],[,b]) => ((b.meta&&b.meta.lastTs)||0) - ((a.meta&&a.meta.lastTs)||0));
+      listEl.innerHTML = entries.map(([chatId, chat]) => {
+        const meta = chat.meta || {};
+        const parts = Object.values(meta.participants || {});
+        const names = parts.map(p=>escapeHtml(p.name||'?')).join(' ↔ ') || chatId;
+        const lastMsg = escapeHtml((meta.lastMsg||'').slice(0,50));
+        const ts = meta.lastTs ? new Date(meta.lastTs).toLocaleString('id-ID',{dateStyle:'short',timeStyle:'short'}) : '';
+        const msgCount = Object.keys(chat.messages||{}).length;
+        return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #FECACA;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${names}</div>
+            <div style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${lastMsg}</div>
+            <div style="font-size:11px;color:#aaa;margin-top:1px;">${ts} · ${msgCount} pesan</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
+            <button onclick="window._adminOpenChat('${chatId}','${escapeAttr(names)}')" style="font-size:11px;padding:4px 9px;border:1px solid #2563EB;border-radius:7px;background:#EFF6FF;color:#2563EB;cursor:pointer;font-weight:700;">👁️ Lihat</button>
+            <button onclick="window._adminDeleteChat('${chatId}')" style="font-size:11px;padding:4px 9px;border:1px solid #991B1B;border-radius:7px;background:#FEE2E2;color:#991B1B;cursor:pointer;font-weight:700;">🗑️ Hapus</button>
+          </div>
+        </div>`;
+      }).join('');
+    });
+  }
+
+  window._adminOpenChat = function(chatId, names){
+    const listEl = document.getElementById('adminChatList');
+    const detailEl = document.getElementById('adminChatDetail');
+    const titleEl = document.getElementById('adminChatDetailTitle');
+    const msgsEl = document.getElementById('adminChatMessages');
+    if(!listEl||!detailEl||!msgsEl) return;
+    listEl.style.display='none';
+    detailEl.style.display='block';
+    titleEl.textContent = names;
+    msgsEl.innerHTML = '<div class="empty-state">Memuat pesan...</div>';
+    if(_adminMsgUnsub){_adminMsgUnsub();_adminMsgUnsub=null;}
+    _adminMsgUnsub = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,`chats/${chatId}/messages`), snap => {
+      const msgs = snap.val()||{};
+      const arr = Object.entries(msgs).sort(([,a],[,b])=>a.ts-b.ts);
+      if(arr.length===0){msgsEl.innerHTML='<div class="empty-state">Tidak ada pesan.</div>';return;}
+      msgsEl.innerHTML = arr.map(([msgId,m]) => {
+        const ts = m.ts ? new Date(m.ts).toLocaleString('id-ID',{timeStyle:'short'}) : '';
+        const who = escapeHtml(m.fromName||m.from||'?');
+        const content = m.mediaType==='image'
+          ? `<img src="${m.mediaUrl}" style="max-width:120px;border-radius:6px;display:block;margin-top:3px;">`
+          : m.mediaType==='audio' ? `🎤 <em>Pesan suara</em>`
+          : escapeHtml(m.text||'');
+        return `<div style="padding:6px 8px;background:#FFF;border:1px solid #F5C2C2;border-radius:8px;font-size:12px;">
+          <div style="font-weight:700;font-size:11.5px;color:#991B1B;">${who} <span style="font-weight:400;color:#aaa;">${ts}</span>
+            <button onclick="window._adminDeleteMsg('${chatId}','${msgId}')" style="float:right;border:none;background:none;color:#C84F2F;cursor:pointer;font-size:11px;padding:0;">🗑️</button>
+          </div>
+          <div style="margin-top:2px;word-break:break-word;">${content}</div>
+        </div>`;
+      }).join('');
+      msgsEl.scrollTop = msgsEl.scrollHeight;
+    });
+    document.getElementById('adminChatBack').onclick = ()=>{
+      if(_adminMsgUnsub){_adminMsgUnsub();_adminMsgUnsub=null;}
+      listEl.style.display='block';
+      detailEl.style.display='none';
+    };
+  };
+
+  window._adminDeleteChat = async function(chatId){
+    if(!confirm('Hapus seluruh percakapan ini? Tidak bisa dibatalkan.')) return;
+    try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb,`chats/${chatId}`)); }
+    catch(e){ alert('Gagal hapus: '+e.message); }
+  };
+
+  window._adminDeleteMsg = async function(chatId, msgId){
+    if(!confirm('Hapus pesan ini?')) return;
+    try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb,`chats/${chatId}/messages/${msgId}`)); }
+    catch(e){ alert('Gagal hapus pesan: '+e.message); }
+  };
+
+  // Tampilkan monitor chat setelah renderAdminUserList dipanggil
+  const _origRenderAdmin = window.renderAdminUserList;
+  const _patchAdminMonitor = setInterval(()=>{
+    if(typeof renderAdminUserList !== 'function') return;
+    clearInterval(_patchAdminMonitor);
+    const orig = renderAdminUserList;
+    window.renderAdminUserList = function(){
+      orig.apply(this, arguments);
+      showAdminChatMonitor();
+    };
+  }, 500);
+})();
+
 // ===== ADMIN: SET TIER AKUN (Gratis / Premium / VVIP) =====
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('.admin-set-tier-btn');
@@ -9266,6 +9430,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         [`participants/${activeChatUid}`]: {name:peerName, photo:peerPhoto},
         [`unread/${activeChatUid}`]: (window.rtdbServerTimestamp ? window.rtdbServerTimestamp() : Date.now())
       });
+      // ── Kirim server push notif ke penerima ──
+      sendServerPush(activeChatUid, `💬 ${myName}`, lastMsg, '/').catch(()=>{});
     } catch(err){
       console.error('[chat] gagal kirim:', err);
       alert('Gagal mengirim pesan: '+err.message);
@@ -9720,7 +9886,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   let vcPeerUid=null, vcPeerName='', vcPeerPhoto='';
   let vcMicOn=true, vcCamOn=true;
   let vcIncomingUnsub=null, vcSignalUnsub=null;
-  const ICE=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
+  const ICE=[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    // TURN gratis dari Metered.ca — tanpa ini video/voice sering gagal di jaringan 4G/beda WiFi
+    {urls:'turn:a.relay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:a.relay.metered.ca:80?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:a.relay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turns:a.relay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
+  ];
 
   function fb(){ return !!(window.firebaseReady&&window.firebaseDb&&typeof MY_UID!=='undefined'&&MY_UID); }
   function vcRef(p){ return window.rtdbRef(window.firebaseDb,p); }

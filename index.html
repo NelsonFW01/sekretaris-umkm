@@ -87,6 +87,55 @@
       window.storageGetDownloadURL = getDownloadURL;
       window.storageDeleteObject = deleteObject;
       window.firebaseServerTimestamp = serverTimestamp;
+      // Firebase Cloud Messaging (FCM) untuk push notifikasi
+      try {
+        const { getMessaging, getToken, onMessage } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+        const messaging = getMessaging(app);
+        const FCM_VAPID_KEY = 'BBDMNnnH5LaEH32OvUrIf5_nfMrAJUxLrfWtA4qCF_RTesDqhahqFCDlLw7yYE6lZsRENYYJQ_Qa6Oxwz2DRDq8';
+
+        // Daftarkan firebase-messaging-sw.js untuk background push
+        let swReg = null;
+        if ('serviceWorker' in navigator) {
+          try {
+            swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          } catch(swErr) {
+            console.warn('[FCM] SW register gagal:', swErr.message);
+          }
+        }
+
+        // Ambil FCM token (minta permission notifikasi)
+        window.getFcmToken = async function() {
+          try {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') return null;
+            const token = await getMessaging && getToken(messaging, {
+              vapidKey: FCM_VAPID_KEY,
+              serviceWorkerRegistration: swReg
+            });
+            window._fcmToken = token;
+            return token;
+          } catch(e) {
+            console.warn('[FCM] getToken gagal:', e.message);
+            return null;
+          }
+        };
+
+        // Terima notifikasi saat app di foreground
+        onMessage(messaging, (payload) => {
+          const n = payload.notification || {};
+          const d = payload.data || {};
+          const title = n.title || d.title || 'Sekretaris UMKM';
+          const body = n.body || d.body || 'Ada notifikasi baru';
+          if (Notification.permission === 'granted') {
+            new Notification(title, { body, icon: '/icon-192.png', tag: d.tag || 'umkm' });
+          }
+        });
+
+        window.firebaseMessaging = messaging;
+      } catch(msgErr) {
+        console.warn('[FCM] Messaging init gagal:', msgErr.message);
+      }
+
       window.firebaseReady = true;
       document.dispatchEvent(new Event('firebase-ready'));
     } catch (err) {
@@ -9924,12 +9973,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     });
   `;
   let _swReg = null;
+  // Gunakan firebase-messaging-sw.js yang sudah ada (menggantikan blob SW)
   if('serviceWorker' in navigator){
-    const blob = new Blob([SW_SRC], {type:'application/javascript'});
-    const swUrl = URL.createObjectURL(blob);
-    navigator.serviceWorker.register(swUrl)
-      .then(reg => { _swReg = reg; })
-      .catch(e => console.warn('[SW]', e));
+    navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
+      .then(reg => { _swReg = reg || null; })
+      .catch(() => {});
   }
 
   function sendPushNotif(title, body, tag){
@@ -10118,11 +10166,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   // Simpan ke Firebase → sinkron otomatis ke kedua pihak
   window.applyChatWp = async function(wpVal, isReset){
-    if(!_currentChatIdWp) return;
-    // Terapkan lokal dulu supaya terasa responsif
+    // Terapkan lokal dulu supaya terasa responsif (warna langsung berubah)
     _applyWpVisual(wpVal);
     // Tutup panel
     if(!isReset) document.getElementById('chatWpPanel').style.display = 'none';
+    if(!_currentChatIdWp) return; // simpan ke Firebase hanya jika chat sedang terbuka
     // Simpan ke Firebase: chats/{chatId}/meta/wallpaper
     try{
       if(window.firebaseDb && window.rtdbUpdate){

@@ -4032,27 +4032,122 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   const straightM=haversineM(fromLat,fromLng,destLat,destLng);
   const timeoutMs=straightM>50000?20000:12000;
 
-  // OSRM fetch dengan steps=true untuk navigasi turn-by-turn
-  async function tryOSRM(srv){
-    const url=srv+'/driving/'+fromLng+','+fromLat+';'+destLng+','+destLat
+  // ── Routing bertingkat: OSRM driving → OSRM walking → GraphHopper → garis lurus ──
+
+  // Helper: normalisasi rute ke format internal {distance, duration, geometry{coordinates}, legs}
+  // sehingga kode di bawah tidak perlu tahu dari engine mana rute datang.
+
+  async function tryOSRM(srv, profile){
+    const p = profile || 'driving';
+    const url = srv+'/'+p+'/'+fromLng+','+fromLat+';'+destLng+','+destLat
       +'?overview=full&geometries=geojson&steps=true&annotations=false';
-    const resp=await fetch(url,{signal:AbortSignal.timeout(timeoutMs-2000)});
+    const resp = await fetch(url, {signal: AbortSignal.timeout(timeoutMs - 2000)});
     if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const d=await resp.json();
-    if(d.code!=='Ok'||!d.routes||!d.routes[0]) throw new Error('No route: '+d.code);
-    return d.routes[0];
+    const d = await resp.json();
+    if(d.code !== 'Ok' || !d.routes || !d.routes[0]) throw new Error('No route: '+d.code);
+    return d.routes[0]; // sudah format OSRM
   }
 
-  const servers=['https://router.project-osrm.org/route/v1',
-                 'https://routing.openstreetmap.de/routed-car/route/v1'];
-  let route=null;
-  for(const srv of servers){
-    try{ route=await tryOSRM(srv); break; }
-    catch(e){ console.warn('OSRM failed:',srv,e.message); }
+  // GraphHopper public API — tidak perlu API key, support Indonesia cukup baik
+  async function tryGraphHopper(){
+    const url = 'https://graphhopper.com/api/1/route'
+      +'?point='+fromLat+','+fromLng
+      +'&point='+destLat+','+destLng
+      +'&vehicle=car&locale=id&points_encoded=false'
+      +'&key=LijBPDQGfu7Iiq80ebFCtWMuznIa7Nq3iyBcId9V'; // free demo key, rate-limit 500/day
+    const resp = await fetch(url, {signal: AbortSignal.timeout(timeoutMs - 2000)});
+    if(!resp.ok) throw new Error('GH HTTP '+resp.status);
+    const d = await resp.json();
+    if(!d.paths || !d.paths[0]) throw new Error('GH no path');
+    const path = d.paths[0];
+    // Konversi ke format OSRM agar sisa kode tidak berubah
+    return {
+      distance: path.distance,
+      duration: path.time / 1000,
+      geometry: path.points, // sudah GeoJSON {type,coordinates}
+      legs: [{steps: (path.instructions || []).map(ins => ({
+        distance: ins.distance,
+        maneuver: {
+          location: [path.points.coordinates[ins.interval[0]][0], path.points.coordinates[ins.interval[0]][1]],
+          type: ins.sign === 0 ? 'continue' : ins.sign > 0 ? 'turn' : 'turn',
+          modifier: ins.sign > 0 ? 'right' : ins.sign < 0 ? 'left' : 'straight'
+        },
+        name: ins.street_name || ''
+      }))}]
+    };
   }
+
+  // OpenRouteService public API — fallback tambahan, coverage Indonesia lumayan
+  async function tryORS(){
+    const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'5b3ce3597851110001cf6248a3c69e728c4d44a49b057de5e62f4b2a'},
+      body: JSON.stringify({coordinates:[[fromLng,fromLat],[destLng,destLat]]}),
+      signal: AbortSignal.timeout(timeoutMs - 2000)
+    });
+    if(!resp.ok) throw new Error('ORS HTTP '+resp.status);
+    const d = await resp.json();
+    const feat = d.features && d.features[0];
+    if(!feat) throw new Error('ORS no feature');
+    const seg = feat.properties.segments && feat.properties.segments[0];
+    return {
+      distance: feat.properties.summary.distance,
+      duration: feat.properties.summary.duration,
+      geometry: feat.geometry,
+      legs: [{steps: seg ? seg.steps.map(s => ({
+        distance: s.distance,
+        maneuver: {
+          location: feat.geometry.coordinates[s.way_points[0]],
+          type: 'turn',
+          modifier: s.instruction.toLowerCase().includes('kanan')||s.instruction.toLowerCase().includes('right') ? 'right' : 'left'
+        },
+        name: s.name || ''
+      })) : []}]
+    };
+  }
+
+  let route = null;
+  let routeEngine = '';
+
+  // 1. OSRM driving — dua server
+  const osrmDrivingServers = [
+    'https://router.project-osrm.org/route/v1',
+    'https://routing.openstreetmap.de/routed-car/route/v1'
+  ];
+  for(const srv of osrmDrivingServers){
+    try{ route = await tryOSRM(srv, 'driving'); routeEngine = 'osrm-driving'; break; }
+    catch(e){ console.warn('OSRM driving failed:', srv, e.message); }
+  }
+
+  // 2. OSRM walking — bisa lewat jalan yang tidak terjangkau mobil
+  if(!route){
+    const osrmWalkServers = [
+      'https://router.project-osrm.org/route/v1',
+      'https://routing.openstreetmap.de/routed-foot/route/v1'
+    ];
+    for(const srv of osrmWalkServers){
+      try{ route = await tryOSRM(srv, 'foot'); routeEngine = 'osrm-walking'; break; }
+      catch(e){ console.warn('OSRM walking failed:', srv, e.message); }
+    }
+  }
+
+  // 3. GraphHopper — engine berbeda, data OSM yang sama tapi algoritma lebih toleran
+  if(!route){
+    try{ route = await tryGraphHopper(); routeEngine = 'graphhopper'; }
+    catch(e){ console.warn('GraphHopper failed:', e.message); }
+  }
+
+  // 4. OpenRouteService — coverage tambahan
+  if(!route){
+    try{ route = await tryORS(); routeEngine = 'ors'; }
+    catch(e){ console.warn('ORS failed:', e.message); }
+  }
+
+  console.log('[routing] engine used:', routeEngine || 'none (garis lurus)');
 
   if(!route){
-    // Fallback garis lurus
+    // Terakhir: garis lurus dengan info lengkap
     const poly=L.polyline([[fromLat,fromLng],[destLat,destLng]],
       {color:'#1B4D4A',weight:5,opacity:0.75,dashArray:'12,8'}).addTo(communityMap);
     activeRoute={_fallbackLine:poly};
@@ -4065,6 +4160,7 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     bar.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div><div style="font-size:13px;font-weight:700;color:#C84F2F;">⚠️ Rute tidak tersedia</div><div style="font-size:12px;color:#888;margin-top:2px;">'+escapeHtml(destName)+' · ~'+fmtDist(straightM)+' garis lurus</div></div><button onclick="clearActiveRoute();" style="border:none;background:#f0f0f0;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:14px;">✕</button></div><a href="https://www.google.com/maps/dir/'+fromLat+','+fromLng+'/'+destLat+','+destLng+'" target="_blank" style="display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Buka Google Maps ↗</a>';
     return;
   }
+
 
   // Gambar polyline rute nyata
   const coords=route.geometry.coordinates.map(c=>L.latLng(c[1],c[0]));
@@ -5545,7 +5641,6 @@ $('stopShareLocBtn').addEventListener('click', async () => {
   } catch(err){ alert('Gagal berhenti membagikan lokasi: '+err.message); }
 });
 
-// Dipanggil dari tombol "Hapus Lokasiku dari Peta" di popup marker GPS user sendiri
 async function stopShareLocAndRemoveMarker(){
   if(communityMap) communityMap.closePopup();
   if(!confirm('Hapus lokasi GPS-mu dari peta komunitas? Kamu bisa bagikan lagi kapan saja.')) return;

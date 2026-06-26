@@ -1270,9 +1270,12 @@
           <input type="text" id="profAddress" placeholder="contoh: Jl. Merdeka No. 12, Bandung">
         </div>
 
-        <!-- Toko ke-2 (gratis) -->
-        <div style="margin-top:10px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
-          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">🏪 Toko ke-2 <span style="font-weight:500;color:var(--ink-soft);font-size:11px;">(opsional · gratis)</span></div>
+        <!-- Status tier akun -->
+        <div id="myTierBadgeBox" style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--teal);"></div>
+
+        <!-- Toko ke-2 sampai ke-5 (Premium) -->
+        <div id="store2Block" style="margin-top:10px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);position:relative;">
+          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">🏪 Toko ke-2 <span style="font-weight:500;color:var(--ink-soft);font-size:11px;">(butuh ⭐ Premium)</span></div>
           <div class="field-group" style="margin-bottom:8px;">
             <label style="font-size:12px;">Nama Toko ke-2</label>
             <input type="text" id="profStore2Name" placeholder="contoh: Warung Pak Budi">
@@ -1281,9 +1284,16 @@
             <label style="font-size:12px;">Alamat Toko ke-2</label>
             <input type="text" id="profStore2Address" placeholder="contoh: Taman Kopo Indah 3, Bandung">
           </div>
+          <div id="store2Lock" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.82);border-radius:12px;align-items:center;justify-content:center;text-align:center;padding:14px;font-size:12px;font-weight:700;color:var(--teal);">🔒 Upgrade ke Premium untuk buka Toko ke-2 s/d ke-5</div>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;padding:0 2px;">
-          💡 Butuh lebih dari 2 toko? <a href="https://wa.me/6282117573435?text=Halo+admin,+saya+mau+upgrade+toko+premium+di+Sekretaris+UMKM" target="_blank" style="color:var(--teal);font-weight:600;">Hubungi admin (WA)</a> — <strong>Rp 15.000/bln</strong>
+
+        <!-- Toko ke-3 sampai seterusnya (dinamis, Premium maks 5 / VVIP tak terbatas) -->
+        <div id="extraStoresContainer" style="margin-top:10px;"></div>
+        <button type="button" id="addExtraStoreBtn" style="display:none;margin-top:8px;width:100%;padding:9px 0;border-radius:11px;border:1.5px dashed var(--teal);background:transparent;color:var(--teal);font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Tambah Toko</button>
+
+        <div id="upgradeUpsellBox" style="font-size:11.5px;color:var(--ink-soft);margin-top:8px;padding:10px 12px;background:var(--sand);border-radius:10px;border:1.5px solid var(--line);">
+          💡 <strong>⭐ Premium</strong> — maks 5 toko di peta · <strong>Rp 50.000/bln</strong> · <a href="https://wa.me/6282117573435?text=Halo+admin,+saya+mau+upgrade+ke+Premium+(maks+5+toko)+di+Sekretaris+UMKM" target="_blank" style="color:var(--teal);font-weight:600;">Hubungi admin (WA)</a><br>
+          👑 <strong>VVIP</strong> — toko tak terbatas · <strong>Rp 200.000/bln</strong> · <a href="https://wa.me/6282117573435?text=Halo+admin,+saya+mau+upgrade+ke+VVIP+(toko+tak+terbatas)+di+Sekretaris+UMKM" target="_blank" style="color:var(--teal);font-weight:600;">Hubungi admin (WA)</a>
         </div>
 
         <!-- Logo Toko -->
@@ -1720,7 +1730,7 @@
           • Catat keuangan suara/teks<br>
           • Galeri publik produk<br>
           • Komunitas &amp; live streaming<br>
-          • <strong style="color:#fff;">2 toko di peta komunitas</strong><br>
+          • <strong style="color:#fff;">1 toko di peta komunitas</strong><br>
           • Bagikan lokasi real-time
         </div>
       </div>
@@ -1730,7 +1740,8 @@
         <div style="font-size:13px;font-weight:700;color:#FFD700;margin-bottom:8px;">⭐ Berbayar</div>
         <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.7;">
           • 🚀 <strong style="color:#fff;">Boost Produk</strong> — muncul paling atas galeri 24 jam · <em>Rp 10.000</em><br>
-          • 🏪 <strong style="color:#fff;">Toko Premium</strong> — lebih dari 2 toko di peta · <em>Rp 15.000/bln</em>
+          • ⭐ <strong style="color:#fff;">Premium</strong> — maks 5 toko di peta · <em>Rp 50.000/bln</em><br>
+          • 👑 <strong style="color:#fff;">VVIP</strong> — toko tak terbatas di peta · <em>Rp 200.000/bln</em>
         </div>
       </div>
 
@@ -2350,6 +2361,7 @@ function initAuthGate(){
       try{
         await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {email: currentAuthEmail, uid: MY_UID});
       } catch(e){}
+      if(typeof applyTierUI === 'function') applyTierUI(); // Apply tier immediately after isAdmin is set
       if(typeof setupPresence === 'function') setupPresence();
       if(typeof loadMyProfile === 'function') await loadMyProfile();
       if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
@@ -3407,9 +3419,37 @@ if(location.hash==='#admin'){
 setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 
 // ============ COMMUNITY: PRESENCE, PROFILE, LOCATION, USER DIRECTORY ============
-let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', email:''};
+let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', extraStores:[], accountTier:'free', email:''};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
+
+// ===== TIER / LIMIT TOKO =====
+// free = 1 toko, premium (Rp 50.000) = maks 5 toko, vvip (Rp 200.000) = tak terbatas
+function getTierOf(profileObj){
+  const t = profileObj && profileObj.accountTier;
+  if(t==='vvip' || t==='premium' || t==='free') return t;
+  // Kompatibel dengan data lama yang masih pakai boolean isPremium
+  return (profileObj && profileObj.isPremium) ? 'premium' : 'free';
+}
+function getMyTier(){ return isAdmin ? 'vvip' : getTierOf(myProfile); }
+function maxStoresForTier(tier){
+  if(tier==='vvip') return Infinity;
+  if(tier==='premium') return 5;
+  return 1;
+}
+function tierLabel(tier){
+  return tier==='vvip' ? '👑 VVIP' : (tier==='premium' ? '⭐ Premium' : 'Gratis');
+}
+// Hitung berapa toko yang lagi terisi dari sebuah objek profil (storeAddress + store2Address + extraStores)
+function countFilledStores(profileObj){
+  let n = 0;
+  if(profileObj && profileObj.address && profileObj.address.trim().length > 3) n++;
+  if(profileObj && profileObj.store2Address && profileObj.store2Address.trim().length > 3) n++;
+  if(profileObj && Array.isArray(profileObj.extraStores)){
+    n += profileObj.extraStores.filter(s => s && s.address && s.address.trim().length > 3).length;
+  }
+  return n;
+}
 
 function mapEmbedUrl(lat, lng){
   // Pakai OpenStreetMap embed biasa (iframe), tapi naikkan zoom ke 17 untuk detail lebih
@@ -4321,7 +4361,8 @@ async function renderCommunityMap(){
   // ── 2. Kumpulkan toko yang punya alamat (termasuk yang sudah ada GPS) ──
   const storeEntries = Object.entries(usersData).filter(([uid, u]) =>
     (u.address && u.address.trim().length > 3) ||
-    (u.store2Address && u.store2Address.trim().length > 3)
+    (u.store2Address && u.store2Address.trim().length > 3) ||
+    (Array.isArray(u.extraStores) && u.extraStores.some(s => s && s.address && s.address.trim().length > 3))
   );
 
   // ── 3. Init peta jika belum ada ──────────────────────────────
@@ -4338,8 +4379,18 @@ async function renderCommunityMap(){
   if(!communityMap) return;
 
   // ── 4. Bersihkan marker lama ─────────────────────────────────
-  Object.values(communityMapMarkers).forEach(m => { try{ communityMap.removeLayer(m); }catch(e){} });
+  // PENTING: jangan hapus myMarkerLive — dia diurus oleh watchPosition sendiri dan harus tetap hidup
+  Object.entries(communityMapMarkers).forEach(([key, m]) => {
+    // Skip marker live user sendiri kalau tracking aktif
+    if(key === 'user_'+MY_UID && myMarkerLive && m === myMarkerLive) return;
+    try{ communityMap.removeLayer(m); }catch(e){}
+  });
+  // Bersihkan cache marker tapi pertahankan live marker
+  const _savedLiveMk = communityMapMarkers['user_'+MY_UID] === myMarkerLive ? myMarkerLive : null;
   communityMapMarkers = {};
+  if(_savedLiveMk && (locWatchId !== null || navMode)){
+    communityMapMarkers['user_'+MY_UID] = _savedLiveMk;
+  }
 
   // ── 5. Render marker GPS user ─────────────────────────────────
   userPoints.forEach(p => {
@@ -4358,7 +4409,7 @@ async function renderCommunityMap(){
       +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">🏪 '+escapeHtml(p.storeName)+'</div>':'')
       +visBadge
       +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
-      +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '')
+      +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<button onclick="goAddStoreFromMap()" style="margin-top:9px;width:100%;padding:7px 0;border:1.5px dashed #1B4D4A;border-radius:9px;background:transparent;color:#1B4D4A;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Tambah Toko</button>')
       +'</div>';
     const _uPhotoUrl = (allUsersCache[p.uid] || {}).profilePhotoUrl || null;
     communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe, _uPhotoUrl)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
@@ -4445,6 +4496,31 @@ async function renderCommunityMap(){
           +'</div>';
         const mk2 = L.marker([coords2.lat, coords2.lng], {icon: makeStoreIcon(u.storeLogoUrl||null)}).addTo(communityMap).bindPopup(popup2, {maxWidth: 220});
         communityMapMarkers['store2_'+uid] = mk2;
+      }
+    }
+
+    // ── Toko ke-3 dst (extraStores — Premium maks 5 / VVIP tak terbatas) ──
+    if(Array.isArray(u.extraStores)){
+      for(let xi=0; xi<u.extraStores.length; xi++){
+        const es = u.extraStores[xi];
+        if(!es || !es.address || es.address.trim().length <= 3) continue;
+        let coordsX = es.coords || null;
+        if(!coordsX) coordsX = await geocodeAddress(uid+'_x'+xi, es.address);
+        if(!coordsX) continue;
+        const _xIdx = xi + 3;
+        const _xName = escapeHtml(es.name || ((u.storeName||u.displayName||'Toko')+' '+_xIdx));
+        const routeBtnX = !isMyStore
+          ? '<button class="map-route-btn" data-lat="'+coordsX.lat+'" data-lng="'+coordsX.lng+'" data-name="'+_xName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#1B4D4A;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>'
+          : '<button class="map-route-btn" data-lat="'+coordsX.lat+'" data-lng="'+coordsX.lng+'" data-name="'+_xName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">📍 Navigasi ke Toko '+_xIdx+'</button>';
+        const popupX = '<div style="min-width:180px;font-family:inherit;">'
+          +'<div style="font-weight:700;font-size:13px;margin-bottom:3px;">🏪 '+_xName+(isMyStore?' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:1px 6px;font-weight:600;">Toko '+_xIdx+' Saya</span>':'')+'</div>'
+          +'<div style="font-size:11.5px;color:#6B645A;">📍 '+escapeHtml(es.address)+'</div>'
+          +(u.paymentId?'<div style="font-size:11px;color:#1B4D4A;margin-top:4px;">💳 '+escapeHtml(u.paymentId)+'</div>':'')
+          +routeBtnX
+          +'<a href="https://www.google.com/maps/dir/?api=1&destination='+coordsX.lat+','+coordsX.lng+'" target="_blank" style="display:block;margin-top:6px;width:100%;padding:7px 0;border-radius:9px;background:#E8633F;color:white;font-size:12px;font-weight:700;text-align:center;text-decoration:none;">↗ Buka Google Maps</a>'
+          +'</div>';
+        const mkX = L.marker([coordsX.lat, coordsX.lng], {icon: makeStoreIcon(u.storeLogoUrl||null)}).addTo(communityMap).bindPopup(popupX, {maxWidth: 220});
+        communityMapMarkers['storex'+xi+'_'+uid] = mkX;
       }
     }
 
@@ -4830,6 +4906,117 @@ function setupPresence(){
 }
 // setupPresence() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
 
+// ===== UI Tier & Toko Tambahan =====
+function applyTierUI(){
+  const tier = getMyTier();
+  const max = maxStoresForTier(tier);
+  const filled = countFilledStores(myProfile);
+
+  // Badge tier
+  const badgeBox = document.getElementById('myTierBadgeBox');
+  if(badgeBox){
+    const maxStr = (max===Infinity) ? 'tak terbatas' : max;
+    badgeBox.innerHTML = '<span style="background:'+(tier==='vvip'?'#FFF7E0':tier==='premium'?'#E8F5E9':'var(--sand)')+';padding:3px 10px;border-radius:20px;">'+tierLabel(tier)+'</span><span style="color:var(--ink-soft);font-weight:500;">· '+filled+' / '+maxStr+' toko terpakai</span>';
+  }
+
+  // Kunci blok Toko ke-2 kalau masih gratis
+  const lock = document.getElementById('store2Lock');
+  const s2name = document.getElementById('profStore2Name');
+  const s2addr = document.getElementById('profStore2Address');
+  const locked2 = (tier==='free');
+  if(lock) lock.style.display = locked2 ? 'flex' : 'none';
+  if(s2name) s2name.disabled = locked2;
+  if(s2addr) s2addr.disabled = locked2;
+
+  // Tombol tambah toko (ke-3 dst) — hanya tampil kalau masih boleh nambah
+  const addBtn = document.getElementById('addExtraStoreBtn');
+  if(addBtn) addBtn.style.display = (filled < max && tier !== 'free') ? '' : 'none';
+
+  // Sembunyikan kotak upsell kalau sudah VVIP (gak butuh upgrade lagi)
+  const upsell = document.getElementById('upgradeUpsellBox');
+  if(upsell) upsell.style.display = (tier==='vvip') ? 'none' : '';
+
+  renderExtraStoreInputs();
+}
+
+function renderExtraStoreInputs(){
+  const box = document.getElementById('extraStoresContainer');
+  if(!box) return;
+  const tier = getMyTier();
+  const list = Array.isArray(myProfile.extraStores) ? myProfile.extraStores : [];
+  box.innerHTML = list.map((s, i) => {
+    const idx3 = i + 3; // Toko ke-3, ke-4, dst (slot 1 & 2 sudah dipakai store1/store2)
+    return '<div style="margin-top:10px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);position:relative;" data-extra-idx="'+i+'">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--teal);">🏪 Toko ke-'+idx3+'</div>'
+      + '<button type="button" class="removeExtraStoreBtn" data-idx="'+i+'" style="border:none;background:#FDEAEA;color:var(--bad);width:24px;height:24px;border-radius:7px;cursor:pointer;font-size:12px;">✕</button>'
+      + '</div>'
+      + '<div class="field-group" style="margin-bottom:8px;"><label style="font-size:12px;">Nama Toko ke-'+idx3+'</label>'
+      + '<input type="text" class="extraStoreName" data-idx="'+i+'" placeholder="contoh: Cabang '+idx3+'" value="'+escapeAttr(s.name||'')+'"></div>'
+      + '<div class="field-group" style="margin-bottom:0;"><label style="font-size:12px;">Alamat Toko ke-'+idx3+'</label>'
+      + '<input type="text" class="extraStoreAddress" data-idx="'+i+'" placeholder="contoh: Jl. Contoh No. 1" value="'+escapeAttr(s.address||'')+'"></div>'
+      + '</div>';
+  }).join('');
+
+  // Sinkronkan input ke array myProfile.extraStores tiap kali diketik
+  box.querySelectorAll('.extraStoreName').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const i = +inp.dataset.idx;
+      if(myProfile.extraStores[i]) myProfile.extraStores[i].name = inp.value;
+    });
+  });
+  box.querySelectorAll('.extraStoreAddress').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const i = +inp.dataset.idx;
+      if(myProfile.extraStores[i]) myProfile.extraStores[i].address = inp.value;
+    });
+  });
+  box.querySelectorAll('.removeExtraStoreBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = +btn.dataset.idx;
+      myProfile.extraStores.splice(i, 1);
+      renderExtraStoreInputs();
+      applyTierUI();
+    });
+  });
+}
+
+document.getElementById('addExtraStoreBtn')?.addEventListener('click', () => {
+  const tier = getMyTier();
+  const max = maxStoresForTier(tier);
+  const filled = countFilledStores(myProfile);
+  if(filled >= max){
+    alert(tier==='premium'
+      ? 'Akun Premium maksimal 5 toko. Upgrade ke VVIP (Rp 200.000/bln) untuk toko tak terbatas.'
+      : 'Kamu sudah mencapai batas toko untuk akun ini.');
+    return;
+  }
+  if(!Array.isArray(myProfile.extraStores)) myProfile.extraStores = [];
+  myProfile.extraStores.push({name:'', address:'', coords:null});
+  renderExtraStoreInputs();
+  applyTierUI();
+});
+
+// Dipanggil dari tombol "➕ Tambah Toko" di popup marker sendiri di peta
+function goAddStoreFromMap(){
+  const tier = getMyTier();
+  const max = maxStoresForTier(tier);
+  const filled = countFilledStores(myProfile);
+  document.querySelector('.tab[data-panel="community"]')?.click();
+  setTimeout(() => {
+    applyTierUI();
+    if(filled >= max && tier === 'free'){
+      alert('Akun Gratis cuma boleh 1 toko. Upgrade ke ⭐ Premium (Rp 50.000/bln, maks 5 toko) atau 👑 VVIP (Rp 200.000/bln, tak terbatas) untuk nambah toko lagi.');
+      document.getElementById('store2Block')?.scrollIntoView({behavior:'smooth', block:'center'});
+    } else if(filled >= max){
+      alert('Kamu sudah mencapai batas toko untuk tier '+tierLabel(tier)+'. Upgrade ke VVIP untuk toko tak terbatas.');
+      document.getElementById('upgradeUpsellBox')?.scrollIntoView({behavior:'smooth', block:'center'});
+    } else {
+      document.getElementById('addExtraStoreBtn')?.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  }, 300);
+}
+
 async function loadMyProfile(){
   // Restore nama dari localStorage dulu sebagai fallback cepat
   try{
@@ -4842,7 +5029,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||''};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -4850,6 +5037,8 @@ async function loadMyProfile(){
       if($('profStore2Address')) $('profStore2Address').value = myProfile.store2Address;
       $('profPaymentId').value = myProfile.paymentId;
       $('profPaymentLink').value = myProfile.paymentLink;
+      renderExtraStoreInputs();
+      applyTierUI();
       // Sync ke localStorage
       if(myProfile.displayName) try{ localStorage.setItem('umkm_display_name', myProfile.displayName); }catch(e){}
       if(d.location){
@@ -4889,12 +5078,30 @@ $('saveProfileBtn').addEventListener('click', async () => {
   if(myProfile.displayName && typedName !== myProfile.displayName){
     if(!confirm(`Ganti nama dari "${myProfile.displayName}" jadi "${typedName}"?`)) return;
   }
+  const _tier = getMyTier();
+  const _maxStores = maxStoresForTier(_tier);
+  const _typedStore2Addr = ($('profStore2Address')?.value||'').trim();
+  const _typedExtra = (myProfile.extraStores||[]).filter(s => s && s.address && s.address.trim().length > 3);
+  // Hitung total toko yang mau disimpan (toko-1 + toko-2 + ekstra)
+  const _wantStore1 = $('profAddress').value.trim().length > 3;
+  const _wantStore2 = _typedStore2Addr.length > 3;
+  const _wantTotal = (_wantStore1?1:0) + (_wantStore2?1:0) + _typedExtra.length;
+  if(_tier === 'free' && _wantStore2){
+    alert('Akun Gratis cuma boleh 1 toko. Upgrade ke ⭐ Premium (Rp 50.000/bln) untuk buka Toko ke-2 s/d ke-5, atau 👑 VVIP (Rp 200.000/bln) untuk toko tak terbatas.');
+    return;
+  }
+  if(_wantTotal > _maxStores){
+    alert('Jumlah toko ('+_wantTotal+') melebihi batas tier '+tierLabel(_tier)+' (maks '+(_maxStores===Infinity?'tak terbatas':_maxStores)+'). Hapus beberapa toko atau upgrade tier dulu.');
+    return;
+  }
   myProfile = {
     displayName: typedName,
     storeName: $('profStoreName').value.trim(),
     address: $('profAddress').value.trim(),
     store2Name: ($('profStore2Name')?.value||'').trim(),
-    store2Address: ($('profStore2Address')?.value||'').trim(),
+    store2Address: _typedStore2Addr,
+    extraStores: _typedExtra,
+    accountTier: _tier,
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim(),
     email: currentAuthEmail || myProfile.email || '',
@@ -4959,6 +5166,26 @@ $('saveProfileBtn').addEventListener('click', async () => {
       if(allUsersCache[MY_UID]){ allUsersCache[MY_UID].store2Coords = null; }
     }
 
+    // Geocode toko ke-3 dst (extraStores)
+    const geocodedExtra = [];
+    for(let i=0; i<myProfile.extraStores.length; i++){
+      const es = myProfile.extraStores[i];
+      if(es.address && es.address.length > 5){
+        $('profileSaveStatus').textContent = '🌍 Geocoding toko ke-'+(i+3)+'...';
+        try{
+          delete storeGeoCache[MY_UID+'_x'+i];
+          const geoX = await geocodeAddress(MY_UID+'_x'+i, es.address);
+          geocodedExtra.push({name:es.name||'', address:es.address, coords: geoX || null});
+        } catch(e){
+          geocodedExtra.push({name:es.name||'', address:es.address, coords:null});
+        }
+      } else {
+        geocodedExtra.push({name:es.name||'', address:es.address||'', coords:null});
+      }
+    }
+    myProfile.extraStores = geocodedExtra;
+    if(allUsersCache[MY_UID]) allUsersCache[MY_UID].extraStores = geocodedExtra;
+
     // JANGAN hapus storeGeoCache di sini — hasil geocode baru sudah tersimpan di cache
     // dan dibutuhkan agar renderCommunityMap tidak perlu geocode ulang ke Nominatim.
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {...myProfile, ...coordsToSave, uid:MY_UID, updatedAt:Date.now()});
@@ -4970,6 +5197,7 @@ $('saveProfileBtn').addEventListener('click', async () => {
     if(reminder) reminder.style.display = 'none';
     $('profDisplayName').value = myProfile.displayName;
     applyNameLockUI();
+    applyTierUI();
     // FIX LOKASI: re-render peta langsung pakai allUsersCache yang sudah diupdate lokal,
     // tanpa menunggu Firebase onValue propagate (bisa delay 100ms-2s).
     // Firebase onValue akan override allUsersCache setelah propagate, tapi sudah OK
@@ -5231,15 +5459,22 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
 
     // Update marker "Saya" di peta tanpa re-render seluruh peta
     if(communityMap){
+      const _livePhoto = myProfile?.profilePhotoUrl||null;
+      const _visBadge = locVisibilityMode==='private'
+        ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
+        : '<div style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🌍 Publik</div>';
+      const _myPopup = '<div style="min-width:160px;font-family:inherit;"><div style="font-weight:700;font-size:13px;margin-bottom:2px;"><span style="color:#1B4D4A;">Saya</span></div>'+_visBadge+'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 Live</div></div>';
       if(myMarkerLive){
+        // Gerakkan marker — ini yang membuat logo user ikut bergerak otomatis
         myMarkerLive.setLatLng([loc.lat, loc.lng]);
+        // Pastikan marker masih di peta (bisa ter-remove saat renderCommunityMap)
+        if(!communityMap.hasLayer(myMarkerLive)){
+          myMarkerLive.addTo(communityMap);
+        }
+        communityMapMarkers['user_'+MY_UID] = myMarkerLive;
       } else {
         // Buat marker baru kalau belum ada
-        const visBadge = locVisibilityMode==='private'
-          ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Privat</div>'
-          : '<div style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🌍 Publik</div>';
-        const popup = '<div style="min-width:160px;font-family:inherit;"><div style="font-weight:700;font-size:13px;margin-bottom:2px;"><span style="color:#1B4D4A;">Saya</span></div>'+visBadge+'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 Live</div></div>';
-        myMarkerLive = L.marker([loc.lat, loc.lng], {icon: makeUserIcon(true, myProfile?.profilePhotoUrl||null)}).addTo(communityMap).bindPopup(popup, {maxWidth:200});
+        myMarkerLive = L.marker([loc.lat, loc.lng], {icon: makeUserIcon(true, _livePhoto)}).addTo(communityMap).bindPopup(_myPopup, {maxWidth:200});
         communityMapMarkers['user_'+MY_UID] = myMarkerLive;
       }
 
@@ -5316,6 +5551,12 @@ function renderUserDirectory(){
   const mySelfDiv = document.getElementById('mySelfCard');
   if(mySelfDiv){
     const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
+    const myTier = isAdmin ? 'vvip' : getTierOf(myU);
+    const myTierBadge = (!isAdmin && myTier==='vvip')
+      ? ' <span style="background:#FFE9B3;color:#7B5E00;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 VVIP</span>'
+      : (!isAdmin && myTier==='premium')
+        ? ' <span style="background:#E8F5E9;color:#2D7A4F;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">⭐ Premium</span>'
+        : '';
     const myPhotoUrl = myU.profilePhotoUrl || '';
     const myAvatarHtml = myPhotoUrl
       ? `<img src="${myPhotoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='😊'">`
@@ -5323,7 +5564,7 @@ function renderUserDirectory(){
     mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:pointer;" data-self="true" data-uid="${MY_UID}">
       <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${myAvatarHtml}</div>
       <div>
-        <div class="uc-name">${escapeHtml(myName)}${adminBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
+        <div class="uc-name">${escapeHtml(myName)}${adminBadge}${myTierBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
         <div class="uc-sub">${myU.storeName?('🏪 '+escapeHtml(myU.storeName)):'UMKM'}</div>
       </div>
       <div class="uc-right">🟢 Online</div>
@@ -5350,10 +5591,19 @@ function renderUserDirectory(){
     const avatarHtml = photoUrl
       ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='👤'">`
       : `<span style="font-size:20px;">👤</span>`;
+    // Badge tier & admin untuk user lain
+    const uIsAdminUser = (u.email && typeof ADMIN_EMAIL !== 'undefined' && u.email.toLowerCase() === ADMIN_EMAIL);
+    const uTier = uIsAdminUser ? 'vvip' : getTierOf(u);
+    const uAdminBadge = uIsAdminUser ? ' <span style="background:var(--coral);color:white;font-size:9px;padding:1px 5px;border-radius:20px;font-weight:700;vertical-align:middle;">Admin</span>' : '';
+    const uTierBadge = uTier==='vvip'
+      ? ' <span style="background:#FFE9B3;color:#7B5E00;font-size:9px;padding:1px 5px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 VVIP</span>'
+      : uTier==='premium'
+        ? ' <span style="background:#E8F5E9;color:#2D7A4F;font-size:9px;padding:1px 5px;border-radius:20px;font-weight:700;vertical-align:middle;">⭐ Premium</span>'
+        : '';
     return `<div class="user-card" data-uid="${u.uid}">
       <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${avatarHtml}</div>
       <div style="flex:1;min-width:0;">
-        <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}</div>
+        <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}${uAdminBadge}${uTierBadge}</div>
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>
       </div>
       <div class="uc-right">${u.online?'🟢 Online':'🔴 Offline'}</div>
@@ -5366,6 +5616,17 @@ function startUserDirectoryListeners(){
   if(!window.firebaseReady){ $('userDirectory').innerHTML = '<div class="empty-state">Direktori pengguna butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); });
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); });
+  // Listen for tier changes on MY account so button updates instantly when admin upgrades
+  if(MY_UID && window.firebaseReady){
+    window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/accountTier'), (snap) => {
+      const newTier = snap.val();
+      if(newTier && newTier !== myProfile.accountTier){
+        myProfile.accountTier = newTier;
+        applyTierUI();
+        renderUserDirectory();
+      }
+    });
+  }
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
 
@@ -5573,11 +5834,14 @@ function renderAdminUserList(){
     const storeLine = u.storeName ? `<div style="font-size:11.5px;color:var(--ink-soft);">🏪 ${escapeHtml(u.storeName)}</div>` : '';
     const store2Line = u.store2Name ? `<div style="font-size:11px;color:var(--ink-soft);">🏪 ${escapeHtml(u.store2Name)} <em style="font-size:10px;">(toko 2)</em></div>` : '';
     const addressLine = u.address ? `<div style="font-size:11px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📍 ${escapeHtml(u.address)}</div>` : '';
-    const premiumBadge = u.isPremium ? `<span style="font-size:10px;background:#FFD700;color:#7B5E00;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">⭐ Premium</span>` : '';
+    const _tierOfU = getTierOf(u);
+    const premiumBadge = _tierOfU !== 'free' ? `<span style="font-size:10px;background:${_tierOfU==='vvip'?'#FFE9B3':'#FFD700'};color:#7B5E00;border-radius:20px;padding:1px 7px;margin-left:4px;font-weight:700;">${tierLabel(_tierOfU)}</span>` : '';
     const premiumBtn = !isSelf
-      ? (u.isPremium
-          ? `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="0" style="font-size:11px;padding:4px 8px;border:1px solid #7B5E00;border-radius:7px;background:#FFFBEA;color:#7B5E00;cursor:pointer;white-space:nowrap;">⭐ Cabut Premium</button>`
-          : `<button class="admin-toggle-premium-btn" data-uid="${uid}" data-premium="1" style="font-size:11px;padding:4px 8px;border:1px solid #2D7A4F;border-radius:7px;background:#E8F5E9;color:#2D7A4F;cursor:pointer;white-space:nowrap;">✅ Beri Premium</button>`)
+      ? `<div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="admin-set-tier-btn" data-uid="${uid}" data-tier="free" style="font-size:10.5px;padding:4px 8px;border:1px solid ${_tierOfU==='free'?'#1B4D4A':'#ccc'};border-radius:7px;background:${_tierOfU==='free'?'#1B4D4A':'#fff'};color:${_tierOfU==='free'?'#fff':'#666'};cursor:pointer;white-space:nowrap;font-weight:700;">Gratis</button>
+          <button class="admin-set-tier-btn" data-uid="${uid}" data-tier="premium" style="font-size:10.5px;padding:4px 8px;border:1px solid #2D7A4F;border-radius:7px;background:${_tierOfU==='premium'?'#2D7A4F':'#E8F5E9'};color:${_tierOfU==='premium'?'#fff':'#2D7A4F'};cursor:pointer;white-space:nowrap;font-weight:700;">⭐ Premium</button>
+          <button class="admin-set-tier-btn" data-uid="${uid}" data-tier="vvip" style="font-size:10.5px;padding:4px 8px;border:1px solid #7B5E00;border-radius:7px;background:${_tierOfU==='vvip'?'#7B5E00':'#FFFBEA'};color:${_tierOfU==='vvip'?'#fff':'#7B5E00'};cursor:pointer;white-space:nowrap;font-weight:700;">👑 VVIP</button>
+         </div>`
       : '';
     const isBanned = !!u.banned;
     const banBtn = !isSelf
@@ -5609,20 +5873,21 @@ function renderAdminUserList(){
   }).join('');
 }
 
-// ===== ADMIN: TOGGLE PREMIUM =====
+// ===== ADMIN: SET TIER AKUN (Gratis / Premium / VVIP) =====
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('.admin-toggle-premium-btn');
+  const btn = e.target.closest('.admin-set-tier-btn');
   if(!btn || !isAdmin || !window.firebaseReady) return;
   const uid = btn.dataset.uid;
-  const grantPremium = btn.dataset.premium === '1';
-  btn.disabled = true; btn.textContent = '⏳...';
+  const newTier = btn.dataset.tier; // 'free' | 'premium' | 'vvip'
+  const origHtml = btn.parentElement.innerHTML;
+  btn.parentElement.innerHTML = '⏳ Mengubah tier...';
   try{
-    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {isPremium: grantPremium});
-    if(allUsersCache[uid]) allUsersCache[uid].isPremium = grantPremium;
+    await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+uid), {accountTier: newTier, isPremium: newTier !== 'free'});
+    if(allUsersCache[uid]){ allUsersCache[uid].accountTier = newTier; allUsersCache[uid].isPremium = newTier !== 'free'; }
     renderAdminUserList();
   } catch(err){
-    alert('Gagal update premium: '+err.message);
-    btn.disabled = false;
+    alert('Gagal update tier: '+err.message);
+    btn.parentElement.innerHTML = origHtml;
   }
 });
 

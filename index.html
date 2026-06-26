@@ -4443,24 +4443,23 @@ async function renderCommunityMap(){
   if(!communityMap) return;
 
   // ── 4. Bersihkan marker lama ─────────────────────────────────
-  // PENTING: jangan hapus myMarkerLive — dia diurus oleh watchPosition sendiri dan harus tetap hidup
-  Object.entries(communityMapMarkers).forEach(([key, m]) => {
-    // Skip marker live user sendiri kalau tracking aktif
-    if(key === 'user_'+MY_UID && myMarkerLive && m === myMarkerLive) return;
-    try{ communityMap.removeLayer(m); }catch(e){}
-  });
-  // Bersihkan marker lama — tapi PERTAHANKAN:
-  //   (a) myMarkerLive   : dikelola locWatchId/navWatchId callback
-  //   (b) route_user     : dikelola routeWatchId/navWatchId saat rute aktif
-  // Simpan referensi dulu SEBELUM reset cache
+  // Simpan referensi yang harus dipertahankan SEBELUM loop hapus:
+  //   (a) myMarkerLive  → dikelola locWatchId/navWatchId, tidak boleh di-removeLayer
+  //   (b) route_user    → dikelola routeWatchId saat rute aktif, tidak boleh di-removeLayer
   const _savedMyLive   = myMarkerLive || null;
   const _savedRouteUsr = (activeRoute || routePending)
     ? (communityMapMarkers['route_user'] || null)
     : null;
 
-  communityMapMarkers = {};
+  // Hapus semua marker dari peta KECUALI yang disimpan di atas
+  Object.entries(communityMapMarkers).forEach(([key, m]) => {
+    if(m === _savedMyLive) return;
+    if(m === _savedRouteUsr) return;
+    try{ communityMap.removeLayer(m); }catch(e){}
+  });
 
-  // Kembalikan ke cache setelah reset agar step 5 tahu untuk skip
+  // Reset cache, lalu kembalikan yang perlu dipertahankan
+  communityMapMarkers = {};
   if(_savedMyLive){
     communityMapMarkers['user_'+MY_UID] = _savedMyLive;
   }
@@ -4482,12 +4481,17 @@ async function renderCommunityMap(){
           ? '<div style="font-size:10px;background:#FFF3CD;color:#7B5E00;border-radius:6px;padding:2px 7px;margin-top:4px;font-weight:600;">🔒 Dibagikan khusus ke kamu</div>'
           : '');
     const _uName = escapeHtml(p.name);
+    // Tombol admin hapus GPS orang lain (hanya tampil kalau admin dan bukan marker sendiri)
+    const _adminDelGpsBtn = (!p.isMe && isAdmin)
+      ? '<button class="map-popup-del-gps" data-uid="'+p.uid+'" data-name="'+_uName+'" style="margin-top:6px;width:100%;padding:5px 0;border:1.5px solid #7B1E1E;border-radius:8px;background:#FFF0F0;color:#7B1E1E;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Lokasi GPS (Admin)</button>'
+      : '';
     const popup = '<div style="min-width:180px;font-family:inherit;">'
       +'<div style="font-weight:700;font-size:13px;margin-bottom:2px;">'+(p.isMe?'<span style="color:#1B4D4A;">Saya</span> — ':'')+_uName+'</div>'
       +(p.storeName?'<div style="font-size:11.5px;color:#6B645A;">🏪 '+escapeHtml(p.storeName)+'</div>':'')
       +visBadge
       +(p.updatedAt?'<div style="font-size:10.5px;color:#6B645A;margin-top:4px;">📍 '+new Date(p.updatedAt).toLocaleTimeString('id-ID')+'</div>':'')
       +(!p.isMe ? '<button class="map-route-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-name="'+_uName+'" style="margin-top:9px;width:100%;padding:7px 0;border:none;border-radius:9px;background:#2563EB;color:white;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗺️ Rute ke sini</button>' : '<button onclick="goAddStoreFromMap()" style="margin-top:9px;width:100%;padding:7px 0;border:1.5px dashed #1B4D4A;border-radius:9px;background:transparent;color:#1B4D4A;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">➕ Tambah Toko</button><button onclick="stopShareLocAndRemoveMarker()" style="margin-top:6px;width:100%;padding:7px 0;border:1.5px solid #C84F2F;border-radius:9px;background:#FFF0F0;color:#C84F2F;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">🗑️ Hapus Lokasiku dari Peta</button>')
+      +_adminDelGpsBtn
       +'</div>';
     const _uPhotoUrl = (allUsersCache[p.uid] || {}).profilePhotoUrl || null;
     communityMapMarkers['user_'+p.uid] = L.marker([p.lat, p.lng], {icon: makeUserIcon(p.isMe, _uPhotoUrl)}).addTo(communityMap).bindPopup(popup, {maxWidth: 220});
@@ -4840,6 +4844,39 @@ document.addEventListener('click', async (e) => {
     alert('Gagal menghapus toko dari peta: '+err.message);
     btn.disabled = false;
     btn.textContent = isOwner ? '🗑️ Hapus Lokasimu dari Peta' : '🗑️ Hapus Toko dari Peta (Admin)';
+  }
+});
+
+// ===== Admin: Hapus lokasi GPS user dari popup marker GPS =====
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.map-popup-del-gps');
+  if(!btn) return;
+  if(!isAdmin || !window.firebaseReady){ alert('Hanya admin yang bisa melakukan ini.'); return; }
+  const uid = btn.dataset.uid;
+  const name = btn.dataset.name || 'pengguna ini';
+  if(!uid) return;
+  if(!confirm('Hapus lokasi GPS "'+name+'" dari peta? Data lokasi di akun mereka juga akan dihapus.')) return;
+
+  btn.disabled = true; btn.textContent = '⏳ Menghapus...';
+  try{
+    // 1. Bersihkan cache lokal dulu
+    if(allUsersCache[uid]) delete allUsersCache[uid].location;
+
+    // 2. Hapus marker dari peta & tutup popup
+    if(communityMap) communityMap.closePopup();
+    const mk = communityMapMarkers['user_'+uid];
+    if(mk && communityMap){ try{ communityMap.removeLayer(mk); }catch(e){} }
+    delete communityMapMarkers['user_'+uid];
+
+    // 3. Hapus dari Firebase
+    await window.rtdbRemove(window.rtdbRef(window.firebaseDb, 'users/'+uid+'/location'));
+
+    // 4. Re-render
+    if(typeof renderCommunityMap === 'function') renderCommunityMap();
+    if(typeof renderAdminUserList === 'function') renderAdminUserList();
+  } catch(err){
+    alert('Gagal menghapus lokasi GPS: '+err.message);
+    btn.disabled = false; btn.textContent = '🗑️ Hapus Lokasi GPS (Admin)';
   }
 });
 

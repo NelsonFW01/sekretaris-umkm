@@ -4287,8 +4287,8 @@ function updateNavPanel(stepIdx, userLat, userLng){
           '<span style="font-size:10px;opacity:0.5;">geser bawah = kecilkan</span>'+
         '</div>'+
         '<div style="display:flex;gap:6px;">'+
-          '<button id="navMinBtn" style="border:none;background:rgba(255,255,255,0.15);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25BC;</button>'+
-          '<button id="navStopBtn" style="border:none;background:rgba(232,99,63,0.85);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25A0; Stop</button>'+
+          '<button onclick="(function(){_navCardMinimized=true;var _s='+stepIdx+';var _la='+userLat+';var _ln='+userLng+';updateNavPanel(_s,_la,_ln);})()" style="border:none;background:rgba(255,255,255,0.15);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25BC;</button>'+
+          '<button onclick="stopNavigation()" style="border:none;background:rgba(232,99,63,0.85);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25A0; Stop</button>'+
         '</div>'+
       '</div>'+
       '<div style="padding:4px 14px 10px;">'+
@@ -4300,12 +4300,6 @@ function updateNavPanel(stepIdx, userLat, userLng){
         svHtml+
       '</div>'+
     '</div>';
-
-  // Pasang event tombol
-  const _nbMin  = document.getElementById('navMinBtn');
-  const _nbStop = document.getElementById('navStopBtn');
-  if(_nbMin)  _nbMin.onclick  = function(e){ e.stopPropagation(); _navCardMinimized=true;  updateNavPanel(stepIdx,userLat,userLng); };
-  if(_nbStop) _nbStop.onclick = function(e){ e.stopPropagation(); stopNavigation(); };
 }
 
 function stopNavigation(){
@@ -4313,6 +4307,10 @@ function stopNavigation(){
   lastSpokenStep=-1;
   _mapManualControl=false;
   _navUserZoom=null; // reset zoom saat navigasi selesai, siap untuk sesi berikutnya
+  // FIX: reset off-route state
+  startNavigation._offRouteCount = 0;
+  startNavigation._lastOffRouteWarn = null;
+  if(startNavigation._rerouteTimer){ clearTimeout(startNavigation._rerouteTimer); startNavigation._rerouteTimer = null; }
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
   if(navFallbackTimer){ clearInterval(navFallbackTimer); navFallbackTimer=null; }
   if(navStatsTimer){ clearInterval(navStatsTimer); navStatsTimer=null; }
@@ -4697,7 +4695,8 @@ function startNavigation(){
     }
 
     // === Deteksi salah jalur (off-route) ===
-    // Cek jarak user ke titik rute terdekat — kalau > 80m berarti sudah keluar jalur
+    // Cek jarak user ke titik rute terdekat — kalau > 150m berarti sudah keluar jalur
+    // FIX: dinaikkan dari 80m → 150m agar tidak false-positive saat GPS jitter atau user belok sebentar
     if(activeRouteCoords && activeRouteCoords.length > 1){
       const userPt = L.latLng(lat, lng);
       let nearestDistToRoute = Infinity;
@@ -4705,11 +4704,14 @@ function startNavigation(){
         const d = userPt.distanceTo(pt);
         if(d < nearestDistToRoute) nearestDistToRoute = d;
       }
-      const OFF_ROUTE_THRESHOLD = 80; // meter
+      const OFF_ROUTE_THRESHOLD = 150; // meter — dinaikkan supaya tidak sering false-positive
       if(nearestDistToRoute > OFF_ROUTE_THRESHOLD){
+        // FIX: hitung berapa kali berturut-turut off-route sebelum berani reroute
+        startNavigation._offRouteCount = (startNavigation._offRouteCount || 0) + 1;
         const now = Date.now();
-        // Beri peringatan max tiap 10 detik (anti-spam)
-        if(!startNavigation._lastOffRouteWarn || (now - startNavigation._lastOffRouteWarn) > 10000){
+        // Beri peringatan max tiap 15 detik (anti-spam), hanya kalau off-route >= 2x berturut-turut
+        if(startNavigation._offRouteCount >= 2 &&
+           (!startNavigation._lastOffRouteWarn || (now - startNavigation._lastOffRouteWarn) > 15000)){
           startNavigation._lastOffRouteWarn = now;
           speak('Anda salah arah. Menghitung ulang rute.');
           // Tunjukkan toast di map
@@ -4720,9 +4722,9 @@ function startNavigation(){
           if(_mc) _mc.appendChild(_toast);
           setTimeout(()=>{ try{ if(_mc && _mc.contains(_toast)) _mc.removeChild(_toast); }catch(e){} }, 4000);
         }
-        // Auto-reroute: hitung ulang rute dari posisi saat ini setelah delay 3 detik
-        // (delay biar tidak langsung reroute kalau cuma jitter GPS)
-        if(!startNavigation._rerouteTimer){
+        // Auto-reroute: hitung ulang rute dari posisi saat ini setelah delay 8 detik
+        // (delay lebih panjang agar tidak langsung reroute kalau user mau balik jalur sendiri)
+        if(!startNavigation._rerouteTimer && startNavigation._offRouteCount >= 3){
           startNavigation._rerouteTimer = setTimeout(()=>{
             startNavigation._rerouteTimer = null;
             if(!navMode || !activeDestLat) return;
@@ -4749,10 +4751,11 @@ function startNavigation(){
                 setTimeout(()=>clearInterval(_autoStart), 30000);
               }, 400);
             }
-          }, 3000);
+          }, 8000);
         }
       } else {
-        // Kembali ke jalur — cancel reroute timer kalau ada
+        // Kembali ke jalur — reset counter dan cancel reroute timer kalau ada
+        startNavigation._offRouteCount = 0;
         if(startNavigation._rerouteTimer){
           clearTimeout(startNavigation._rerouteTimer);
           startNavigation._rerouteTimer = null;
@@ -5805,23 +5808,59 @@ document.querySelectorAll('.tab').forEach(tab => {
 document.getElementById('loadMapBtn').addEventListener('click', async () => {
   if(typeof L === 'undefined') return;
   const btn = document.getElementById('loadMapBtn');
-  btn.textContent = '⏳ Memuat...';
+  btn.textContent = '⏳ Mendeteksi lokasi...';
   btn.disabled = true;
 
   if(!communityMap){
-    // Prioritas center: GPS saya → Jakarta
+    // FIX: Selalu minta GPS fresh dulu agar peta langsung center ke posisi user (tidak blur/Jakarta default)
+    const _initMap = (lat, lng) => {
+      if(!communityMap) initCommunityMap(lat, lng);
+    };
     if(myLocation && myLocation.lat){
-      initCommunityMap(myLocation.lat, myLocation.lng);
+      _initMap(myLocation.lat, myLocation.lng);
+      btn.textContent = '⏳ Memuat peta...';
+    } else if(navigator.geolocation){
+      await new Promise(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if(!myLocation) myLocation = {};
+            myLocation.lat = pos.coords.latitude;
+            myLocation.lng = pos.coords.longitude;
+            _initMap(myLocation.lat, myLocation.lng);
+            btn.textContent = '⏳ Memuat peta...';
+            resolve();
+          },
+          () => {
+            // GPS gagal → fallback Jakarta
+            _initMap(-6.2088, 106.8456);
+            btn.textContent = '⏳ Memuat peta...';
+            resolve();
+          },
+          {enableHighAccuracy: true, timeout: 8000, maximumAge: 5000}
+        );
+      });
     } else {
-      // Default ke Jakarta, bukan [0,0]
-      initCommunityMap(-6.2088, 106.8456);
+      _initMap(-6.2088, 106.8456);
+      btn.textContent = '⏳ Memuat peta...';
     }
   }
 
   await renderCommunityMap();
+
+  // Setelah render, fly ke posisi user jika GPS berhasil dan tidak ada rute aktif
+  if(communityMap && myLocation && myLocation.lat && !activeRoute && !routePending){
+    setTimeout(() => {
+      if(communityMap && myLocation && myLocation.lat){
+        communityMap.setView([myLocation.lat, myLocation.lng], 17, {animate: true, duration: 1.2});
+      }
+    }, 300);
+  }
+
   // Sembunyikan prompt setelah peta berhasil dimuat
   const prompt = document.getElementById('mapLoadPrompt');
   if(prompt) prompt.style.display = 'none';
+  btn.textContent = '🗺️ Perbarui Peta';
+  btn.disabled = false;
 });
 
 document.getElementById('refreshMapBtn').addEventListener('click', async () => {
@@ -6815,24 +6854,28 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
 });
 
 $('stopShareLocBtn').addEventListener('click', async () => {
-  if(!window.firebaseReady) return;
+  // FIX: Jangan block hanya karena Firebase belum siap — GPS harus tetap bisa dihentikan
   // Hentikan live tracking GPS
   if(locWatchId !== null){ navigator.geolocation.clearWatch(locWatchId); locWatchId = null; }
   // Hapus marker "Saya" dari peta
   if(myMarkerLive && communityMap){ try{ communityMap.removeLayer(myMarkerLive); }catch(e){} myMarkerLive = null; }
-  delete communityMapMarkers['user_'+MY_UID];
-  try{
-    await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/location'));
-    myLocation = null;
-    locVisibilityMode = 'public';
-    locPrivateAllowedUIDs = new Set();
-    $('myMapEmbed').style.display = 'none';
-    $('locStatus').textContent = '📍 Lokasi belum dibagikan';
-    $('locVisibilityBadge').style.display = 'none';
-    $('shareLocBtn').style.display = 'block';
-    $('stopShareLocBtn').style.display = 'none';
-    if(typeof renderCommunityMap==='function') renderCommunityMap();
-  } catch(err){ alert('Gagal berhenti membagikan lokasi: '+err.message); }
+  if(typeof communityMapMarkers !== 'undefined') delete communityMapMarkers['user_'+MY_UID];
+  // Update UI segera, sebelum Firebase call (agar tombol tidak tampak macet)
+  myLocation = null;
+  locVisibilityMode = 'public';
+  locPrivateAllowedUIDs = new Set();
+  try{ $('myMapEmbed').style.display = 'none'; }catch(e){}
+  try{ $('locStatus').textContent = '📍 Lokasi belum dibagikan'; }catch(e){}
+  try{ $('locVisibilityBadge').style.display = 'none'; }catch(e){}
+  try{ $('shareLocBtn').style.display = 'block'; }catch(e){}
+  try{ $('stopShareLocBtn').style.display = 'none'; }catch(e){}
+  if(typeof renderCommunityMap==='function') renderCommunityMap();
+  // Hapus dari Firebase kalau tersambung
+  if(window.firebaseReady){
+    try{
+      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/location'));
+    } catch(err){ console.warn('Gagal hapus lokasi Firebase:', err.message); }
+  }
 });
 
 async function stopShareLocAndRemoveMarker(){
@@ -8879,7 +8922,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const ownerKey=it.ownerKey||'';
       const isMine = ownerKey && ownerKey===getOwnerKey();
       const isMyKurir = ownerKey && ownerKey===getOwnerKey();
-      const trackStatus = it.tracking ? `<span style="font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;">🟢 Kurir Online</span>` : '';
+      const trackStatus = it.tracking ? `<span id="kurir-live-badge-${it.id}" style="font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;">🟢 Kurir Online</span>` : `<span id="kurir-live-badge-${it.id}" style="display:none;font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;"></span>`;
       const kurirExtra = it.mode==='kurir' ? `
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
           <span style="background:#DCEFE9;color:#1B4D4A;padding:3px 9px;border-radius:20px;font-weight:700;">📍 ${escapeHtml(it.from||it.city||'—')}</span>
@@ -8896,6 +8939,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
           <button class="kc-streetview-btn-open" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;font-weight:700;font-size:12px;cursor:pointer;">📸 Street View</button>
           ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
+          ${isMyKurir && it.to ? `<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Tujuan</button>` : ''}
+          ${!isMyKurir && it.tracking ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
         </div>
         <div id="lrmap-${it.id}" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:8px;">
           <div class="kurir-map-wrap">
@@ -8933,7 +8978,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   // ===== KURIR LIVE TRACKING =====
   let kurirWatchId = null;
   let kurirTrackingId = null;
-  let kurirLiveMarker = null;
 
   async function startKurirTracking(itemId){
     if(!navigator.geolocation){ alert('GPS tidak tersedia di perangkat ini.'); return; }
@@ -8963,20 +9007,66 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
   const kurirPosListeners = {};
+  const kurirLiveMarkers = {}; // FIX: per-item marker, bukan satu global
+
   function attachKurirPosListener(itemId, map){
-    if(kurirPosListeners[itemId]) return;
+    if(kurirPosListeners[itemId]) return; // already attached
     const posRef = window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos');
     const unsub = window.rtdbOnValue(posRef, snap=>{
       const pos = snap.val();
-      if(!pos||!pos.lat) return;
-      if(kurirLiveMarker && map.hasLayer(kurirLiveMarker)) map.removeLayer(kurirLiveMarker);
+      if(!pos||!pos.lat) {
+        // Kurir offline — hapus marker lama
+        if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
+          map.removeLayer(kurirLiveMarkers[itemId]);
+          delete kurirLiveMarkers[itemId];
+        }
+        return;
+      }
+      // Hapus marker lama kalau ada
+      if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
+        map.removeLayer(kurirLiveMarkers[itemId]);
+      }
       const icon = L.divIcon({className:'',html:'<div class="kurir-live-pulse"></div>',iconSize:[18,18],iconAnchor:[9,9]});
-      kurirLiveMarker = L.marker([pos.lat,pos.lng],{icon}).addTo(map)
-        .bindPopup('🛵 Kurir sedang di sini'+(pos.speed?'<br>🚀 Kecepatan: '+pos.speed:'')).openPopup();
+      const timeAgo = pos.t ? Math.round((Date.now()-pos.t)/1000) : null;
+      const timeStr = timeAgo !== null ? (timeAgo < 60 ? timeAgo+'d lalu' : Math.round(timeAgo/60)+'m lalu') : '';
+      kurirLiveMarkers[itemId] = L.marker([pos.lat,pos.lng],{icon}).addTo(map)
+        .bindPopup('🛵 <b>Kurir sedang di sini</b>'
+          +(pos.speed?'<br>🚀 Kecepatan: '+pos.speed:'')
+          +(timeStr?'<br>🕐 Diperbarui: '+timeStr:'')
+        ).openPopup();
       map.panTo([pos.lat,pos.lng]);
+
+      // FIX: update badge di card kurir tanpa harus reload peta
+      const badge = document.getElementById('kurir-live-badge-'+itemId);
+      if(badge){
+        badge.style.display = 'inline-flex';
+        badge.textContent = '🟢 Live ' + (timeStr || '');
+      }
     });
     kurirPosListeners[itemId] = unsub;
   }
+
+  // FIX: Pasang global listener posisi kurir untuk semua item tracking=true
+  // sehingga buyer bisa tahu posisi tanpa harus buka peta dulu
+  function setupKurirGlobalTracking(){
+    if(!window.firebaseReady || !window.firebaseDb) return;
+    window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'pasarKongsi'), snap=>{
+      const v = snap.val()||{};
+      Object.entries(v).forEach(([id, item])=>{
+        if(item.tracking && item.livePos){
+          const badge = document.getElementById('kurir-live-badge-'+id);
+          const timeAgo = item.livePos.t ? Math.round((Date.now()-item.livePos.t)/1000) : null;
+          const timeStr = timeAgo !== null ? (timeAgo < 60 ? timeAgo+'d lalu' : Math.round(timeAgo/60)+'m lalu') : '';
+          if(badge){
+            badge.style.display = 'inline-flex';
+            badge.textContent = '🟢 Live · ' + (timeStr || 'baru saja');
+          }
+        }
+      });
+    });
+  }
+  if(window.firebaseReady) setupKurirGlobalTracking();
+  else document.addEventListener('firebase-ready', setupKurirGlobalTracking);
 
   // ===== OSRM ROUTING ENGINE (free, no API key) =====
   // profile: driving / walking / cycling
@@ -9155,6 +9245,70 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const isTracking = trackBtn.style.background.includes('FDE') || trackBtn.textContent.includes('Stop');
       if(isTracking){ await stopKurirTracking(id); }
       else { await startKurirTracking(id); }
+      return;
+    }
+
+    // FIX: Tombol "Lacak Kurir Live" untuk pembeli — buka peta dan langsung attach listener
+    const lacakBtn = e.target.closest('.kc-lacak-btn');
+    if(lacakBtn){
+      const id = lacakBtn.dataset.id;
+      const item = cache.find(x=>x.id===id);
+      if(!item) return;
+      const wrap = document.getElementById('lrmap-'+id);
+      const showRouteBtn = wrap && wrap.parentElement.querySelector('.kc-show-route');
+      if(wrap){
+        // Buka peta kalau belum terbuka
+        if(wrap.style.display !== 'block'){
+          lacakBtn.textContent = '⏳ Memuat...'; lacakBtn.disabled = true;
+          const [orig, dest] = await Promise.all([geocode(item.from||item.city||''), geocode(item.to||'')]);
+          lacakBtn.textContent = '📡 Lacak Kurir Live'; lacakBtn.disabled = false;
+          if(!orig || !dest){ alert('Lokasi tidak ditemukan.'); return; }
+          wrap.style.display = 'block';
+          if(listRouteMaps[id]) { listRouteMaps[id].remove(); }
+          const innerEl = document.getElementById('lrmap-inner-'+id);
+          if(!innerEl) return;
+          const m = L.map(innerEl,{zoomControl:true}).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+          addLabeledTileLayer(m);
+          const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+          const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+          L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(m).bindPopup(`<b>📍 Asal</b><br>${escapeHtml(item.from||item.city||'')}</div>`).openPopup();
+          L.marker([dest.lat,dest.lon],{icon:endIcon}).addTo(m).bindPopup(`<b>🏁 Tujuan</b><br>${escapeHtml(item.to||'')}`);
+          listRouteMaps[id] = m;
+          const routeInfoEl = document.getElementById('lrinfo-'+id);
+          await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],'driving',routeInfoEl,null,null);
+          setTimeout(()=>m.invalidateSize(),150);
+          // Attach live position listener
+          if(window.firebaseReady && window.firebaseDb) attachKurirPosListener(id, m);
+        } else {
+          // Peta sudah terbuka — re-attach listener saja
+          if(listRouteMaps[id] && window.firebaseReady && window.firebaseDb){
+            attachKurirPosListener(id, listRouteMaps[id]);
+          }
+        }
+      }
+      return;
+    }
+
+    // FIX: Tombol "Navigasi ke Tujuan" untuk kurir — pakai peta komunitas dengan navigasi penuh
+    const navKurirBtn = e.target.closest('.kc-nav-kurir-btn');
+    if(navKurirBtn){
+      const toAddr = navKurirBtn.dataset.to;
+      if(!toAddr){ alert('Alamat tujuan tidak tersedia.'); return; }
+      navKurirBtn.textContent = '⏳ Mencari alamat...'; navKurirBtn.disabled = true;
+      try{
+        const dest = await geocode(toAddr);
+        navKurirBtn.textContent = '🧭 Navigasi ke Tujuan'; navKurirBtn.disabled = false;
+        if(!dest){ alert('Alamat tujuan tidak ditemukan. Coba isi alamat lebih lengkap.'); return; }
+        // Pindah ke tab komunitas lalu trigger navigasi penuh (sama seperti map komunitas)
+        const communityTab = document.querySelector('.tab[data-panel="community"]');
+        if(communityTab && !communityTab.classList.contains('active')) communityTab.click();
+        setTimeout(() => {
+          routeToCoords(dest.lat, dest.lon, toAddr);
+        }, 300);
+      } catch(err){
+        navKurirBtn.textContent = '🧭 Navigasi ke Tujuan'; navKurirBtn.disabled = false;
+        alert('Gagal mencari lokasi: ' + err.message);
+      }
       return;
     }
 

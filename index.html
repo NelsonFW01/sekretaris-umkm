@@ -2019,7 +2019,67 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   </div>
 
   <footer>Solusi Digital untuk UMKM · Ditenagai Groq &amp; OpenRouter AI</footer>
-</div>
+
+  <!-- ===== PANEL RINGKASAN AKTIVITAS AI (Claude) ===== -->
+  <div id="aiSummaryFloatBtn" title="Ringkasan Aktivitas AI" onclick="toggleAiSummaryPanel()" style="
+    position:fixed;bottom:24px;right:24px;z-index:3000;
+    width:54px;height:54px;border-radius:50%;
+    background:linear-gradient(135deg,#1B4D4A,#E8633F);
+    color:white;font-size:22px;border:none;cursor:pointer;
+    box-shadow:0 4px 20px rgba(0,0,0,0.25);
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .2s;
+  " onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">🤖</div>
+
+  <div id="aiSummaryPanel" style="
+    display:none;position:fixed;bottom:90px;right:24px;z-index:3000;
+    width:min(400px,calc(100vw - 32px));
+    background:var(--bg-card);border:1.5px solid var(--line);
+    border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,0.18);
+    overflow:hidden;
+  ">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <span style="font-size:20px;">🤖</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;">Sekretaris AI</div>
+          <div style="font-size:11px;opacity:0.75;">Ditenagai Groq · Data Real-time</div>
+        </div>
+      </div>
+      <button onclick="toggleAiSummaryPanel()" style="background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- API Key Input (hidden, pakai Groq) -->
+    <div id="aiSummaryKeySection" style="display:none;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--sand);">
+      <div id="aiKeyStatus" style="font-size:11px;color:var(--ink-soft);"></div>
+    </div>
+
+    <!-- Quick action buttons -->
+    <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--line);background:var(--sand);">
+      <button class="ai-sum-btn" onclick="runAiSummary('semua')">🌟 Ringkasan</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('keuangan')">📊 Keuangan</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('live')">🎥 Live Stream</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('pengguna')">👥 User Online</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('chat')">💬 Chat</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('saran')">💡 Saran Bisnis</button>
+    </div>
+
+    <!-- Chat area -->
+    <div id="aiSummaryMessages" style="height:260px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+      <div style="text-align:center;color:var(--ink-soft);font-size:12.5px;padding:30px 0;">
+        <div style="font-size:28px;margin-bottom:8px;">✨</div>
+        Pilih tombol di atas atau ketik pertanyaan untuk mendapat ringkasan aktivitas UMKM kamu dari AI.
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div style="padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;background:var(--bg-card);">
+      <input type="text" id="aiSummaryInput" placeholder="Tanya: siapa yang online? live hari ini? total uang masuk?" style="flex:1;padding:9px 12px;border-radius:12px;border:1.5px solid var(--line);font-size:13px;font-family:inherit;background:var(--bg-card);color:var(--ink);" onkeydown="if(event.key==='Enter')sendAiSummaryMsg()">
+      <button onclick="sendAiSummaryMsg()" id="aiSumSendBtn" style="padding:9px 14px;background:var(--teal);color:white;border:none;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700;">➤</button>
+    </div>
+  </div>
+
 
 <!-- ===== CHAT MODAL ===== -->
 <div class="chat-modal-overlay" id="chatModalOverlay">
@@ -9379,15 +9439,25 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       ? (myProfile.displayName || myProfile.storeName || 'Saya') : 'Saya';
     const myPhoto = (typeof myProfile !== 'undefined' && myProfile) ? (myProfile.profilePhotoUrl||'') : '';
 
-    // 1. Upload attachments first (images / audio) to Firebase Storage
+    // 1. Upload attachments first (images / audio) to Cloudinary (gratis, tanpa Firebase Storage)
+    const CLDN_NAME = 'ddqjgwpgl';
+    const CLDN_PRESET = 'chatMedia';
+    async function uploadToCloudinary(fileOrBlob, fileName, resourceType){
+      const fd = new FormData();
+      fd.append('file', fileOrBlob, fileName || 'file');
+      fd.append('upload_preset', CLDN_PRESET);
+      fd.append('folder', 'chat_media');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLDN_NAME}/${resourceType}/upload`, {method:'POST', body:fd});
+      if(!res.ok) throw new Error('Cloudinary upload gagal: ' + res.status);
+      const data = await res.json();
+      return data.secure_url;
+    }
+
     const uploads = [];
     for(const f of _chatPendingFiles){
       try{
-        const ext = f.name.split('.').pop().toLowerCase();
-        const path = `chat_media/${activeChatId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-        const sRef = window.storageRef(window.firebaseStorage, path);
-        await window.storageUploadBytes(sRef, f);
-        const url = await window.storageGetDownloadURL(sRef);
+        const resourceType = f.type.startsWith('image') ? 'image' : f.type.startsWith('video') ? 'video' : 'raw';
+        const url = await uploadToCloudinary(f, f.name, resourceType);
         const type = f.type.startsWith('image') ? 'image' : f.type.startsWith('video') ? 'video' : 'file';
         uploads.push({url, type, name: f.name});
       } catch(e){ console.error('[chat] upload file error:', e); }
@@ -9395,10 +9465,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     // Audio blob
     if(_chatPendingAudio){
       try{
-        const path = `chat_media/${activeChatId}/${Date.now()}_voice.webm`;
-        const sRef = window.storageRef(window.firebaseStorage, path);
-        await window.storageUploadBytes(sRef, _chatPendingAudio);
-        const url = await window.storageGetDownloadURL(sRef);
+        const url = await uploadToCloudinary(_chatPendingAudio, 'voice.webm', 'video');
         uploads.push({url, type:'audio', name:'Pesan Suara'});
       } catch(e){ console.error('[chat] upload audio error:', e); }
     }
@@ -10070,6 +10137,40 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 </script>
 <!-- ===== CSS TAMBAHAN ===== -->
 <style>
+/* ===== AI SUMMARY PANEL ===== */
+.ai-sum-btn {
+  padding: 6px 11px;
+  border-radius: 20px;
+  border: 1.5px solid var(--teal);
+  background: transparent;
+  color: var(--teal);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.ai-sum-btn:hover { background: var(--teal); color: white; }
+.ai-sum-msg { display:flex; flex-direction:column; gap:3px; }
+.ai-sum-msg.user { align-items:flex-end; }
+.ai-sum-msg.ai { align-items:flex-start; }
+.ai-sum-bubble {
+  max-width: 90%;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.ai-sum-msg.user .ai-sum-bubble { background: var(--teal); color: white; border-bottom-right-radius: 4px; }
+.ai-sum-msg.ai .ai-sum-bubble { background: var(--sand); color: var(--ink); border-bottom-left-radius: 4px; }
+.ai-sum-typing { display:flex; gap:4px; align-items:center; padding:10px 14px; }
+.ai-sum-typing span { width:7px;height:7px;border-radius:50%;background:var(--ink-soft);animation:aisumBounce 1s infinite; }
+.ai-sum-typing span:nth-child(2){animation-delay:.15s;}
+.ai-sum-typing span:nth-child(3){animation-delay:.3s;}
+@keyframes aisumBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+
 /* Wallpaper chat swatch */
 .chat-wp-swatch {
   width:44px; height:44px; border-radius:10px; cursor:pointer;
@@ -10419,20 +10520,31 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(sw && sw.dataset.wp) applyChatWp(sw.dataset.wp);
   });
 
-  // Upload gambar wallpaper
-  document.getElementById('chatWpImgInput')?.addEventListener('change', function(){
+  // Upload gambar wallpaper → Cloudinary (bukan base64)
+  document.getElementById('chatWpImgInput')?.addEventListener('change', async function(){
     const file = this.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      applyChatWp('image:' + ev.target.result);
+    this.value = '';
+    const btn = document.getElementById('chatWpBtn');
+    if(btn) btn.textContent = '⏳';
+    try{
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('upload_preset', 'chatMedia');
+      fd.append('folder', 'chat_wallpaper');
+      const res = await fetch('https://api.cloudinary.com/v1_1/ddqjgwpgl/image/upload', {method:'POST', body:fd});
+      const data = await res.json();
+      if(!data.secure_url) throw new Error('Upload gagal');
+      applyChatWp('image:' + data.secure_url);
       // Tampilkan preview
       const prev = document.getElementById('chatWpPreview');
       const img = document.getElementById('chatWpPreviewImg');
       const vid = document.getElementById('chatWpPreviewVid');
-      if(prev && img){ prev.style.display='block'; img.style.display='block'; img.src=ev.target.result; if(vid) vid.style.display='none'; }
-    };
-    reader.readAsDataURL(file);
-    this.value = '';
+      if(prev && img){ prev.style.display='block'; img.style.display='block'; img.src=data.secure_url; if(vid) vid.style.display='none'; }
+    } catch(e){
+      alert('Gagal upload wallpaper: ' + e.message);
+    } finally {
+      if(btn) btn.textContent = '🖼️';
+    }
   });
 
   // Upload video wallpaper
@@ -10449,13 +10561,20 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     this.value = '';
   });
 
-  // Upload foto blur (tetap ada, dipakai internal)
-  document.getElementById('chatWpBlurInput')?.addEventListener('change', function(){
+  // Upload foto blur → Cloudinary
+  document.getElementById('chatWpBlurInput')?.addEventListener('change', async function(){
     const file = this.files[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => applyChatWp('blur:' + ev.target.result);
-    reader.readAsDataURL(file);
     this.value = '';
+    try{
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('upload_preset', 'chatMedia');
+      fd.append('folder', 'chat_wallpaper');
+      const res = await fetch('https://api.cloudinary.com/v1_1/ddqjgwpgl/image/upload', {method:'POST', body:fd});
+      const data = await res.json();
+      if(!data.secure_url) throw new Error('Upload gagal');
+      applyChatWp('blur:' + data.secure_url);
+    } catch(e){ alert('Gagal upload wallpaper blur: ' + e.message); }
   });
 
   /* ── 5. MUSIC SHARE — Upload ke Firebase Storage ───────────────────────── */
@@ -10467,10 +10586,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const file = this.files[0]; if(!file) return;
     this.value = '';
 
-    if(!window.firebaseReady || !window.firebaseStorage){
-      alert('Firebase Storage belum siap. Pastikan Firebase sudah dikonfigurasi.');
-      return;
-    }
     if(file.size > 25 * 1024 * 1024){
       alert('File audio terlalu besar! Maks 25MB.');
       return;
@@ -10493,38 +10608,38 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(fileNameEl) fileNameEl.textContent = file.name.slice(0, 30);
 
     try {
-      const ext = file.name.split('.').pop().toLowerCase();
-      const path = `chat_media/${activeChatId}/${Date.now()}_music.${ext}`;
-      const sRef = window.storageRef(window.firebaseStorage, path);
+      if(uploadBar){ uploadBar.style.display = 'flex'; }
+      if(fileNameEl) fileNameEl.textContent = file.name.slice(0, 30);
 
-      // Upload with progress
-      const uploadTask = window.storageUploadBytesResumable
-        ? window.storageUploadBytesResumable(sRef, file)
-        : null;
+      // Upload ke Cloudinary
+      const CLDN_NAME = 'ddqjgwpgl';
+      const CLDN_PRESET = 'chatMedia';
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      fd.append('upload_preset', CLDN_PRESET);
+      fd.append('folder', 'chat_music');
 
-      let url;
-      if(uploadTask){
-        await new Promise((resolve, reject) => {
-          uploadTask.on('state_changed',
-            snap => {
-              const p = (snap.bytesTransferred / snap.totalBytes * 100).toFixed(0);
-              if(progBar) progBar.style.width = p + '%';
-              if(pctEl) pctEl.textContent = p + '%';
-            },
-            reject,
-            async () => {
-              url = await window.storageGetDownloadURL(sRef);
-              resolve();
-            }
-          );
-        });
-      } else {
-        // Fallback: uploadBytes tanpa progress
-        await window.storageUploadBytes(sRef, file);
-        url = await window.storageGetDownloadURL(sRef);
-        if(progBar) progBar.style.width = '100%';
-        if(pctEl) pctEl.textContent = '100%';
-      }
+      // XHR untuk progress bar
+      const url = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLDN_NAME}/video/upload`, true);
+        xhr.upload.onprogress = (e) => {
+          if(e.lengthComputable){
+            const p = Math.round(e.loaded / e.total * 100);
+            if(progBar) progBar.style.width = p + '%';
+            if(pctEl) pctEl.textContent = p + '%';
+          }
+        };
+        xhr.onload = () => {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if(data.secure_url) resolve(data.secure_url);
+            else reject(new Error(data.error?.message || 'Upload gagal'));
+          } catch(e){ reject(new Error('Respons Cloudinary tidak valid')); }
+        };
+        xhr.onerror = () => reject(new Error('Gagal terhubung ke Cloudinary. Cek koneksi internet.'));
+        xhr.send(fd);
+      });
 
       if(uploadBar) uploadBar.style.display = 'none';
 
@@ -10747,6 +10862,310 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
 })();
+
+/* ===== ASISTEN RINGKASAN AI — Ditenagai Groq (Gratis) ===== */
+(function(){
+  const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
+  const GROQ_MODEL = 'llama-3.3-70b-versatile';
+  let _msgHistory = [];
+  let _isPanelOpen = false;
+
+  // ── Ambil Groq key dari variabel global yang sudah ada ──
+  function getGroqKey(){
+    if(typeof activeGroqKey === 'function') return activeGroqKey();
+    return (typeof groqKey !== 'undefined' ? groqKey : '') || (typeof ADMIN_GROQ_KEY !== 'undefined' ? ADMIN_GROQ_KEY : '');
+  }
+
+  // ── Toggle panel ──
+  window.toggleAiSummaryPanel = function(){
+    const panel = document.getElementById('aiSummaryPanel');
+    if(!panel) return;
+    _isPanelOpen = !_isPanelOpen;
+    panel.style.display = _isPanelOpen ? 'block' : 'none';
+    if(_isPanelOpen){
+      // Sembunyikan key section karena pakai Groq yang sudah ada
+      const ks = document.getElementById('aiSummaryKeySection');
+      if(ks) ks.style.display = 'none';
+      // Tampilkan pesan sambutan jika belum ada chat
+      const box = document.getElementById('aiSummaryMessages');
+      if(box && box.children.length === 0){
+        box.innerHTML = `<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;padding:20px 10px;">
+          <div style="font-size:28px;margin-bottom:8px;">🤖</div>
+          <div style="font-weight:700;color:var(--ink);margin-bottom:4px;">Halo! Saya Sekretaris AI kamu 👋</div>
+          <div style="font-size:11.5px;line-height:1.6;">Klik tombol di atas atau ketik pertanyaan.<br>Saya tahu semua data bisnis, live stream, pengguna aktif, dan keuangan kamu!</div>
+        </div>`;
+      }
+    }
+  };
+
+  // ── Kumpulkan SEMUA data konteks dari aplikasi ──
+  function gatherAllContext(focus){
+    const parts = [];
+
+    // 1. PROFIL USER
+    try{
+      const mp = (typeof myProfile !== 'undefined') ? myProfile : {};
+      parts.push(`=== PROFIL USER ===
+Nama: ${mp.displayName || mp.storeName || 'Belum diisi'}
+Nama Toko: ${mp.storeName || 'Belum diisi'}
+Tier: ${mp.accountTier || 'free'}
+Alamat: ${mp.address || 'Belum diisi'}`);
+    }catch(e){}
+
+    // 2. KEUANGAN
+    if(!focus || focus==='keuangan' || focus==='semua' || focus==='saran'){
+      try{
+        const tx = (typeof transactions !== 'undefined') ? transactions : [];
+        const inc = tx.filter(t=>t.type==='income').reduce((a,b)=>a+(Number(b.amount)||0),0);
+        const exp = tx.filter(t=>t.type==='expense').reduce((a,b)=>a+(Number(b.amount)||0),0);
+        const net = inc - exp;
+        // Kategori terlaris
+        const catMap = {};
+        tx.forEach(t=>{ if(t.category){ catMap[t.category]=(catMap[t.category]||0)+(Number(t.amount)||0); } });
+        const topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,5)
+          .map(([k,v])=>`  • ${k}: Rp${v.toLocaleString('id')}`).join('\n');
+        // 10 transaksi terakhir
+        const recent = tx.slice(-10).map(t=>`  ${t.type==='income'?'📈':'📉'} ${t.category||'?'} | Rp${(Number(t.amount)||0).toLocaleString('id')} | ${t.note||'-'} | ${t.date||''}`).join('\n');
+        parts.push(`=== DATA KEUANGAN ===
+Total Pemasukan: Rp${inc.toLocaleString('id')}
+Total Pengeluaran: Rp${exp.toLocaleString('id')}
+Profit Bersih: Rp${net.toLocaleString('id')}
+Jumlah Transaksi: ${tx.length}
+Status: ${net>=0?'✅ Untung':'❌ Rugi'}
+
+Kategori Terbesar:
+${topCats||'(belum ada data)'}
+
+10 Transaksi Terakhir:
+${recent||'(belum ada)'}`);
+      }catch(e){ parts.push('=== DATA KEUANGAN ===\nGagal memuat data keuangan.'); }
+    }
+
+    // 3. LIVE STREAM
+    if(!focus || focus==='live' || focus==='semua'){
+      try{
+        const orders = (typeof liveOrders !== 'undefined') ? liveOrders : [];
+        const isActive = (typeof liveActive !== 'undefined') ? liveActive : false;
+        const durSec = (typeof liveSeconds !== 'undefined') ? liveSeconds : 0;
+        const totalLive = orders.reduce((a,b)=>a+(Number(b.price)||0)*(Number(b.qty)||1),0);
+        // Produk terlaris di live
+        const prodMap = {};
+        orders.forEach(o=>{ if(o.product){ prodMap[o.product]=(prodMap[o.product]||0)+(Number(o.qty)||1); } });
+        const topProd = Object.entries(prodMap).sort((a,b)=>b[1]-a[1]).slice(0,3)
+          .map(([k,v])=>`  • ${k}: ${v} pcs`).join('\n');
+        parts.push(`=== DATA LIVE STREAM ===
+Status Live: ${isActive?'🔴 SEDANG LIVE':'⭕ Tidak sedang live'}
+Durasi: ${Math.floor(durSec/60)} menit ${durSec%60} detik
+Total Pesanan: ${orders.length}
+Estimasi Pendapatan: Rp${totalLive.toLocaleString('id')}
+
+Produk Terlaris di Live:
+${topProd||'(belum ada pesanan)'}
+
+Detail Pesanan (maks 10):
+${orders.slice(0,10).map(o=>`  • ${o.product||'?'} x${o.qty||1} @ Rp${(Number(o.price)||0).toLocaleString('id')} = Rp${((Number(o.price)||0)*(Number(o.qty)||1)).toLocaleString('id')}`).join('\n')||'(belum ada)'}`);
+      }catch(e){ parts.push('=== DATA LIVE STREAM ===\nBelum ada data live stream.'); }
+    }
+
+    // 4. DATA PENGGUNA & ONLINE STATUS
+    if(!focus || focus==='pengguna' || focus==='semua' || focus==='online'){
+      try{
+        const allUsers = (typeof allUsersCache !== 'undefined') ? allUsersCache : {};
+        const allPresence = (typeof allPresenceCache !== 'undefined') ? allPresenceCache : {};
+        const userList = Object.entries(allUsers).map(([uid, u])=>{
+          const p = allPresence[uid] || {};
+          return {
+            uid,
+            name: u.displayName || u.storeName || '(tanpa nama)',
+            store: u.storeName || '',
+            tier: u.accountTier || 'free',
+            online: !!p.online,
+            lastSeen: p.lastSeen || 0
+          };
+        });
+        const onlineUsers = userList.filter(u=>u.online);
+        const offlineUsers = userList.filter(u=>!u.online).sort((a,b)=>b.lastSeen-a.lastSeen);
+        // Paling sering online (berdasarkan lastSeen terbaru)
+        const mostActive = [...userList].sort((a,b)=>b.lastSeen-a.lastSeen).slice(0,5);
+        parts.push(`=== DATA PENGGUNA KOMUNITAS ===
+Total Pengguna Terdaftar: ${userList.length}
+Sedang Online Sekarang: ${onlineUsers.length} pengguna
+
+🟢 Online Sekarang (${onlineUsers.length}):
+${onlineUsers.map(u=>`  • ${u.name}${u.store?' | Toko: '+u.store:''} | Tier: ${u.tier}`).join('\n')||'  (tidak ada)'}
+
+🕐 Paling Baru Aktif (Top 5):
+${mostActive.map((u,i)=>`  ${i+1}. ${u.name} | ${u.online?'🟢 Online':'🔴 Terakhir: '+new Date(u.lastSeen).toLocaleString('id-ID')} | Tier: ${u.tier}`).join('\n')||'  (belum ada data)'}`);
+      }catch(e){ parts.push('=== DATA PENGGUNA ===\nBelum ada data pengguna.'); }
+    }
+
+    // 5. DATA CHAT
+    if(!focus || focus==='chat' || focus==='semua'){
+      try{
+        const convItems = document.querySelectorAll('.conv-item');
+        const chatData = Array.from(convItems).slice(0,10).map(el=>{
+          const name = el.querySelector('.conv-name')?.textContent || '?';
+          const last = el.querySelector('.conv-last')?.textContent || '';
+          const unread = el.querySelector('.conv-unread');
+          return `  • ${name}: "${last}"${unread?' [BELUM DIBACA]':''}`;
+        }).join('\n');
+        parts.push(`=== AKTIVITAS CHAT ===
+Jumlah Percakapan Aktif: ${convItems.length}
+${chatData||'  (belum ada percakapan)'}`);
+      }catch(e){}
+    }
+
+    return parts.join('\n\n');
+  }
+
+  // ── Tambah bubble pesan ──
+  function addBubble(role, text){
+    const box = document.getElementById('aiSummaryMessages');
+    if(!box) return;
+    // Hapus welcome screen jika ada
+    if(box.querySelector('div[style*="text-align:center"]') && box.children.length === 1){
+      box.innerHTML = '';
+    }
+    const wrap = document.createElement('div');
+    wrap.className = `ai-sum-msg ${role==='user'?'user':'ai'}`;
+    // Format teks: bold **...**
+    const formatted = text
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\n/g,'<br>');
+    wrap.innerHTML = `<div class="ai-sum-bubble">${formatted}</div>`;
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+    return wrap;
+  }
+
+  function showTyping(){
+    const box = document.getElementById('aiSummaryMessages');
+    if(!box) return null;
+    const el = document.createElement('div');
+    el.className = 'ai-sum-msg ai';
+    el.id = 'aiSumTyping';
+    el.innerHTML = `<div class="ai-sum-bubble ai-sum-typing"><span></span><span></span><span></span></div>`;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    return el;
+  }
+
+  // ── Panggil Groq API ──
+  async function callGroqAI(userMsg, context){
+    const key = getGroqKey();
+    if(!key) return '⚠️ API key Groq tidak ditemukan. Pastikan kamu sudah isi Groq key di pengaturan.';
+
+    const systemPrompt = `Kamu adalah Sekretaris UMKM AI, asisten cerdas berbahasa Indonesia untuk pengusaha kecil dan menengah.
+Kamu memiliki akses ke semua data bisnis user: keuangan, live stream, pengguna online, aktivitas chat, dan profil toko.
+Tugasmu: analisis data yang diberikan, berikan ringkasan yang jelas, insight actionable, dan saran praktis.
+Gunakan emoji yang relevan. Jawab ramah, singkat, padat. Gunakan format yang mudah dibaca.
+Jika ada data numerik, tampilkan dengan format rupiah Indonesia (Rp).
+Jika ditanya "siapa yang paling sering online" atau "siapa yang aktif", lihat data presence/lastSeen.
+Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
+
+    _msgHistory.push({ role:'user', content: `${userMsg}\n\n--- DATA REAL-TIME APLIKASI ---\n${context}` });
+    if(_msgHistory.length > 16) _msgHistory = _msgHistory.slice(-16);
+
+    const res = await fetch(GROQ_API, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization': 'Bearer ' + key
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        max_tokens: 1024,
+        temperature: 0.7,
+        messages: [
+          { role:'system', content: systemPrompt },
+          ..._msgHistory
+        ]
+      })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || 'Groq API error ' + res.status);
+    const reply = data.choices?.[0]?.message?.content || '(Tidak ada jawaban)';
+    _msgHistory.push({ role:'assistant', content: reply });
+    return reply;
+  }
+
+  // ── Tombol quick action ──
+  const QUICK_PROMPTS = {
+    keuangan: 'Tolong analisis data keuangan saya secara lengkap. Tampilkan total pemasukan, pengeluaran, profit, kategori terbesar, dan beri 2 insight penting.',
+    live: 'Tolong ringkaskan performa live stream saya. Berapa total pesanan, estimasi pendapatan, produk apa yang paling laku, dan saran untuk meningkatkan penjualan live?',
+    pengguna: 'Siapa saja pengguna yang sedang online sekarang? Siapa yang paling sering/terbaru aktif? Tampilkan daftar lengkapnya.',
+    chat: 'Ringkaskan aktivitas chat saya. Siapa yang paling aktif chat dengan saya? Ada berapa percakapan yang belum dibaca?',
+    semua: 'Buat ringkasan lengkap semua aktivitas bisnis saya: keuangan, live stream, pengguna online, dan chat. Tampilkan yang paling penting dari masing-masing.',
+    saran: 'Berdasarkan semua data bisnis saya (keuangan, live stream, pengguna aktif), berikan 3 saran konkret dan spesifik untuk meningkatkan penjualan dan engagement komunitas UMKM saya.'
+  };
+
+  window.runAiSummary = async function(type){
+    const prompt = QUICK_PROMPTS[type] || 'Ringkaskan semua aktivitas saya.';
+    const focus = type === 'semua' ? null : type;
+    const ctx = gatherAllContext(focus);
+
+    addBubble('user', prompt);
+    const typing = showTyping();
+    const btn = document.querySelector(`.ai-sum-btn[onclick*="${type}"]`);
+    if(btn){ btn.disabled = true; btn.style.opacity = '0.5'; }
+
+    try{
+      const reply = await callGroqAI(prompt, ctx);
+      if(typing) typing.remove();
+      addBubble('ai', reply);
+    }catch(e){
+      if(typing) typing.remove();
+      addBubble('ai', '❌ Gagal: ' + e.message);
+    }finally{
+      if(btn){ btn.disabled = false; btn.style.opacity = '1'; }
+    }
+  };
+
+  // ── Input bebas ──
+  window.sendAiSummaryMsg = async function(){
+    const inp = document.getElementById('aiSummaryInput');
+    const text = (inp?.value || '').trim();
+    if(!text) return;
+    inp.value = '';
+    const sendBtn = document.getElementById('aiSumSendBtn');
+    if(sendBtn) sendBtn.disabled = true;
+
+    addBubble('user', text);
+    const typing = showTyping();
+
+    // Tentukan konteks berdasarkan keyword
+    let focus = null;
+    const lower = text.toLowerCase();
+    if(lower.includes('keuangan')||lower.includes('transaksi')||lower.includes('uang')||lower.includes('pemasukan')||lower.includes('pengeluaran')||lower.includes('profit')) focus='keuangan';
+    else if(lower.includes('live')||lower.includes('streaming')||lower.includes('pesanan')) focus='live';
+    else if(lower.includes('online')||lower.includes('aktif')||lower.includes('pengguna')||lower.includes('user')||lower.includes('siapa')) focus='pengguna';
+    else if(lower.includes('chat')||lower.includes('pesan')) focus='chat';
+
+    const ctx = gatherAllContext(focus);
+
+    try{
+      const reply = await callGroqAI(text, ctx);
+      if(typing) typing.remove();
+      addBubble('ai', reply);
+    }catch(e){
+      if(typing) typing.remove();
+      addBubble('ai', '❌ Error: ' + e.message);
+    }finally{
+      if(sendBtn) sendBtn.disabled = false;
+    }
+  };
+
+  // ── Init ──
+  if(document.readyState !== 'loading'){
+    document.getElementById('aiSummaryKeySection') && (document.getElementById('aiSummaryKeySection').style.display='none');
+  } else {
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('aiSummaryKeySection') && (document.getElementById('aiSummaryKeySection').style.display='none');
+    });
+  }
+})();
+
 </script>
 </body>
 </html>

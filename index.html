@@ -4525,15 +4525,19 @@ function startNavigation(){
         // --- Update ikon panah user ---
         try {
           const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+          const _sz = navIconSizeForZoom(communityMap ? communityMap.getZoom() : 17);
+          const _half = Math.round(_sz / 2);
+          const _arrowSz = Math.round(_sz * 0.39);
+          const _arrowTop = -Math.round(_arrowSz * 0.65);
           const arrowIcon = L.divIcon({
             className:'',
-            html:`<div style="position:relative;width:44px;height:44px;">
-              <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
+            html:`<div style="position:relative;width:${_sz}px;height:${_sz}px;">
+              <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;font-size:${Math.round(_sz*0.34)}px;overflow:hidden;">
                 ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
               </div>
-              <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:17px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
+              <div style="position:absolute;top:${_arrowTop}px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:${_arrowSz}px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
             </div>`,
-            iconSize:[44,44], iconAnchor:[22,22], popupAnchor:[0,-25]
+            iconSize:[_sz,_sz], iconAnchor:[_half,_half], popupAnchor:[0,-_half]
           });
           if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
         } catch(e){}
@@ -5108,6 +5112,8 @@ function initCommunityMap(centerLat, centerLng){
   communityMap.on('zoomend', () => {
     // Simpan zoom yang dipilih user — jangan pernah override dengan hardcode
     _navUserZoom = communityMap.getZoom();
+    // Resize marker navigasi agar proporsional dengan zoom
+    _updateNavMarkerSize();
   });
   communityMap.on('dragend zoomend', () => {
     // Kalau navigasi aktif dan user drag/zoom sendiri, tandai manual control.
@@ -5259,6 +5265,40 @@ function makeUserIcon(isMe, photoUrl){
     html: '<div style="width:34px;height:34px;border-radius:50%;background:'+border+';border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">'+fallback+'</div>',
     iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-18]
   });
+}
+
+// ── Ukuran marker navigasi berdasarkan zoom level ─────────────────────────────
+// Zoom 10 → kecil (18px), Zoom 18 → normal (44px), Zoom 20 → besar (56px)
+function navIconSizeForZoom(zoom){
+  // Clamp antara zoom 8–20, lalu interpolasi linear
+  const z = Math.max(8, Math.min(20, zoom || 17));
+  const size = Math.round(18 + (z - 8) * (44 - 18) / (20 - 8));
+  return size;
+}
+
+// Dipanggil tiap zoomend untuk resize marker navigasi agar proporsional
+function _updateNavMarkerSize(){
+  if(!communityMap || !myMarkerLive || !navMode) return;
+  const zoom = communityMap.getZoom();
+  const sz = navIconSizeForZoom(zoom);
+  const half = Math.round(sz / 2);
+  const arrowSz = Math.round(sz * 0.39); // panah ~39% dari ukuran marker
+  const arrowTop = -Math.round(arrowSz * 0.65);
+
+  const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+  const bearing = typeof _smoothedBearing === 'number' ? _smoothedBearing : 0;
+
+  const icon = L.divIcon({
+    className:'',
+    html:`<div style="position:relative;width:${sz}px;height:${sz}px;">
+      <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;font-size:${Math.round(sz*0.34)}px;overflow:hidden;">
+        ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
+      </div>
+      <div style="position:absolute;top:${arrowTop}px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:${arrowSz}px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
+    </div>`,
+    iconSize:[sz,sz], iconAnchor:[half,half], popupAnchor:[0,-half]
+  });
+  try{ myMarkerLive.setIcon(icon); }catch(e){}
 }
 
 function makeStoreIcon(logoUrl){

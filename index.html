@@ -176,8 +176,6 @@
   }
   /* Heading-Up View: rotasi halus saat peta diputar mengikuti arah jalan */
   #leafletMap{ transition: transform .5s linear; will-change: transform; }
-  /* Container peta harus overflow:hidden agar sudut peta yang rotate tidak keluar */
-  #communityMapContainer { overflow: hidden; position: relative; }
   /* ===== FULLSCREEN IMAGE VIEWER ===== */
   #imgFullscreenOverlay {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
@@ -4176,14 +4174,19 @@ function getOrCreateNavPanel(){
   if(p) return p;
   p=document.createElement('div');
   p.id='navPanel';
+  // Letakkan sebagai sibling SETELAH communityMapContainer (bukan di dalamnya)
+  // supaya tidak kena overflow:hidden dan tidak ikut rotate CSS leafletMap.
   p.style.cssText='position:absolute;top:0;left:0;right:0;z-index:1100;pointer-events:none;';
-  // Letakkan di PARENT leafletMap (bukan di dalamnya) supaya tidak ikut rotate CSS
-  const leafletEl = document.getElementById('leafletMap');
-  const containerEl = document.getElementById('communityMapContainer');
-  const parentEl = leafletEl ? leafletEl.parentElement : containerEl;
-  if(parentEl){
-    if(!parentEl.style.position || parentEl.style.position === 'static') parentEl.style.position = 'relative';
-    parentEl.appendChild(p);
+  const container = document.getElementById('communityMapContainer');
+  if(container){
+    const parent = container.parentElement;
+    if(parent){
+      const ps = window.getComputedStyle(parent).position;
+      if(ps === 'static') parent.style.position = 'relative';
+      p.style.top = container.offsetTop + 'px';
+      p.style.height = container.offsetHeight + 'px';
+      parent.appendChild(p);
+    }
   }
   return p;
 }
@@ -4317,12 +4320,17 @@ function startNavigation(){
     updateNavPanel(_idx, _lat, _lng);
   }, 1000);
 
-  // FIX: Tampilkan tombol Follow Mode
+  // FIX: Tampilkan tombol Follow Mode dan auto-aktifkan heading-up seperti Google Maps
   const _btnF = document.getElementById('btnFollowCam');
   if(_btnF){ _btnF.style.display='flex'; _btnF.style.background='#1B4D4A'; }
-  // Tampilkan tombol Heading-Up
+  // Tampilkan tombol Heading-Up dan LANGSUNG aktifkan
   const _btnH = document.getElementById('btnHeadingUp');
-  if(_btnH){ _btnH.style.display='flex'; }
+  if(_btnH){
+    _btnH.style.display='flex';
+    _btnH.style.background='#E8633F'; // tampil aktif
+    _btnH.title='Mode Heading-Up: ON (klik untuk North-Up)';
+  }
+  headingUpMode = true; // auto ON saat navigasi mulai
 
   // FIX BUG MARKER: hapus marker route_user yang static dari preview rute,
   // supaya tidak ada "dua marker user" — satu diam (lama) + satu gerak (baru).
@@ -4364,18 +4372,21 @@ function startNavigation(){
   speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
 
   // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
-  // Mode navigasi: zoom 18, user di bagian bawah layar (center digeser ke depan)
+  // User di bagian bawah layar, rute terlihat di depan (gaya Google Maps)
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
+    let bearing = 0;
     let cLat = lat, cLng = lng;
-    // Geser pusat kamera ke arah waypoint berikutnya supaya marker user
-    // tampil di bagian bawah layar (gaya navigasi) — rute terlihat di depan
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 250);
-      cLat = lat + (la.lat - lat) * 0.45;
-      cLng = lng + (la.lng - lng) * 0.45;
+      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 300);
+      bearing = computeBearing(lat, lng, la.lat, la.lng);
+      // Geser center lebih jauh ke depan (65%) agar user tampil di bawah layar
+      cLat = lat + (la.lat - lat) * 0.65;
+      cLng = lng + (la.lng - lng) * 0.65;
+      // Langsung putar peta sesuai bearing
+      setMapHeadingRotation(bearing);
     }
-    communityMap.setView([cLat, cLng], 18, {animate: true, duration: 0.6});
+    communityMap.setView([cLat, cLng], 18, {animate: false});
   }
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -4640,12 +4651,20 @@ function routeToCoords(destLat, destLng, destName){
     bar=document.createElement('div');
     bar.id='routeInfoBar';
     bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #eee;padding:14px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.1);';
-    // Letakkan di PARENT leafletMap supaya tidak ikut rotate saat Heading-Up mode
-    const leafletEl = document.getElementById('leafletMap');
-    const parentEl = leafletEl ? leafletEl.parentElement : document.getElementById('communityMapContainer');
-    if(parentEl){
-      if(!parentEl.style.position || parentEl.style.position === 'static') parentEl.style.position = 'relative';
-      parentEl.appendChild(bar);
+    // Letakkan sebagai sibling dari communityMapContainer (bukan di dalamnya)
+    // supaya tidak kena overflow:hidden dan tidak ikut rotate
+    const container = document.getElementById('communityMapContainer');
+    if(container && container.parentElement){
+      const parent = container.parentElement;
+      const ps = window.getComputedStyle(parent).position;
+      if(ps === 'static') parent.style.position = 'relative';
+      // Posisi bottom relatif ke parent: dari bawah container
+      const parentH = parent.offsetHeight;
+      const containerBottom = parentH - container.offsetTop - container.offsetHeight;
+      bar.style.bottom = containerBottom + 'px';
+      bar.style.left = container.offsetLeft + 'px';
+      bar.style.right = (parentH - container.offsetLeft - container.offsetWidth) + 'px';
+      parent.appendChild(bar);
     }
   }
   bar.innerHTML='📍 Mendeteksi lokasi kamu...';
@@ -4981,9 +5000,11 @@ function initCommunityMap(centerLat, centerLng){
     maxZoom: 20
   }).addTo(communityMap);
 
-  // Tombol kontrol sederhana seperti Google Maps
+  // Tombol kontrol — letakkan di communityMapContainer (bukan leafletMap)
+  // agar tidak ikut rotate saat Heading-Up mode aktif
   const controlDiv = document.createElement('div');
-  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;';
+  controlDiv.id = 'mapCustomControls';
+  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:450;display:flex;flex-direction:column;gap:8px;pointer-events:auto;';
   const btnZoomIn = document.createElement('button');
   btnZoomIn.innerHTML = '+';
   btnZoomIn.title = 'Zoom In';
@@ -5005,7 +5026,8 @@ function initCommunityMap(centerLat, centerLng){
   controlDiv.appendChild(btnZoomIn);
   controlDiv.appendChild(btnZoomOut);
   controlDiv.appendChild(btnGPS);
-  document.getElementById('leafletMap').appendChild(controlDiv);
+  // Append ke communityMapContainer bukan leafletMap — supaya tidak ikut rotate
+  document.getElementById('communityMapContainer').appendChild(controlDiv);
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
   communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
@@ -5046,26 +5068,32 @@ function initCommunityMap(centerLat, centerLng){
     btnHeading.style.background = headingUpMode ? '#E8633F' : '#999';
     btnHeading.title = headingUpMode ? 'Mode Heading-Up: ON (klik untuk North-Up)' : 'Mode Heading-Up: OFF (Utara di atas)';
     if(!headingUpMode){
-      setMapHeadingRotation(0); // balik North-Up langsung
+      setMapHeadingRotation(0);
     } else {
-      // Langsung aktifkan follow dan center ke posisi user
+      // Langsung aktifkan follow + center ke user sekarang
       followCameraMode = true;
       mapUserInteracting = false;
       lastCameraUpdate = 0;
-      const btnF = document.getElementById('btnFollowCam');
-      if(btnF){ btnF.style.background = '#1B4D4A'; btnF.title = 'Follow ON — klik untuk OFF'; }
-      // Center peta ke posisi user sekarang tanpa harus tekan tombol panah dulu
-      if(myLocation && myLocation.lat && communityMap){
-        communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:true, duration:0.5});
+      const bF = document.getElementById('btnFollowCam');
+      if(bF){ bF.style.background='#1B4D4A'; bF.title='Follow ON — klik untuk OFF'; }
+      const snapNow = (lat, lng) => {
+        if(!communityMap) return;
+        let cLat = lat, cLng = lng;
+        if(activeRouteCoords && activeRouteCoords.length > 1){
+          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 300);
+          const brg = computeBearing(lat, lng, la.lat, la.lng);
+          setMapHeadingRotation(brg);
+          cLat = lat + (la.lat - lat) * 0.65;
+          cLng = lng + (la.lng - lng) * 0.65;
+        }
+        communityMap.setView([cLat, cLng], Math.max(communityMap.getZoom(), 17), {animate:false});
+      };
+      if(myLocation && myLocation.lat){
+        snapNow(myLocation.lat, myLocation.lng);
       } else if(navigator.geolocation){
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if(!myLocation) myLocation = {};
-            myLocation.lat = pos.coords.latitude; myLocation.lng = pos.coords.longitude;
-            if(communityMap) communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:true, duration:0.5});
-          },
-          null,
-          {enableHighAccuracy:true, timeout:5000, maximumAge:3000}
+          p => { if(!myLocation) myLocation={}; myLocation.lat=p.coords.latitude; myLocation.lng=p.coords.longitude; snapNow(myLocation.lat, myLocation.lng); },
+          null, {enableHighAccuracy:true, timeout:5000, maximumAge:3000}
         );
       }
     }

@@ -4250,6 +4250,7 @@ function stopNavigation(){
   const _btnH=document.getElementById('btnHeadingUp');
   if(_btnH) _btnH.style.display='none';
   headingUpMode=false;
+  _smoothedBearing = null; // reset bearing state
   setMapHeadingRotation(0); // balik peta ke North-Up
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const p=document.getElementById('navPanel');
@@ -4397,7 +4398,8 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
 
-  // SNAP KAMERA: saat heading-up, center di user. Saat north-up, geser ke depan.
+  // SNAP KAMERA: reset smooth state, posisikan user di tengah-bawah layar
+  _smoothedBearing = null; // reset agar bearing awal tidak interpolasi dari 0
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
     // Pastikan marker user sudah ada sebelum snap
@@ -4412,14 +4414,20 @@ function startNavigation(){
     if(!myLocation) myLocation={};
     myLocation.lat = lat; myLocation.lng = lng;
 
+    // Selalu setView ke posisi user, zoom 18
+    communityMap.setView([lat, lng], 18, {animate:false, noMoveStart:true});
+
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 300);
-      const bearing = computeBearing(lat, lng, la.lat, la.lng);
-      // heading-up: pan ke user langsung, peta yang berputar
-      communityMap.setView([lat, lng], 18, {animate:false});
-      setMapHeadingRotation(bearing);
-    } else {
-      communityMap.setView([lat, lng], 18, {animate:false});
+      // Gunakan near+far blend yang sama seperti camera follow
+      const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
+      const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+      const bNear  = computeBearing(lat, lng, laNear.lat, laNear.lng);
+      const bFar   = computeBearing(lat, lng, laFar.lat,  laFar.lng);
+      let delta = bNear - bFar;
+      if(delta >  180) delta -= 360;
+      if(delta < -180) delta += 360;
+      const bearing = (bFar + delta * 0.6 + 360) % 360;
+      if(headingUpMode) setMapHeadingRotation(bearing);
     }
   }
   if(navigator.geolocation){
@@ -4481,54 +4489,72 @@ function startNavigation(){
     updateRouteProgress(lat, lng);
 
     // === Camera Follow ===
-    // Throttle 800ms, geser kamera ke depan user mengikuti arah rute.
-    // FIX: saat headingUpMode aktif, kamera HARUS di-pan ke koordinat user
-    // yang sebenarnya (bukan camLat/camLng look-ahead), karena peta yang
-    // di-rotate — bukan kamera yang bergeser. Look-ahead offset hanya untuk
-    // North-Up mode agar rute terlihat "di depan".
     if(followCameraMode && communityMap && !mapUserInteracting){
       const now = Date.now();
-      if(now - lastCameraUpdate > 800){
+      // Heading-up: cek tiap 400ms (lebih responsif saat belok)
+      // North-up  : cek tiap 1000ms (stabil)
+      const throttle = headingUpMode ? 400 : 1000;
+      if(now - lastCameraUpdate > throttle){
         lastCameraUpdate = now;
-        let camLat = lat, camLng = lng;
+
+        // --- Hitung bearing ---
+        // Blend: 60% dari near look-ahead (40m, deteksi belok) +
+        //        40% dari far  look-ahead (180m, stabilitas lurus)
+        // Hasil di-smooth lagi oleh _smoothBearing() di setMapHeadingRotation.
         let bearing = 0;
         if(activeRouteCoords && activeRouteCoords.length > 1){
-          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 250);
-          bearing = computeBearing(lat, lng, la.lat, la.lng);
-
-          // Update marker user dengan ikon panah arah (bearing) jika bisa
-          try {
-            const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
-            const arrowIcon = L.divIcon({
-              className:'',
-              html:`<div style="position:relative;width:42px;height:42px;">
-                <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
-                  ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
-                </div>
-                <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:16px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">▲</div>
-              </div>`,
-              iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24]
-            });
-            if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
-            // Heading-Up View: putar peta supaya arah bearing selalu di atas layar.
-            // Panggil SEBELUM setView agar transform-origin sudah benar.
-            if(headingUpMode) setMapHeadingRotation(bearing);
-          } catch(e){}
-
-          // North-Up only: geser kamera 45% ke depan agar rute terlihat di layar
-          if(!headingUpMode){
-            camLat = lat + (la.lat - lat) * 0.45;
-            camLng = lng + (la.lng - lng) * 0.45;
-          }
-          // headingUpMode: camLat/camLng tetap = lat/lng user (peta yang berputar,
-          // jadi marker user selalu tepat di pusat rotasi = pusat layar bawah)
+          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
+          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+          const bNear = computeBearing(lat, lng, laNear.lat, laNear.lng);
+          const bFar  = computeBearing(lat, lng, laFar.lat,  laFar.lng);
+          // Blend — perlu shortest-path delta agar 350°→10° tidak wrap salah
+          let delta = bNear - bFar;
+          if(delta >  180) delta -= 360;
+          if(delta < -180) delta += 360;
+          bearing = (bFar + delta * 0.6 + 360) % 360;
         }
-        const curZoom = communityMap.getZoom();
-        const targetZoom = Math.max(curZoom, 17);
-        if(curZoom !== targetZoom){
-          communityMap.setView([camLat,camLng], targetZoom, {animate:false});
+
+        // --- Update ikon panah user ---
+        try {
+          const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+          const arrowIcon = L.divIcon({
+            className:'',
+            html:`<div style="position:relative;width:44px;height:44px;">
+              <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;font-size:15px;overflow:hidden;">
+                ${_navPhoto ? `<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">` : '😊'}
+              </div>
+              <div style="position:absolute;top:-11px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);font-size:17px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
+            </div>`,
+            iconSize:[44,44], iconAnchor:[22,22], popupAnchor:[0,-25]
+          });
+          if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
+        } catch(e){}
+
+        if(headingUpMode){
+          // === HEADING-UP ===
+          // Rotasi CSS yang "menggerakkan" pandangan — bukan panTo.
+          // setView ke posisi user HANYA saat user sudah jauh dari center
+          // (> 20m), supaya peta tidak gerak-gerak sendiri tiap GPS fix.
+          setMapHeadingRotation(bearing);
+          const mapCenter = communityMap.getCenter();
+          const distFromCenter = haversineM(lat, lng, mapCenter.lat, mapCenter.lng);
+          const curZoom = communityMap.getZoom();
+          const targetZoom = Math.max(curZoom, 18);
+          if(distFromCenter > 20 || curZoom !== targetZoom){
+            communityMap.setView([lat, lng], targetZoom, {animate:false, noMoveStart:true});
+          }
         } else {
-          communityMap.panTo([camLat,camLng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
+          // === NORTH-UP ===
+          // Geser kamera sedikit ke depan agar rute terlihat, tanpa animate
+          let camLat = lat, camLng = lng;
+          if(activeRouteCoords && activeRouteCoords.length > 1){
+            const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
+            camLat = lat + (la.lat - lat) * 0.40;
+            camLng = lng + (la.lng - lng) * 0.40;
+          }
+          const curZoom = communityMap.getZoom();
+          const targetZoom = Math.max(curZoom, 17);
+          communityMap.setView([camLat, camLng], targetZoom, {animate:false, noMoveStart:true});
         }
       }
     }
@@ -5075,7 +5101,8 @@ function initCommunityMap(centerLat, centerLng){
   // Setelah 2 detik berhenti berinteraksi, izinkan GPS kamera kembali
   // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
   communityMap.on('dragend zoomend', () => {
-    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 2000);
+    // 4 detik — beri waktu cukup sebelum follow kamera kembali aktif
+    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 4000);
   });
 
   // === Tombol Follow Mode (Camera Follow) ===
@@ -5091,7 +5118,8 @@ function initCommunityMap(centerLat, centerLng){
     btnFollow.title = followCameraMode ? 'Follow ON — klik untuk OFF' : 'Follow OFF — klik untuk ON';
     if(followCameraMode && myLocation && myLocation.lat){
       mapUserInteracting = false;
-      communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:false});
+      _smoothedBearing = null; // reset smooth agar bearing tidak lompat
+      communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 18), {animate:false, noMoveStart:true});
     }
     // Heading-Up otomatis ikut Follow Mode: kalau follow dimatikan, peta balik North-Up
     if(!followCameraMode) setMapHeadingRotation(0);
@@ -5118,18 +5146,19 @@ function initCommunityMap(centerLat, centerLng){
       if(bF){ bF.style.background='#1B4D4A'; }
       const doSnap = (lat, lng) => {
         if(!communityMap) return;
-        // FIX: saat headingUpMode, pan ke koordinat user langsung agar marker
-        // selalu tepat di pusat rotasi. Look-ahead hanya untuk North-Up.
-        let cLat=lat, cLng=lng;
-        if(activeRouteCoords && activeRouteCoords.length>1){
-          const la=findLookAheadPoint(L.latLng(lat,lng),activeRouteCoords,300);
-          const brg=computeBearing(lat,lng,la.lat,la.lng);
-          // Panggil setView dulu agar latLngToContainerPoint akurat, lalu rotate
-          communityMap.setView([lat,lng],Math.max(communityMap.getZoom(),17),{animate:false});
+        _smoothedBearing = null; // reset agar tidak lompat dari bearing sebelumnya
+        communityMap.setView([lat,lng], Math.max(communityMap.getZoom(),18), {animate:false, noMoveStart:true});
+        if(activeRouteCoords && activeRouteCoords.length > 1){
+          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
+          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+          const bNear  = computeBearing(lat, lng, laNear.lat, laNear.lng);
+          const bFar   = computeBearing(lat, lng, laFar.lat,  laFar.lng);
+          let delta = bNear - bFar;
+          if(delta >  180) delta -= 360;
+          if(delta < -180) delta += 360;
+          const brg = (bFar + delta * 0.6 + 360) % 360;
           setMapHeadingRotation(brg);
-          return; // setView sudah dipanggil di atas
         }
-        communityMap.setView([cLat,cLng],Math.max(communityMap.getZoom(),17),{animate:false});
       };
       if(myLocation&&myLocation.lat) doSnap(myLocation.lat,myLocation.lng);
       else if(navigator.geolocation) navigator.geolocation.getCurrentPosition(
@@ -5142,26 +5171,40 @@ function initCommunityMap(centerLat, centerLng){
 }
 
 // ── Rotasi peta untuk Heading-Up View ─────────────────────────────────────────
-// Memutar visual #leafletMap (CSS transform) berlawanan arah bearing agar arah
-// jalan selalu "menghadap ke atas" layar, seperti mode navigasi Google Maps.
-// Catatan: ini rotasi tampilan (CSS), bukan rotasi data Leaflet.
+// Memutar visual #mapClipWrapper (CSS transform) berlawanan arah bearing agar
+// arah jalan selalu "menghadap ke atas" layar, seperti Google Maps.
+// Bearing di-smooth agar tidak jitter saat GPS noise.
 let _lastMapRotation = 0;
-function setMapHeadingRotation(deg){
-  // Rotate hanya mapClipWrapper (yang berisi leafletMap) — bukan container utama
-  // sehingga navPanel, routeInfoBar, dan controlDiv tidak ikut miring.
+let _smoothedBearing  = null; // null = belum ada nilai awal
+
+function _smoothBearing(newBearing){
+  if(_smoothedBearing === null){ _smoothedBearing = newBearing; return newBearing; }
+  // Hitung selisih terpendek (−180…+180)
+  let delta = newBearing - _smoothedBearing;
+  if(delta >  180) delta -= 360;
+  if(delta < -180) delta += 360;
+  // EWMA α=0.35: responsif saat belok, stabil saat lurus
+  _smoothedBearing = (_smoothedBearing + delta * 0.35 + 360) % 360;
+  return _smoothedBearing;
+}
+
+function setMapHeadingRotation(rawDeg){
   const el = document.getElementById('mapClipWrapper');
   if(!el) return;
 
+  // Smooth bearing supaya pandangan ikut belok tapi tidak jitter
+  const deg = _smoothBearing(rawDeg);
+
+  // Wrap diff agar animasi tidak muter jauh
   let d = deg;
   const diff = d - _lastMapRotation;
-  if(diff > 180) d -= 360; else if(diff < -180) d += 360;
+  if(diff >  180) d -= 360;
+  if(diff < -180) d += 360;
   _lastMapRotation = d;
 
-  // === FIX: pivot rotasi harus tepat di pixel user marker, bukan center ===
-  // Kita hitung posisi pixel user di dalam clipWrapper / leafletMap.
-  // Jika komunityMap & myLocation tersedia, gunakan latLngToContainerPoint.
-  // Fallback: gunakan center-bawah (65% dari atas) seperti Google Maps.
-  let originX = 50, originY = 65; // persen — default "bawah-tengah"
+  // Pivot = posisi pixel user di container (agar rotasi berpusat tepat di marker)
+  // Fallback 50% / 65% = bawah-tengah gaya Google Maps
+  let originX = 50, originY = 65;
   try {
     if(communityMap && myLocation && myLocation.lat != null){
       const containerEl = document.getElementById('communityMapContainer');
@@ -5169,18 +5212,17 @@ function setMapHeadingRotation(deg){
       if(containerEl && pt){
         const cw = containerEl.offsetWidth  || 1;
         const ch = containerEl.offsetHeight || 1;
-        originX = (pt.x / cw) * 100;
-        originY = (pt.y / ch) * 100;
-        // Clamp agar tidak terlalu ekstrem
-        originX = Math.max(10, Math.min(90, originX));
-        originY = Math.max(10, Math.min(90, originY));
+        originX = Math.max(15, Math.min(85, (pt.x / cw) * 100));
+        originY = Math.max(15, Math.min(85, (pt.y / ch) * 100));
       }
     }
   } catch(e){}
 
   el.style.transformOrigin = `${originX.toFixed(1)}% ${originY.toFixed(1)}%`;
-  el.style.transform = d ? `rotate(${(-d).toFixed(1)}deg) scale(1.45)` : '';
-  el.style.transition = 'transform 0.45s linear';
+  // scale(1.8): cukup untuk menutup sudut-sudut saat rotate 45°
+  el.style.transform  = d ? `rotate(${(-d).toFixed(2)}deg) scale(1.8)` : '';
+  // transition cepat (0.3s) agar belok terasa langsung
+  el.style.transition = 'transform 0.3s ease-out';
 }
 
 function makeUserIcon(isMe, photoUrl){

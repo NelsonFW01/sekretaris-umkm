@@ -174,8 +174,10 @@
     --line: #3A3A3A;
     --shadow: 0 4px 24px rgba(0,0,0,0.3);
   }
-  /* Heading-Up View: rotasi halus saat peta diputar mengikuti arah jalan */
-  #leafletMap{ transition: transform .5s linear; will-change: transform; }
+  /* Heading-Up View: hanya mapClipWrapper yang di-rotate, bukan container */
+  #mapClipWrapper { will-change: transform; }
+  /* leafletMap sendiri tidak perlu transition — clipWrapper yang handle */
+  #leafletMap { width:100%; height:100%; }
   /* ===== FULLSCREEN IMAGE VIEWER ===== */
   #imgFullscreenOverlay {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
@@ -1734,12 +1736,16 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <button id="mapSearchBtn" style="flex-shrink:0;padding:10px 15px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:600;font-size:13px;cursor:pointer;">🔍</button>
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
-        <div id="communityMapContainer" style="border-radius:14px;overflow:hidden;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);display:flex;align-items:center;justify-content:center;position:relative;">
+        <div id="communityMapContainer" style="border-radius:14px;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);position:relative;">
+          <!-- Clipper: hanya leafletMap yang di-clip saat rotate, bukan UI overlay -->
+          <div id="mapClipWrapper" style="position:absolute;inset:0;border-radius:13px;overflow:hidden;z-index:0;">
+            <!-- leafletMap akan di-inject di sini oleh initCommunityMap -->
+          </div>
           <!-- Overlay mencegah klik user saat sedang proses GPS / routing -->
           <div id="mapBusyOverlay">
             <div class="mbo-pill"><div class="mbo-spin"></div><span id="mapBusyMsg">Mendeteksi lokasi...</span></div>
           </div>
-          <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;">
+          <div id="mapLoadPrompt" style="text-align:center;color:var(--ink-soft);font-size:13px;padding:20px;position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
             <div style="font-size:36px;margin-bottom:10px;">🗺️</div>
             <div style="font-weight:700;font-size:14px;color:var(--ink);margin-bottom:6px;">Peta Komunitas</div>
             <div style="margin-bottom:14px;font-size:12.5px;">Klik tombol di bawah untuk memuat peta dan lokasi toko.</div>
@@ -4174,20 +4180,10 @@ function getOrCreateNavPanel(){
   if(p) return p;
   p=document.createElement('div');
   p.id='navPanel';
-  // Letakkan sebagai sibling SETELAH communityMapContainer (bukan di dalamnya)
-  // supaya tidak kena overflow:hidden dan tidak ikut rotate CSS leafletMap.
-  p.style.cssText='position:absolute;top:0;left:0;right:0;z-index:1100;pointer-events:none;';
-  const container = document.getElementById('communityMapContainer');
-  if(container){
-    const parent = container.parentElement;
-    if(parent){
-      const ps = window.getComputedStyle(parent).position;
-      if(ps === 'static') parent.style.position = 'relative';
-      p.style.top = container.offsetTop + 'px';
-      p.style.height = container.offsetHeight + 'px';
-      parent.appendChild(p);
-    }
-  }
+  // Di communityMapContainer (bukan leafletMap/clipWrapper) → tidak ikut rotate
+  p.style.cssText='position:absolute;top:0;left:0;right:0;z-index:700;pointer-events:none;';
+  const c=document.getElementById('communityMapContainer');
+  if(c) c.appendChild(p);
   return p;
 }
 
@@ -4320,17 +4316,12 @@ function startNavigation(){
     updateNavPanel(_idx, _lat, _lng);
   }, 1000);
 
-  // FIX: Tampilkan tombol Follow Mode dan auto-aktifkan heading-up seperti Google Maps
+  // Tampilkan tombol Follow & Heading-Up, langsung aktifkan keduanya
   const _btnF = document.getElementById('btnFollowCam');
   if(_btnF){ _btnF.style.display='flex'; _btnF.style.background='#1B4D4A'; }
-  // Tampilkan tombol Heading-Up dan LANGSUNG aktifkan
   const _btnH = document.getElementById('btnHeadingUp');
-  if(_btnH){
-    _btnH.style.display='flex';
-    _btnH.style.background='#E8633F'; // tampil aktif
-    _btnH.title='Mode Heading-Up: ON (klik untuk North-Up)';
-  }
-  headingUpMode = true; // auto ON saat navigasi mulai
+  if(_btnH){ _btnH.style.display='flex'; _btnH.style.background='#E8633F'; _btnH.title='Mode Heading-Up: ON (klik untuk North-Up)'; }
+  headingUpMode = true; // auto ON seperti Google Maps
 
   // FIX BUG MARKER: hapus marker route_user yang static dari preview rute,
   // supaya tidak ada "dua marker user" — satu diam (lama) + satu gerak (baru).
@@ -4371,22 +4362,20 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
 
-  // SNAP KAMERA LANGSUNG ke posisi user + arah rute begitu tombol ditekan
-  // User di bagian bawah layar, rute terlihat di depan (gaya Google Maps)
+  // SNAP KAMERA: user muncul di bawah layar, rute terlihat di depan
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
-    let bearing = 0;
     let cLat = lat, cLng = lng;
     if(activeRouteCoords && activeRouteCoords.length > 1){
       const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 300);
-      bearing = computeBearing(lat, lng, la.lat, la.lng);
-      // Geser center lebih jauh ke depan (65%) agar user tampil di bawah layar
+      const bearing = computeBearing(lat, lng, la.lat, la.lng);
+      // Putar peta sesuai arah jalan dulu
+      setMapHeadingRotation(bearing);
+      // Geser center 65% ke depan → user otomatis tampil di bawah layar
       cLat = lat + (la.lat - lat) * 0.65;
       cLng = lng + (la.lng - lng) * 0.65;
-      // Langsung putar peta sesuai bearing
-      setMapHeadingRotation(bearing);
     }
-    communityMap.setView([cLat, cLng], 18, {animate: false});
+    communityMap.setView([cLat, cLng], 18, {animate:false});
   }
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
@@ -4645,27 +4634,14 @@ function routeToCoords(destLat, destLng, destName){
   clearActiveRoute();
   routePending=true;  // clearActiveRoute me-reset ini, set ulang
 
-  // Bar status
+  // Bar status — di communityMapContainer langsung, bukan leafletMap
   let bar=document.getElementById('routeInfoBar');
   if(!bar){
     bar=document.createElement('div');
     bar.id='routeInfoBar';
-    bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #eee;padding:14px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.1);';
-    // Letakkan sebagai sibling dari communityMapContainer (bukan di dalamnya)
-    // supaya tidak kena overflow:hidden dan tidak ikut rotate
-    const container = document.getElementById('communityMapContainer');
-    if(container && container.parentElement){
-      const parent = container.parentElement;
-      const ps = window.getComputedStyle(parent).position;
-      if(ps === 'static') parent.style.position = 'relative';
-      // Posisi bottom relatif ke parent: dari bawah container
-      const parentH = parent.offsetHeight;
-      const containerBottom = parentH - container.offsetTop - container.offsetHeight;
-      bar.style.bottom = containerBottom + 'px';
-      bar.style.left = container.offsetLeft + 'px';
-      bar.style.right = (parentH - container.offsetLeft - container.offsetWidth) + 'px';
-      parent.appendChild(bar);
-    }
+    bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:700;background:white;border-top:1px solid #eee;padding:14px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.15);border-radius:0 0 13px 13px;';
+    const c=document.getElementById('communityMapContainer');
+    if(c) c.appendChild(bar);
   }
   bar.innerHTML='📍 Mendeteksi lokasi kamu...';
 
@@ -4978,14 +4954,23 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
 function initCommunityMap(centerLat, centerLng){
   const container = document.getElementById('communityMapContainer');
   if(!container) return;
+  // Temukan atau buat clipWrapper
+  let clipWrapper = document.getElementById('mapClipWrapper');
+  if(!clipWrapper){
+    clipWrapper = document.createElement('div');
+    clipWrapper.id = 'mapClipWrapper';
+    clipWrapper.style.cssText = 'position:absolute;inset:0;border-radius:13px;overflow:hidden;z-index:0;';
+    container.insertBefore(clipWrapper, container.firstChild);
+  }
   // FIX: simpan overlay sebelum innerHTML di-reset agar tidak hilang saat re-init
   const savedOverlay = document.getElementById('mapBusyOverlay');
-  container.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;position:relative;z-index:0;"></div>';
-  // Re-append overlay ke container setelah innerHTML diganti
+  // Inject leafletMap HANYA ke dalam clipWrapper (yang akan di-clip & bisa rotate)
+  clipWrapper.innerHTML = '<div id="leafletMap" style="width:100%;height:100%;position:relative;z-index:0;"></div>';
+  // Re-append overlay ke container (bukan clipWrapper) setelah reset
   if(savedOverlay){ container.appendChild(savedOverlay); savedOverlay.classList.remove('show'); }
   if(communityMap){ try{ communityMap.remove(); }catch(e){} communityMap=null; }
   communityMapMarkers = {};
-  communityMapFirstRender = true; // FIX BUG: reset agar fitBounds jalan sekali di render berikutnya
+  communityMapFirstRender = true;
   mapUserInteracting = false;
   lastPanTime = 0;
   activeRoute = null;
@@ -5000,11 +4985,10 @@ function initCommunityMap(centerLat, centerLng){
     maxZoom: 20
   }).addTo(communityMap);
 
-  // Tombol kontrol — letakkan di communityMapContainer (bukan leafletMap)
-  // agar tidak ikut rotate saat Heading-Up mode aktif
+  // Tombol kontrol — di communityMapContainer (bukan leafletMap) agar tidak ikut rotate
   const controlDiv = document.createElement('div');
   controlDiv.id = 'mapCustomControls';
-  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:450;display:flex;flex-direction:column;gap:8px;pointer-events:auto;';
+  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;pointer-events:auto;';
   const btnZoomIn = document.createElement('button');
   btnZoomIn.innerHTML = '+';
   btnZoomIn.title = 'Zoom In';
@@ -5026,8 +5010,8 @@ function initCommunityMap(centerLat, centerLng){
   controlDiv.appendChild(btnZoomIn);
   controlDiv.appendChild(btnZoomOut);
   controlDiv.appendChild(btnGPS);
-  // Append ke communityMapContainer bukan leafletMap — supaya tidak ikut rotate
-  document.getElementById('communityMapContainer').appendChild(controlDiv);
+  // Append ke communityMapContainer bukan leafletMap — tidak ikut rotate
+  container.appendChild(controlDiv);
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
   communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
@@ -5070,32 +5054,27 @@ function initCommunityMap(centerLat, centerLng){
     if(!headingUpMode){
       setMapHeadingRotation(0);
     } else {
-      // Langsung aktifkan follow + center ke user sekarang
       followCameraMode = true;
       mapUserInteracting = false;
       lastCameraUpdate = 0;
       const bF = document.getElementById('btnFollowCam');
-      if(bF){ bF.style.background='#1B4D4A'; bF.title='Follow ON — klik untuk OFF'; }
-      const snapNow = (lat, lng) => {
+      if(bF){ bF.style.background='#1B4D4A'; }
+      const doSnap = (lat, lng) => {
         if(!communityMap) return;
-        let cLat = lat, cLng = lng;
-        if(activeRouteCoords && activeRouteCoords.length > 1){
-          const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 300);
-          const brg = computeBearing(lat, lng, la.lat, la.lng);
+        let cLat=lat, cLng=lng;
+        if(activeRouteCoords && activeRouteCoords.length>1){
+          const la=findLookAheadPoint(L.latLng(lat,lng),activeRouteCoords,300);
+          const brg=computeBearing(lat,lng,la.lat,la.lng);
           setMapHeadingRotation(brg);
-          cLat = lat + (la.lat - lat) * 0.65;
-          cLng = lng + (la.lng - lng) * 0.65;
+          cLat=lat+(la.lat-lat)*0.65; cLng=lng+(la.lng-lng)*0.65;
         }
-        communityMap.setView([cLat, cLng], Math.max(communityMap.getZoom(), 17), {animate:false});
+        communityMap.setView([cLat,cLng],Math.max(communityMap.getZoom(),17),{animate:false});
       };
-      if(myLocation && myLocation.lat){
-        snapNow(myLocation.lat, myLocation.lng);
-      } else if(navigator.geolocation){
-        navigator.geolocation.getCurrentPosition(
-          p => { if(!myLocation) myLocation={}; myLocation.lat=p.coords.latitude; myLocation.lng=p.coords.longitude; snapNow(myLocation.lat, myLocation.lng); },
-          null, {enableHighAccuracy:true, timeout:5000, maximumAge:3000}
-        );
-      }
+      if(myLocation&&myLocation.lat) doSnap(myLocation.lat,myLocation.lng);
+      else if(navigator.geolocation) navigator.geolocation.getCurrentPosition(
+        p=>{ if(!myLocation)myLocation={}; myLocation.lat=p.coords.latitude; myLocation.lng=p.coords.longitude; doSnap(myLocation.lat,myLocation.lng); },
+        null,{enableHighAccuracy:true,timeout:5000,maximumAge:3000}
+      );
     }
   };
   controlDiv.insertBefore(btnHeading, btnGPS);
@@ -5107,15 +5086,17 @@ function initCommunityMap(centerLat, centerLng){
 // Catatan: ini rotasi tampilan (CSS), bukan rotasi data Leaflet.
 let _lastMapRotation = 0;
 function setMapHeadingRotation(deg){
-  const el = document.getElementById('leafletMap');
+  // Rotate hanya mapClipWrapper (yang berisi leafletMap) — bukan container utama
+  // sehingga navPanel, routeInfoBar, dan controlDiv tidak ikut miring
+  const el = document.getElementById('mapClipWrapper');
   if(!el) return;
-  // Normalisasi supaya transisi tidak "memutar balik" lewat 360° → 0°
   let d = deg;
   const diff = d - _lastMapRotation;
   if(diff > 180) d -= 360; else if(diff < -180) d += 360;
   _lastMapRotation = d;
   el.style.transform = d ? `rotate(${(-d).toFixed(1)}deg) scale(1.5)` : '';
   el.style.transformOrigin = 'center center';
+  el.style.transition = 'transform 0.5s linear';
 }
 
 function makeUserIcon(isMe, photoUrl){

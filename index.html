@@ -735,6 +735,11 @@
     background:linear-gradient(160deg,#1B4D4A 0%,#103230 60%,#0D2826 100%);
     display:flex;flex-direction:column;align-items:center;overflow-y:auto;
     padding:0 0 32px;
+    /* FIX BUG: cegah scroll-chaining ke body di belakangnya saat overscroll/rubber-band
+       di mobile (Safari/Chrome) — inilah sebab tampilan setelah splash kadang "kelihatan"
+       saat user scroll cepat sampai mentok atas/bawah. */
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
   }
   .splash-overlay.hidden{display:none;}
   .splash-hero{
@@ -2095,7 +2100,17 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <button class="ai-sum-btn" onclick="runAiSummary('live')">🎥 Live Stream</button>
       <button class="ai-sum-btn" onclick="runAiSummary('pengguna')">👥 User Online</button>
       <button class="ai-sum-btn" onclick="runAiSummary('chat')">💬 Chat</button>
+      <button class="ai-sum-btn" onclick="runAiSummary('kongsi')">🤝 Kongsi</button>
       <button class="ai-sum-btn" onclick="runAiSummary('saran')">💡 Saran Bisnis</button>
+    </div>
+
+    <!-- Status memori AI: chatbot ingat riwayat & kebiasaan user dari sesi-sesi sebelumnya -->
+    <div style="padding:6px 12px;display:flex;align-items:center;justify-content:space-between;gap:6px;border-bottom:1px solid var(--line);background:var(--bg-card);font-size:10.5px;">
+      <span id="aiMemoryStatus" style="color:var(--ink-soft);">🧠 Memori: memuat...</span>
+      <div style="display:flex;gap:4px;flex-shrink:0;">
+        <button onclick="exportAiMemory()" title="Unduh memori AI sebagai file .txt ke HP kamu" style="border:none;background:transparent;color:var(--teal);font-weight:700;font-size:10.5px;cursor:pointer;padding:3px 6px;">📥 Export</button>
+        <button onclick="clearAiMemory()" title="Hapus semua memori AI" style="border:none;background:transparent;color:#C84F2F;font-weight:700;font-size:10.5px;cursor:pointer;padding:3px 6px;">🗑️ Hapus</button>
+      </div>
     </div>
 
     <!-- Chat area -->
@@ -8840,6 +8855,24 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   let currentSlide = 1;
   const totalSlides = 3;
 
+  // FIX BUG: kunci scroll <body> selama splash tampil. Sebelumnya body di belakang
+  // splash tetap bisa discroll, jadi saat user scroll kencang (terutama di HP),
+  // browser sempat menggeser body itu lalu konten ASLI aplikasi (setelah splash)
+  // ikut "kelihatan sekilas" lewat efek rubber-band/scroll-chaining.
+  function lockBodyScroll(){
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+  }
+  function unlockBodyScroll(){
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+  }
+  lockBodyScroll(); // splash selalu tampil di awal load, jadi langsung kunci
+
   function goToSlide(n){
     for(let i=1;i<=totalSlides;i++){
       const sl = document.getElementById('splashSlide'+i);
@@ -8868,6 +8901,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       el.style.opacity='0';
       setTimeout(()=>{ el.style.display='none'; }, 350);
     }
+    unlockBodyScroll();
     splashDone();
   }
 
@@ -8922,6 +8956,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const ownerKey=it.ownerKey||'';
       const isMine = ownerKey && ownerKey===getOwnerKey();
       const isMyKurir = ownerKey && ownerKey===getOwnerKey();
+      const myId = myIdentity();
+      const isInterestedParty = !!(it.interestedUids && it.interestedUids[myId]);
+      const canTrack = isMyKurir || isInterestedParty; // hanya pemilik & yg sudah chat boleh lacak live
       const trackStatus = it.tracking ? `<span id="kurir-live-badge-${it.id}" style="font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;">🟢 Kurir Online</span>` : `<span id="kurir-live-badge-${it.id}" style="display:none;font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;"></span>`;
       const kurirExtra = it.mode==='kurir' ? `
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
@@ -8940,7 +8977,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <button class="kc-streetview-btn-open" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;font-weight:700;font-size:12px;cursor:pointer;">📸 Street View</button>
           ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
           ${isMyKurir && it.to ? `<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Tujuan</button>` : ''}
-          ${!isMyKurir && it.tracking ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
+          ${!isMyKurir && it.tracking && canTrack ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
+          ${!isMyKurir && it.tracking && !canTrack ? `<span style="flex:1;min-width:140px;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">🔒 Chat penjual dulu untuk lacak live</span>` : ''}
         </div>
         <div id="lrmap-${it.id}" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:8px;">
           <div class="kurir-map-wrap">
@@ -8957,7 +8995,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         <div class="km-streetview-panel" id="lrsv-${it.id}">
           <button class="km-streetview-close" onclick="document.getElementById('lrsv-${it.id}').classList.remove('open')">✕</button>
           <div id="lrsv-inner-${it.id}"></div>
-        </div>` : '';
+        </div>
+        ${!isMyKurir ? `<div class="kg-order-panel" id="kgOrderForm-${it.id}" style="display:none;background:#F7F3EC;border:1.5px solid #1B4D4A;border-radius:12px;padding:12px;margin-top:8px;">
+          <div style="font-size:12.5px;font-weight:700;color:#1B4D4A;margin-bottom:8px;">📦 Pesan Kurir Ini</div>
+          <input type="text" class="kg-order-name" placeholder="Nama kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
+          <input type="text" class="kg-order-wa" placeholder="No. WA kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
+          <textarea class="kg-order-note" placeholder="Barang yang dikirim / catatan (opsional)" rows="2" style="width:100%;margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;resize:vertical;box-sizing:border-box;"></textarea>
+          <button class="kc-order-submit-btn" data-id="${it.id}" style="width:100%;padding:9px;border-radius:9px;border:none;background:#1B4D4A;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">✅ Kirim Pesanan ke Kurir</button>
+          <div style="font-size:10.5px;color:#A08B5E;margin-top:6px;text-align:center;">🔒 Setelah pesan, kamu otomatis bisa lacak posisi kurir secara live</div>
+        </div>` : ''}` : '';
       return `<div class="kongsi-card">
         <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
         <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
@@ -8966,8 +9012,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         <div class="kc-foot">
           <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Penjual')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> Chat Penjual</button>`:''}
-            ${wa?`<a class="kc-wa" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
+            ${!isMyKurir && it.mode==='kurir' ? `<button class="kc-order-toggle-btn" data-id="${it.id}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:#E8633F;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">📦 Pesan Kurir Ini</button>`:''}
+            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Penjual')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> Chat Penjual</button>`:''}
+            ${wa?`<a class="kc-wa" data-item-id="${it.id}" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
           </div>
         </div>
         ${isMine?`<div style="text-align:right;margin-top:6px;"><button class="kc-del" data-del="${it.id}">Hapus tawaran saya</button></div>`:''}
@@ -8991,7 +9038,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'), {lat,lng,speed,t:Date.now()});
       }catch(e){}
     }, ()=>{}, {enableHighAccuracy:true,maximumAge:5000});
-    alert('📡 Tracking GPS aktif! Posisi kamu akan muncul di peta untuk semua orang yang membuka rute ini.');
+    alert('📡 Tracking GPS aktif! Posisi kamu hanya akan terlihat oleh pembeli yang sudah chat denganmu (privasi rute terjaga).');
   }
 
   async function stopKurirTracking(itemId){
@@ -9277,11 +9324,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           const routeInfoEl = document.getElementById('lrinfo-'+id);
           await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],'driving',routeInfoEl,null,null);
           setTimeout(()=>m.invalidateSize(),150);
-          // Attach live position listener
-          if(window.firebaseReady && window.firebaseDb) attachKurirPosListener(id, m);
+          // Attach live position listener — hanya kalau berhak (pemilik/sudah chat)
+          if(window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id)) attachKurirPosListener(id, m);
         } else {
           // Peta sudah terbuka — re-attach listener saja
-          if(listRouteMaps[id] && window.firebaseReady && window.firebaseDb){
+          if(listRouteMaps[id] && window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id)){
             attachKurirPosListener(id, listRouteMaps[id]);
           }
         }
@@ -9424,8 +9471,10 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],currentMode,routeInfoEl,stepsEl,stepsBtnEl);
     setTimeout(()=>m.invalidateSize(),150);
 
-    // Pasang listener posisi kurir live
-    if(window.firebaseReady && window.firebaseDb){ attachKurirPosListener(id,m); }
+    // Pasang listener posisi kurir live — HANYA untuk pemilik kurir & user yang sudah
+    // chat/berhubungan dengannya. Orang lain tetap bisa lihat rute umum (dari-ke) saja,
+    // tanpa titik posisi GPS real-time kurirnya (privasi).
+    if(window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id)){ attachKurirPosListener(id,m); }
   });
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -9436,7 +9485,75 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     return k;
   }
 
+  // Identitas user saat ini: pakai UID Firebase asli kalau sudah login (sama di semua device),
+  // fallback ke kgOwnerKey (device id lokal) kalau belum login.
+  function myIdentity(){
+    return (typeof MY_UID !== 'undefined' && MY_UID) ? MY_UID : getOwnerKey();
+  }
+
+  // PRIVASI RUTE KURIR: hanya pemilik kurir DAN orang yang SUDAH PESAN kurir ini
+  // (ada record order, terdaftar di interestedUids) yang boleh lihat posisi live GPS-nya.
+  // Orang lain tetap boleh lihat rute umum (dari-ke) tapi TIDAK posisi real-time kurirnya.
+  function canSeeLiveKurir(itemId){
+    const it = cache.find(c=>c.id===itemId);
+    if(!it) return false;
+    if(it.ownerKey && it.ownerKey===getOwnerKey()) return true;
+    const myId = myIdentity();
+    return !!(it.interestedUids && it.interestedUids[myId]);
+  }
+
+  // Tandai user sebagai "sudah pesan / berhubungan transaksi" dengan kurir ini —
+  // dipanggil dari submitKurirOrder() setelah order resmi dikirim. Chat/WA doang TIDAK
+  // memanggil ini, supaya gak sembarang orang bisa lacak live cuma dengan klik chat.
+  async function registerKurirInterest(itemId){
+    if(!itemId) return;
+    const myId = myIdentity();
+    const it = cache.find(c=>c.id===itemId);
+    if(it){
+      it.interestedUids = it.interestedUids || {};
+      if(it.interestedUids[myId]) return; // sudah terdaftar, tidak perlu apa-apa lagi
+      it.interestedUids[myId] = true;
+    }
+    if(window.firebaseReady && window.firebaseDb){
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/interestedUids'), {[myId]:true});
+      }catch(e){}
+    } else {
+      const arr = loadLocal();
+      const idx = arr.findIndex(x=>x.id===itemId);
+      if(idx>-1){ arr[idx].interestedUids = arr[idx].interestedUids||{}; arr[idx].interestedUids[myId]=true; saveLocal(arr); }
+    }
+    renderList(cache); // re-render supaya tombol "Lacak Kurir Live" langsung muncul
+  }
+
+  // PESAN KURIR — meniru pola "pesanan" di fitur live stream: ada record nyata
+  // (nama, WA, catatan barang) yang tersimpan di item ini, bukan cuma klik chat doang.
+  // Pesanan inilah yang jadi "tiket" buat boleh lacak posisi kurir secara live.
+  async function submitKurirOrder(itemId, data){
+    if(!itemId) return;
+    const myId = myIdentity();
+    const orderId = 'o_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    const order = { uid: myId, name: data.name, wa: data.wa, note: data.note||'', ts: Date.now() };
+    const it = cache.find(c=>c.id===itemId);
+    if(it){
+      it.orders = it.orders || {};
+      it.orders[orderId] = order;
+    }
+    if(window.firebaseReady && window.firebaseDb){
+      try{
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/orders'), {[orderId]: order});
+      }catch(e){}
+    } else {
+      const arr = loadLocal();
+      const idx = arr.findIndex(x=>x.id===itemId);
+      if(idx>-1){ arr[idx].orders = arr[idx].orders||{}; arr[idx].orders[orderId]=order; saveLocal(arr); }
+    }
+    await registerKurirInterest(itemId); // pesan resmi = otomatis berhak lacak live
+  }
+
   let cache=[];
+  // Dipakai modul AI (Sekretaris AI) supaya tahu aktivitas Pasar Kongsi user — lihat gatherAllContext.
+  window.getKongsiData = function(){ return cache; };
   function refresh(){
     if(window.firebaseReady && window.firebaseDb){
       try{
@@ -9623,6 +9740,36 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(id && confirm('Hapus tawaran ini?'))delItem(id);
   });
 
+  // Toggle form "Pesan Kurir Ini"
+  $$('kgList').addEventListener('click', e=>{
+    const toggleBtn = e.target.closest('.kc-order-toggle-btn');
+    if(!toggleBtn) return;
+    const id = toggleBtn.dataset.id;
+    const panel = document.getElementById('kgOrderForm-'+id);
+    if(panel) panel.style.display = (panel.style.display==='block') ? 'none' : 'block';
+  });
+
+  // Submit pesanan kurir — INI yang jadi tiket akses lacak live, bukan klik chat/WA
+  $$('kgList').addEventListener('click', async e=>{
+    const submitBtn = e.target.closest('.kc-order-submit-btn');
+    if(!submitBtn) return;
+    const id = submitBtn.dataset.id;
+    const panel = document.getElementById('kgOrderForm-'+id);
+    if(!panel) return;
+    const name = panel.querySelector('.kg-order-name')?.value.trim() || '';
+    const wa = panel.querySelector('.kg-order-wa')?.value.trim() || '';
+    const note = panel.querySelector('.kg-order-note')?.value.trim() || '';
+    if(!name || !wa){ alert('Isi nama & WA dulu ya, biar kurir bisa hubungi kamu.'); return; }
+    submitBtn.disabled = true; submitBtn.textContent = '⏳ Mengirim...';
+    try{
+      await submitKurirOrder(id, {name, wa, note});
+      alert('📦 Pesanan terkirim ke kurir! Sekarang kamu bisa lacak posisinya secara live di kartu ini.');
+    }catch(err){
+      alert('Gagal mengirim pesanan: ' + err.message);
+      submitBtn.disabled = false; submitBtn.textContent = '✅ Kirim Pesanan ke Kurir';
+    }
+  });
+
   // Chat dari kartu Kongsi
   $$('kgList').addEventListener('click',e=>{
     const btn=e.target.closest('.kc-chat-btn');
@@ -9631,6 +9778,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const name=btn.dataset.chatName||'Penjual';
     const photo=btn.dataset.chatPhoto||'';
     if(!uid){ alert('Penjual belum punya akun terdaftar, hubungi via WA.'); return; }
+    // CATATAN: chat di sini cuma untuk nanya-nanya, BUKAN penanda transaksi.
+    // Akses lacak kurir live hanya didapat lewat tombol "📦 Pesan Kurir Ini" (lihat submitKurirOrder).
     if(typeof openChat==='function') openChat(uid, name, photo);
     else alert('Fitur chat sedang dimuat, coba lagi sebentar.');
   });
@@ -11523,8 +11672,116 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 (function(){
   const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
   const GROQ_MODEL = 'llama-3.3-70b-versatile';
-  let _msgHistory = [];
+  // ===== MEMORI AI (persisten di localStorage) =====
+  // Chatbot "ingat" percakapan & kebiasaan user dari sesi sebelumnya, jadi makin
+  // sering dipakai, makin nyambung & makin pintar kasih saran personal.
+  const MEM_CHAT_KEY = 'aiMemory_chat_v1';
+  const MEM_PROFILE_KEY = 'aiMemory_profile_v1';
+  const MEM_MAX_HISTORY = 20;     // ±10 pasang tanya-jawab terakhir, disimpan permanen di HP
+  const MEM_MAX_SNAPSHOTS = 30;   // jejak tren bisnis 30 interaksi terakhir
+
+  function loadChatMemory(){ try{ return JSON.parse(localStorage.getItem(MEM_CHAT_KEY)||'[]'); }catch(e){ return []; } }
+  function saveChatMemory(arr){ try{ localStorage.setItem(MEM_CHAT_KEY, JSON.stringify(arr.slice(-MEM_MAX_HISTORY))); }catch(e){} }
+  function loadProfileMemory(){
+    try{ const p = JSON.parse(localStorage.getItem(MEM_PROFILE_KEY)||'null'); if(p) return p; }catch(e){}
+    return { createdAt: Date.now(), totalChats:0, topicCounts:{}, snapshots:[] };
+  }
+  function saveProfileMemory(p){ try{ localStorage.setItem(MEM_PROFILE_KEY, JSON.stringify(p)); }catch(e){} }
+
+  let _msgHistory = loadChatMemory();   // riwayat chat dimuat ulang dari HP, bukan kosong lagi
+  let _aiProfile  = loadProfileMemory();
   let _isPanelOpen = false;
+
+  // Catat kebiasaan: topik yang sering ditanya + cuplikan ringkas data bisnis tiap interaksi
+  // (profit, pesanan live, jumlah tawaran kongsi) — supaya AI bisa lihat TREN, bukan cuma snapshot sesaat.
+  function recordHabit(focus){
+    try{
+      const key = focus || 'umum';
+      _aiProfile.totalChats = (_aiProfile.totalChats||0) + 1;
+      _aiProfile.topicCounts = _aiProfile.topicCounts || {};
+      _aiProfile.topicCounts[key] = (_aiProfile.topicCounts[key]||0) + 1;
+
+      const tx = (typeof transactions !== 'undefined') ? transactions : [];
+      const inc = tx.filter(t=>t.type==='income').reduce((a,b)=>a+(Number(b.amount)||0),0);
+      const exp = tx.filter(t=>t.type==='expense').reduce((a,b)=>a+(Number(b.amount)||0),0);
+      const orders = (typeof liveOrders !== 'undefined') ? liveOrders : [];
+      const kongsiCount = (typeof window.getKongsiData==='function') ? window.getKongsiData().length : 0;
+
+      _aiProfile.snapshots = _aiProfile.snapshots || [];
+      _aiProfile.snapshots.push({ ts: Date.now(), net: inc-exp, liveOrders: orders.length, kongsiCount });
+      if(_aiProfile.snapshots.length > MEM_MAX_SNAPSHOTS) _aiProfile.snapshots = _aiProfile.snapshots.slice(-MEM_MAX_SNAPSHOTS);
+
+      saveProfileMemory(_aiProfile);
+      updateMemoryStatusUI();
+    }catch(e){}
+  }
+
+  // Ubah memori jadi blok teks ringkas yang disuntik ke system prompt Groq,
+  // supaya jawaban AI makin personal & "ingat" kebiasaan user tiap kali dipakai.
+  function buildMemoryBlock(){
+    if(!_aiProfile || !_aiProfile.totalChats) return '';
+    const topTopics = Object.entries(_aiProfile.topicCounts||{}).sort((a,b)=>b[1]-a[1]).slice(0,3)
+      .map(([k,v])=>`${k} (${v}x)`).join(', ');
+    const snaps = _aiProfile.snapshots||[];
+    let trend = '';
+    if(snaps.length>1){
+      const first=snaps[0], last=snaps[snaps.length-1];
+      const diff = last.net - first.net;
+      trend = diff>=0
+        ? `📈 Tren: profit cenderung naik sekitar Rp${diff.toLocaleString('id')} dibanding catatan paling awal.`
+        : `📉 Tren: profit cenderung turun sekitar Rp${Math.abs(diff).toLocaleString('id')} dibanding catatan paling awal.`;
+    }
+    const daysSince = Math.floor((Date.now()-(_aiProfile.createdAt||Date.now()))/86400000);
+    return `=== MEMORI AI (belajar dari histori percakapan & kebiasaan user ini) ===
+Sudah ${_aiProfile.totalChats}x ngobrol dengan user ini sejak ${daysSince} hari lalu.
+Topik paling sering ditanyakan: ${topTopics||'(belum ada)'}
+${trend}
+Pakai info ini untuk saran yang makin personal sesuai kebiasaan user, jangan mengulang kalimat yang sama persis tiap kali dijawab.`;
+  }
+
+  // Tampilkan status memori di panel (jumlah chat tersimpan)
+  function updateMemoryStatusUI(){
+    const el = document.getElementById('aiMemoryStatus');
+    if(!el) return;
+    const n = _aiProfile?.totalChats || 0;
+    el.textContent = n>0 ? `🧠 Memori: ${n} percakapan diingat` : '🧠 Memori: belum ada riwayat';
+  }
+
+  // Export memori AI jadi file .txt yang bisa disimpan/dibackup user di HP-nya sendiri
+  window.exportAiMemory = function(){
+    const lines = [];
+    lines.push('=== MEMORI SEKRETARIS AI ===');
+    lines.push('Diekspor: ' + new Date().toLocaleString('id-ID'));
+    lines.push('');
+    lines.push('--- KEBIASAAN & STATISTIK ---');
+    lines.push('Total percakapan: ' + (_aiProfile.totalChats||0));
+    lines.push('Topik favorit: ' + Object.entries(_aiProfile.topicCounts||{}).map(([k,v])=>`${k}=${v}`).join(', '));
+    lines.push('');
+    lines.push('--- RIWAYAT CHAT TERAKHIR ---');
+    _msgHistory.forEach(m=>{
+      const who = m.role==='user' ? 'KAMU' : 'AI';
+      const txt = (m.content||'').split('\n--- DATA REAL-TIME APLIKASI ---')[0]; // buang lampiran data biar ringkas
+      lines.push(`[${who}] ${txt}`);
+    });
+    const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'memori-ai-umkm-' + new Date().toISOString().slice(0,10) + '.txt';
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  // Hapus semua memori AI (chat + kebiasaan) dari HP user
+  window.clearAiMemory = function(){
+    if(!confirm('Hapus semua memori AI (riwayat chat & kebiasaan yang sudah dipelajari)? Tidak bisa dibatalkan.')) return;
+    localStorage.removeItem(MEM_CHAT_KEY);
+    localStorage.removeItem(MEM_PROFILE_KEY);
+    _msgHistory = [];
+    _aiProfile = { createdAt: Date.now(), totalChats:0, topicCounts:{}, snapshots:[] };
+    updateMemoryStatusUI();
+    const box = document.getElementById('aiSummaryMessages');
+    if(box) box.innerHTML = '';
+    alert('🗑️ Memori AI sudah dihapus.');
+  };
 
   // ── Ambil Groq key dari variabel global yang sudah ada ──
   function getGroqKey(){
@@ -11545,13 +11802,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       // Sembunyikan key section karena pakai Groq yang sudah ada
       const ks = document.getElementById('aiSummaryKeySection');
       if(ks) ks.style.display = 'none';
+      updateMemoryStatusUI();
       // Tampilkan pesan sambutan jika belum ada chat
       const box = document.getElementById('aiSummaryMessages');
       if(box && box.children.length === 0){
+        const adaMemori = (_aiProfile?.totalChats||0) > 0;
         box.innerHTML = `<div style="text-align:center;color:var(--ink-soft);font-size:12.5px;padding:20px 10px;">
           <div style="font-size:28px;margin-bottom:8px;">🤖</div>
-          <div style="font-weight:700;color:var(--ink);margin-bottom:4px;">Halo! Saya Sekretaris AI kamu 👋</div>
-          <div style="font-size:11.5px;line-height:1.6;">Klik tombol di atas atau ketik pertanyaan.<br>Saya tahu semua data bisnis, live stream, pengguna aktif, dan keuangan kamu!</div>
+          <div style="font-weight:700;color:var(--ink);margin-bottom:4px;">${adaMemori ? 'Halo lagi! Saya masih ingat kebiasaan kamu 🧠' : 'Halo! Saya Sekretaris AI kamu 👋'}</div>
+          <div style="font-size:11.5px;line-height:1.6;">Klik tombol di atas atau ketik pertanyaan.<br>Saya tahu semua data bisnis, live stream, Pasar Kongsi, pengguna aktif, dan keuangan kamu!</div>
         </div>`;
       }
     }
@@ -11701,6 +11960,25 @@ ${chatData||'  (belum ada percakapan)'}`);
       }catch(e){}
     }
 
+    // 6. PASAR KONGSI (stok lebih, kongsi belanja, rute kurir)
+    if(!focus || focus==='kongsi' || focus==='semua'){
+      try{
+        const items = (typeof window.getKongsiData === 'function') ? window.getKongsiData() : [];
+        const myId = (typeof MY_UID !== 'undefined' && MY_UID) ? MY_UID : null;
+        const myKey = (function(){ try{ return localStorage.getItem('kgOwnerKey'); }catch(e){ return null; } })();
+        const milik = items.filter(i=>i.ownerKey && i.ownerKey===myKey);
+        const stokN = items.filter(i=>i.mode==='stok').length;
+        const belanjaN = items.filter(i=>i.mode==='belanja').length;
+        const kurirN = items.filter(i=>i.mode==='kurir').length;
+        const kurirAktif = items.filter(i=>i.mode==='kurir' && i.tracking).length;
+        parts.push(`=== DATA PASAR KONGSI (gotong royong UMKM) ===
+Total Tawaran Aktif: ${items.length} (📦 Stok Lebih: ${stokN}, 🛒 Kongsi Belanja: ${belanjaN}, 🛵 Rute Kurir: ${kurirN})
+Kurir yang sedang online/live: ${kurirAktif}
+Tawaran milik user ini: ${milik.length}
+${milik.slice(0,5).map(i=>`  • [${i.mode}] ${i.title} — ${i.city||i.from||'-'}${i.to?(' → '+i.to):''}`).join('\n')||'  (belum pernah posting tawaran)'}`);
+      }catch(e){ parts.push('=== DATA PASAR KONGSI ===\nBelum ada data Pasar Kongsi.'); }
+    }
+
     return parts.join('\n\n');
   }
 
@@ -11738,17 +12016,20 @@ ${chatData||'  (belum ada percakapan)'}`);
   }
 
   // ── Panggil Groq API ──
-  async function callGroqAI(userMsg, context){
+  async function callGroqAI(userMsg, context, focus){
     const key = getGroqKey();
     if(!key) return '⚠️ API key Groq tidak ditemukan. Pastikan kamu sudah isi Groq key di pengaturan.';
 
+    const memoryBlock = buildMemoryBlock();
     const systemPrompt = `Kamu adalah Sekretaris UMKM AI, asisten cerdas berbahasa Indonesia untuk pengusaha kecil dan menengah.
-Kamu memiliki akses ke semua data bisnis user: keuangan, live stream, pengguna online, aktivitas chat, dan profil toko.
+Kamu memiliki akses ke semua data bisnis user: keuangan, live stream, pengguna online, aktivitas chat, Pasar Kongsi (kongsi/kurir), dan profil toko.
 Tugasmu: analisis data yang diberikan, berikan ringkasan yang jelas, insight actionable, dan saran praktis.
 Gunakan emoji yang relevan. Jawab ramah, singkat, padat. Gunakan format yang mudah dibaca.
 Jika ada data numerik, tampilkan dengan format rupiah Indonesia (Rp).
 Jika ditanya "siapa yang paling sering online" atau "siapa yang aktif", lihat data presence/lastSeen.
-Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
+Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.
+Jika ditanya tentang kongsi/kurir, lihat data Pasar Kongsi.
+${memoryBlock ? '\n'+memoryBlock : ''}`;
 
     _msgHistory.push({ role:'user', content: `${userMsg}\n\n--- DATA REAL-TIME APLIKASI ---\n${context}` });
     if(_msgHistory.length > 16) _msgHistory = _msgHistory.slice(-16);
@@ -11773,6 +12054,8 @@ Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
     if(!res.ok) throw new Error(data.error?.message || 'Groq API error ' + res.status);
     const reply = data.choices?.[0]?.message?.content || '(Tidak ada jawaban)';
     _msgHistory.push({ role:'assistant', content: reply });
+    saveChatMemory(_msgHistory); // simpan permanen ke localStorage HP user
+    recordHabit(focus);          // catat kebiasaan/topik untuk makin "pintar" tiap dipakai
     return reply;
   }
 
@@ -11782,8 +12065,9 @@ Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
     live: 'Tolong ringkaskan performa live stream saya. Berapa total pesanan, estimasi pendapatan, produk apa yang paling laku, dan saran untuk meningkatkan penjualan live?',
     pengguna: 'Siapa saja pengguna yang sedang online sekarang? Siapa yang paling sering/terbaru aktif? Tampilkan daftar lengkapnya.',
     chat: 'Ringkaskan aktivitas chat saya. Siapa yang paling aktif chat dengan saya? Ada berapa percakapan yang belum dibaca?',
-    semua: 'Buat ringkasan lengkap semua aktivitas bisnis saya: keuangan, live stream, pengguna online, dan chat. Tampilkan yang paling penting dari masing-masing.',
-    saran: 'Berdasarkan semua data bisnis saya (keuangan, live stream, pengguna aktif), berikan 3 saran konkret dan spesifik untuk meningkatkan penjualan dan engagement komunitas UMKM saya.'
+    kongsi: 'Ringkaskan aktivitas Pasar Kongsi saya: berapa tawaran stok lebih, kongsi belanja, dan rute kurir yang aktif. Beri saran untuk lebih aktif gotong royong dengan UMKM lain.',
+    semua: 'Buat ringkasan lengkap semua aktivitas bisnis saya: keuangan, live stream, pengguna online, Pasar Kongsi, dan chat. Tampilkan yang paling penting dari masing-masing.',
+    saran: 'Berdasarkan semua data bisnis saya (keuangan, live stream, pengguna aktif, Pasar Kongsi), berikan 3 saran konkret dan spesifik untuk meningkatkan penjualan dan engagement komunitas UMKM saya.'
   };
 
   window.runAiSummary = async function(type){
@@ -11797,7 +12081,7 @@ Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
     if(btn){ btn.disabled = true; btn.style.opacity = '0.5'; }
 
     try{
-      const reply = await callGroqAI(prompt, ctx);
+      const reply = await callGroqAI(prompt, ctx, focus);
       if(typing) typing.remove();
       addBubble('ai', reply);
     }catch(e){
@@ -11827,11 +12111,12 @@ Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
     else if(lower.includes('live')||lower.includes('streaming')||lower.includes('pesanan')) focus='live';
     else if(lower.includes('online')||lower.includes('aktif')||lower.includes('pengguna')||lower.includes('user')||lower.includes('siapa')) focus='pengguna';
     else if(lower.includes('chat')||lower.includes('pesan')) focus='chat';
+    else if(lower.includes('kongsi')||lower.includes('kurir')||lower.includes('stok lebih')) focus='kongsi';
 
     const ctx = gatherAllContext(focus);
 
     try{
-      const reply = await callGroqAI(text, ctx);
+      const reply = await callGroqAI(text, ctx, focus);
       if(typing) typing.remove();
       addBubble('ai', reply);
     }catch(e){
@@ -11845,9 +12130,11 @@ Jika ditanya tentang live stream, lihat data liveOrders dan liveActive.`;
   // ── Init ──
   if(document.readyState !== 'loading'){
     document.getElementById('aiSummaryKeySection') && (document.getElementById('aiSummaryKeySection').style.display='none');
+    updateMemoryStatusUI();
   } else {
     document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('aiSummaryKeySection') && (document.getElementById('aiSummaryKeySection').style.display='none');
+      updateMemoryStatusUI();
     });
   }
 })();

@@ -176,9 +176,8 @@
   }
   /* Heading-Up View: rotasi halus saat peta diputar mengikuti arah jalan */
   #leafletMap{ transition: transform .5s linear; will-change: transform; }
-  /* Wrapper peta harus overflow hidden agar sudut peta yang rotate tidak terlihat */
+  /* Container peta harus overflow:hidden agar sudut peta yang rotate tidak keluar */
   #communityMapContainer { overflow: hidden; position: relative; }
-  /* navPanel & routeInfoBar tidak boleh ada di dalam #leafletMap — sudah dipindah ke parentnya */
   /* ===== FULLSCREEN IMAGE VIEWER ===== */
   #imgFullscreenOverlay {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
@@ -4177,10 +4176,8 @@ function getOrCreateNavPanel(){
   if(p) return p;
   p=document.createElement('div');
   p.id='navPanel';
-  // FIX: navPanel harus di LUAR #leafletMap agar tidak ikut rotate saat Heading-Up.
-  // Letakkan di atas container peta (posisi fixed/absolute relatif ke wrapper).
   p.style.cssText='position:absolute;top:0;left:0;right:0;z-index:1100;pointer-events:none;';
-  // Cari wrapper peta (parent dari leafletMap), bukan leafletMap itu sendiri
+  // Letakkan di PARENT leafletMap (bukan di dalamnya) supaya tidak ikut rotate CSS
   const leafletEl = document.getElementById('leafletMap');
   const containerEl = document.getElementById('communityMapContainer');
   const parentEl = leafletEl ? leafletEl.parentElement : containerEl;
@@ -4439,13 +4436,12 @@ function startNavigation(){
     updateRouteProgress(lat, lng);
 
     // === Camera Follow ===
-    // Throttle 1200ms (naik dari 800ms) supaya peta tidak jitter terus-menerus
+    // Throttle 800ms, geser kamera ke depan user mengikuti arah rute
     if(followCameraMode && communityMap && !mapUserInteracting){
       const now = Date.now();
-      if(now - lastCameraUpdate > 1200){
+      if(now - lastCameraUpdate > 800){
         lastCameraUpdate = now;
         let camLat = lat, camLng = lng;
-        let bearing = _lastMapRotation ? ((-_lastMapRotation + 360) % 360) : null;
         if(activeRouteCoords && activeRouteCoords.length > 1){
           const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 250);
           // Geser 45% ke arah look-ahead agar rute terlihat "di depan" user
@@ -4453,7 +4449,7 @@ function startNavigation(){
           camLng = lng + (la.lng - lng) * 0.45;
           // Update marker user dengan ikon panah arah (bearing) jika bisa
           try {
-            bearing = computeBearing(lat, lng, la.lat, la.lng);
+            const bearing = computeBearing(lat, lng, la.lat, la.lng);
             const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
             const arrowIcon = L.divIcon({
               className:'',
@@ -4466,19 +4462,16 @@ function startNavigation(){
               iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24]
             });
             if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
+            // Heading-Up View: putar peta supaya arah bearing selalu di atas layar
+            if(headingUpMode) setMapHeadingRotation(bearing);
           } catch(e){}
         }
-        // FIX: Heading-Up dipanggil di sini SELALU (baik ada lookahead maupun tidak),
-        // asalkan headingUpMode aktif dan bearing berhasil dihitung
-        if(headingUpMode && bearing !== null) setMapHeadingRotation(bearing);
-
         const curZoom = communityMap.getZoom();
         const targetZoom = Math.max(curZoom, 17);
         if(curZoom !== targetZoom){
           communityMap.setView([camLat,camLng], targetZoom, {animate:false});
         } else {
-          // FIX: gunakan panTo yang lebih halus, bukan setView yang bisa trigger dragstart
-          communityMap.panTo([camLat,camLng], {animate:true, duration:0.6, easeLinearity:0.4, noMoveStart:true});
+          communityMap.panTo([camLat,camLng], {animate:true, duration:0.4, easeLinearity:0.5, noMoveStart:true});
         }
       }
     }
@@ -4647,8 +4640,7 @@ function routeToCoords(destLat, destLng, destName){
     bar=document.createElement('div');
     bar.id='routeInfoBar';
     bar.style.cssText='position:absolute;bottom:0;left:0;right:0;z-index:1000;background:white;border-top:1px solid #eee;padding:14px 16px;pointer-events:auto;box-shadow:0 -4px 20px rgba(0,0,0,0.1);';
-    // FIX: letakkan di parent dari leafletMap (bukan di dalam leafletMap)
-    // agar tidak ikut rotate saat Heading-Up mode aktif
+    // Letakkan di PARENT leafletMap supaya tidak ikut rotate saat Heading-Up mode
     const leafletEl = document.getElementById('leafletMap');
     const parentEl = leafletEl ? leafletEl.parentElement : document.getElementById('communityMapContainer');
     if(parentEl){
@@ -4991,8 +4983,7 @@ function initCommunityMap(centerLat, centerLng){
 
   // Tombol kontrol sederhana seperti Google Maps
   const controlDiv = document.createElement('div');
-  controlDiv.id = 'mapCustomControls';
-  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;transition:transform 0.5s linear;transform-origin:center center;';
+  controlDiv.style.cssText = 'position:absolute;bottom:16px;right:16px;z-index:400;display:flex;flex-direction:column;gap:8px;';
   const btnZoomIn = document.createElement('button');
   btnZoomIn.innerHTML = '+';
   btnZoomIn.title = 'Zoom In';
@@ -5017,16 +5008,12 @@ function initCommunityMap(centerLat, centerLng){
   document.getElementById('leafletMap').appendChild(controlDiv);
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
-  // Gunakan flag _internalPan untuk skip event yang dipicu oleh kode sendiri
-  let _internalPan = false;
-  communityMap.on('dragstart', () => { if(!_internalPan) mapUserInteracting = true; });
-  communityMap.on('zoomstart', () => { if(!_internalPan) mapUserInteracting = true; });
+  communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
   // Setelah 2 detik berhenti berinteraksi, izinkan GPS kamera kembali
+  // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
   communityMap.on('dragend zoomend', () => {
-    if(!_internalPan) setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 2000);
-    _internalPan = false;
+    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 2000);
   });
-  window._setInternalPan = (v) => { _internalPan = v; };
 
   // === Tombol Follow Mode (Camera Follow) ===
   // Tombol ini terlihat saat navMode aktif. Toggle on/off oleh user.
@@ -5061,20 +5048,25 @@ function initCommunityMap(centerLat, centerLng){
     if(!headingUpMode){
       setMapHeadingRotation(0); // balik North-Up langsung
     } else {
-      // FIX: saat diaktifkan, langsung paksa follow ON dan center ke user
+      // Langsung aktifkan follow dan center ke posisi user
       followCameraMode = true;
       mapUserInteracting = false;
+      lastCameraUpdate = 0;
       const btnF = document.getElementById('btnFollowCam');
       if(btnF){ btnF.style.background = '#1B4D4A'; btnF.title = 'Follow ON — klik untuk OFF'; }
-      // Langsung center ke posisi user sekarang
+      // Center peta ke posisi user sekarang tanpa harus tekan tombol panah dulu
       if(myLocation && myLocation.lat && communityMap){
-        communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:false});
+        communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:true, duration:0.5});
       } else if(navigator.geolocation){
-        navigator.geolocation.getCurrentPosition(p => {
-          if(!myLocation) myLocation = {};
-          myLocation.lat = p.coords.latitude; myLocation.lng = p.coords.longitude;
-          if(communityMap) communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:false});
-        }, null, {enableHighAccuracy:true, timeout:5000, maximumAge:2000});
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if(!myLocation) myLocation = {};
+            myLocation.lat = pos.coords.latitude; myLocation.lng = pos.coords.longitude;
+            if(communityMap) communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:true, duration:0.5});
+          },
+          null,
+          {enableHighAccuracy:true, timeout:5000, maximumAge:3000}
+        );
       }
     }
   };
@@ -5094,12 +5086,8 @@ function setMapHeadingRotation(deg){
   const diff = d - _lastMapRotation;
   if(diff > 180) d -= 360; else if(diff < -180) d += 360;
   _lastMapRotation = d;
-  // Putar peta, scale sedikit agar pojok tidak kosong
   el.style.transform = d ? `rotate(${(-d).toFixed(1)}deg) scale(1.5)` : '';
   el.style.transformOrigin = 'center center';
-  // FIX: counter-rotate kontrol map agar tetap tegak (tidak ikut miring bersama peta)
-  const ctrl = document.getElementById('mapCustomControls');
-  if(ctrl) ctrl.style.transform = d ? `rotate(${(d).toFixed(1)}deg)` : '';
 }
 
 function makeUserIcon(isMe, photoUrl){

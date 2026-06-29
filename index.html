@@ -174,6 +174,8 @@
     --line: #3A3A3A;
     --shadow: 0 4px 24px rgba(0,0,0,0.3);
   }
+  /* Heading-Up View: rotasi halus saat peta diputar mengikuti arah jalan */
+  #leafletMap{ transition: transform .5s linear; will-change: transform; }
   /* ===== FULLSCREEN IMAGE VIEWER ===== */
   #imgFullscreenOverlay {
     display:none; position:fixed; inset:0; background:rgba(0,0,0,0.93);
@@ -1216,6 +1218,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     <button class="tab" data-panel="kongsi">🤝 Pasar Kongsi</button>
     <button class="tab" data-panel="brain">🧠 Otak AI</button>
     <button class="tab" data-panel="settings">⚙️ Setting</button>
+    <button type="button" onclick="event.stopPropagation();toggleAiSummaryPanel();" title="Buka Asisten AI (chatbot)" style="flex:0 0 auto;padding:11px 14px;text-align:center;border:none;background:linear-gradient(135deg,#1B4D4A,#E8633F);border-radius:11px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;color:#fff;cursor:pointer;white-space:nowrap;">🤖 Asisten AI</button>
   </div>
 
   <main>
@@ -2037,19 +2040,25 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     background:var(--bg-card);border:1.5px solid var(--line);
     border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,0.18);
     overflow:hidden;
+    transition:width .25s ease, bottom .25s ease, border-radius .25s ease;
   ">
-    <!-- Header -->
-    <div style="background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+    <!-- Header (klik header juga toggle minimize, seperti title bar chat) -->
+    <div id="aiSummaryHeader" onclick="if(event.target.closest('button'))return;toggleAiSummaryMinimize();" style="cursor:pointer;background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:9px;">
         <span style="font-size:20px;">🤖</span>
         <div>
           <div style="font-weight:700;font-size:14px;">Sekretaris AI</div>
-          <div style="font-size:11px;opacity:0.75;">Ditenagai Groq · Data Real-time</div>
+          <div id="aiSummaryHeaderSub" style="font-size:11px;opacity:0.75;">Ditenagai Groq · Data Real-time</div>
         </div>
       </div>
-      <button onclick="toggleAiSummaryPanel()" style="background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:30px;height:30px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button id="aiSumMinimizeBtn" onclick="toggleAiSummaryMinimize()" title="Kecilkan" style="background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">─</button>
+        <button onclick="toggleAiSummaryPanel()" title="Tutup" style="background:rgba(255,255,255,0.15);border:none;color:white;border-radius:50%;width:28px;height:28px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+      </div>
     </div>
 
+    <!-- Semua konten di bawah header ini yang akan disembunyikan saat minimize -->
+    <div id="aiSummaryBody">
     <!-- API Key Input (hidden, pakai Groq) -->
     <div id="aiSummaryKeySection" style="display:none;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--sand);">
       <div id="aiKeyStatus" style="font-size:11px;color:var(--ink-soft);"></div>
@@ -2077,6 +2086,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     <div style="padding:10px 12px;border-top:1px solid var(--line);display:flex;gap:8px;background:var(--bg-card);">
       <input type="text" id="aiSummaryInput" placeholder="Tanya: siapa yang online? live hari ini? total uang masuk?" style="flex:1;padding:9px 12px;border-radius:12px;border:1.5px solid var(--line);font-size:13px;font-family:inherit;background:var(--bg-card);color:var(--ink);" onkeydown="if(event.key==='Enter')sendAiSummaryMsg()">
       <button onclick="sendAiSummaryMsg()" id="aiSumSendBtn" style="padding:9px 14px;background:var(--teal);color:white;border:none;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700;">➤</button>
+    </div>
     </div>
   </div>
 
@@ -2233,6 +2243,11 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <div class="fc-icon">👥</div>
           <div class="fc-title">Komunitas</div>
           <div class="fc-desc">Terhubung & kolaborasi live bareng UMKM lain</div>
+        </div>
+        <div class="feature-card">
+          <div class="fc-icon">🤖</div>
+          <div class="fc-title">Asisten AI</div>
+          <div class="fc-desc">Tanya jawab & ringkasan bisnis kamu, tersedia di tombol bulat kanan-bawah</div>
         </div>
       </div>
     </div>
@@ -4067,6 +4082,9 @@ let routeWatchId      = null;   // ID watchPosition saat rute aktif (live marker
 let navWatchId        = null;   // ID watchPosition khusus NAVIGASI (terpisah)
 let navMode           = false;  // true = mode navigasi aktif
 let followCameraMode  = true;   // true = kamera ikuti user saat navMode (bisa di-toggle user)
+let headingUpMode     = false;  // true = peta diputar mengikuti arah jalan (Heading-Up View)
+let routeTraveledLine = null;   // garis abu-abu: bagian rute yang SUDAH dilewati
+let routeRemainingLine= null;   // garis hijau/teal: bagian rute yang BELUM dilewati
 let navFixCount       = 0;      // jumlah GPS fix yang sudah diterima saat navMode (untuk indikator)
 let navFallbackTimer  = null;   // setInterval fallback kalau watchPosition mandek
 let lastCameraUpdate  = 0;      // throttle setView saat follow
@@ -4202,6 +4220,10 @@ function stopNavigation(){
   navStartTime=0; navDistanceTraveled=0; lastNavLat=null; lastNavLng=null;
   const _btnF=document.getElementById('btnFollowCam');
   if(_btnF) _btnF.style.display='none';
+  const _btnH=document.getElementById('btnHeadingUp');
+  if(_btnH) _btnH.style.display='none';
+  headingUpMode=false;
+  setMapHeadingRotation(0); // balik peta ke North-Up
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   const p=document.getElementById('navPanel');
   if(p) p.innerHTML='';
@@ -4220,6 +4242,47 @@ function stopNavigation(){
       + '<button class="nav-start-btn" onclick="startNavigation();" style="flex:1;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button>'
       + '<a href="'+escapeHtml(gmUrl)+'" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a>'
       + '</div>';
+  }
+}
+
+// ── Update progres rute: pisahkan bagian "sudah dilewati" vs "belum" ─────────
+// FIX: sebelumnya rute hanya digambar sekali di awal lalu dibiarkan statis,
+// sehingga setelah dilewati & kamera zoom/pan ke depan, bagian yang sudah
+// dilewati terkesan "hilang" (sebenarnya hanya keluar dari viewport).
+// Sekarang rute dipotong jadi 2 garis yang ter-update tiap GPS fix:
+//   - routeTraveledLine (abu-abu putus-putus): dari start s.d. posisi user
+//   - routeRemainingLine (hijau tebal): dari posisi user s.d. tujuan — INI
+//     yang selalu dijaga supaya tetap terlihat & tidak hilang.
+function updateRouteProgress(lat, lng){
+  if(!communityMap || !activeRouteCoords || activeRouteCoords.length < 2) return;
+  const userPt = L.latLng(lat, lng);
+
+  // Cari index titik rute terdekat dengan posisi user saat ini
+  let nearestIdx = 0, nearestDist = Infinity;
+  for(let i=0;i<activeRouteCoords.length;i++){
+    const d = userPt.distanceTo(activeRouteCoords[i]);
+    if(d < nearestDist){ nearestDist = d; nearestIdx = i; }
+  }
+
+  const traveledCoords  = activeRouteCoords.slice(0, nearestIdx+1).concat([userPt]);
+  const remainingCoords = [userPt].concat(activeRouteCoords.slice(nearestIdx+1));
+
+  // Hapus garis lama, lalu gambar ulang
+  if(routeTraveledLine){ try{ communityMap.removeLayer(routeTraveledLine); }catch(e){} }
+  if(routeRemainingLine){ try{ communityMap.removeLayer(routeRemainingLine); }catch(e){} }
+
+  if(traveledCoords.length > 1){
+    routeTraveledLine = L.polyline(traveledCoords, {color:'#B0B0B0', weight:4, opacity:0.7, dashArray:'2,8'}).addTo(communityMap);
+  }
+  if(remainingCoords.length > 1){
+    // Hijau jelas supaya selalu kelihatan sampai tujuan, TIDAK pernah dihapus selama navMode aktif
+    routeRemainingLine = L.polyline(remainingCoords, {color:'#1E9E5A', weight:6, opacity:0.92}).addTo(communityMap);
+    routeRemainingLine.bringToFront();
+  }
+
+  // Sembunyikan garis rute "polos" asli (activeRoute._fallbackLine) supaya tidak dobel
+  if(activeRoute && activeRoute._fallbackLine && communityMap.hasLayer(activeRoute._fallbackLine)){
+    try{ communityMap.removeLayer(activeRoute._fallbackLine); }catch(e){}
   }
 }
 
@@ -4249,6 +4312,9 @@ function startNavigation(){
   // FIX: Tampilkan tombol Follow Mode
   const _btnF = document.getElementById('btnFollowCam');
   if(_btnF){ _btnF.style.display='flex'; _btnF.style.background='#1B4D4A'; }
+  // Tampilkan tombol Heading-Up
+  const _btnH = document.getElementById('btnHeadingUp');
+  if(_btnH){ _btnH.style.display='flex'; }
 
   // FIX BUG MARKER: hapus marker route_user yang static dari preview rute,
   // supaya tidak ada "dua marker user" — satu diam (lama) + satu gerak (baru).
@@ -4357,6 +4423,10 @@ function startNavigation(){
     const gpsEl = document.getElementById('navGpsStatus');
     if(gpsEl) gpsEl.textContent = '📶 GPS aktif (' + navFixCount + ' fix)';
 
+    // FIX: pastikan rute hijau (bagian belum dilewati) selalu kelihatan,
+    // bukan cuma garis statis dari awal yang bisa "hilang" dari viewport.
+    updateRouteProgress(lat, lng);
+
     // === Camera Follow ===
     // Throttle 800ms, geser kamera ke depan user mengikuti arah rute
     if(followCameraMode && communityMap && !mapUserInteracting){
@@ -4384,6 +4454,8 @@ function startNavigation(){
               iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24]
             });
             if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
+            // Heading-Up View: putar peta supaya arah bearing selalu di atas layar
+            if(headingUpMode) setMapHeadingRotation(bearing);
           } catch(e){}
         }
         const curZoom = communityMap.getZoom();
@@ -4504,6 +4576,9 @@ function clearActiveRoute(){
   // Hentikan live tracking ringan (sebelum navMode) jika masih aktif
   if(routeWatchId !== null){ navigator.geolocation.clearWatch(routeWatchId); routeWatchId = null; }
   stopNavigation();
+  // FIX: bersihkan juga garis traveled/remaining dari fitur pemecah rute
+  if(routeTraveledLine){ try{ communityMap.removeLayer(routeTraveledLine); }catch(e){} routeTraveledLine=null; }
+  if(routeRemainingLine){ try{ communityMap.removeLayer(routeRemainingLine); }catch(e){} routeRemainingLine=null; }
   if(activeRoute){
     if(typeof activeRoute.getPlan==='function'){
       try{communityMap.removeControl(activeRoute);}catch(e){}
@@ -4945,8 +5020,41 @@ function initCommunityMap(centerLat, centerLng){
       mapUserInteracting = false;
       communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 17), {animate:false});
     }
+    // Heading-Up otomatis ikut Follow Mode: kalau follow dimatikan, peta balik North-Up
+    if(!followCameraMode) setMapHeadingRotation(0);
   };
   controlDiv.insertBefore(btnFollow, btnGPS);
+
+  // === Tombol Heading-Up (rotasi peta searah jalan) ===
+  const btnHeading = document.createElement('button');
+  btnHeading.id = 'btnHeadingUp';
+  btnHeading.title = 'Mode Heading-Up: OFF (Utara di atas)';
+  btnHeading.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:#999;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:18px;transition:background .2s;';
+  btnHeading.innerHTML = '🧭';
+  btnHeading.onclick = () => {
+    headingUpMode = !headingUpMode;
+    btnHeading.style.background = headingUpMode ? '#E8633F' : '#999';
+    btnHeading.title = headingUpMode ? 'Mode Heading-Up: ON (klik untuk North-Up)' : 'Mode Heading-Up: OFF (Utara di atas)';
+    if(!headingUpMode) setMapHeadingRotation(0); // balik North-Up langsung
+  };
+  controlDiv.insertBefore(btnHeading, btnGPS);
+}
+
+// ── Rotasi peta untuk Heading-Up View ─────────────────────────────────────────
+// Memutar visual #leafletMap (CSS transform) berlawanan arah bearing agar arah
+// jalan selalu "menghadap ke atas" layar, seperti mode navigasi Google Maps.
+// Catatan: ini rotasi tampilan (CSS), bukan rotasi data Leaflet.
+let _lastMapRotation = 0;
+function setMapHeadingRotation(deg){
+  const el = document.getElementById('leafletMap');
+  if(!el) return;
+  // Normalisasi supaya transisi tidak "memutar balik" lewat 360° → 0°
+  let d = deg;
+  const diff = d - _lastMapRotation;
+  if(diff > 180) d -= 360; else if(diff < -180) d += 360;
+  _lastMapRotation = d;
+  el.style.transform = d ? `rotate(${(-d).toFixed(1)}deg) scale(1.5)` : '';
+  el.style.transformOrigin = 'center center';
 }
 
 function makeUserIcon(isMe, photoUrl){
@@ -10883,6 +10991,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     _isPanelOpen = !_isPanelOpen;
     panel.style.display = _isPanelOpen ? 'block' : 'none';
     if(_isPanelOpen){
+      // Selalu mulai dalam keadaan terbuka penuh (bukan minimize) saat panel dibuka
+      _isPanelMinimized = false;
+      applyAiSummaryMinimizeState();
       // Sembunyikan key section karena pakai Groq yang sudah ada
       const ks = document.getElementById('aiSummaryKeySection');
       if(ks) ks.style.display = 'none';
@@ -10896,6 +11007,33 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         </div>`;
       }
     }
+  };
+
+  // ── Minimize / shrink panel chatbot (seperti chat-head Messenger) ──
+  let _isPanelMinimized = false;
+  function applyAiSummaryMinimizeState(){
+    const panel = document.getElementById('aiSummaryPanel');
+    const body  = document.getElementById('aiSummaryBody');
+    const btn   = document.getElementById('aiSumMinimizeBtn');
+    const sub   = document.getElementById('aiSummaryHeaderSub');
+    if(!panel || !body) return;
+    if(_isPanelMinimized){
+      body.style.display = 'none';
+      panel.style.width = '230px';
+      panel.style.borderRadius = '16px';
+      if(btn){ btn.innerHTML = '▢'; btn.title = 'Besarkan'; }
+      if(sub) sub.textContent = 'Diminimalkan — klik untuk buka';
+    } else {
+      body.style.display = 'block';
+      panel.style.width = 'min(400px,calc(100vw - 32px))';
+      panel.style.borderRadius = '20px';
+      if(btn){ btn.innerHTML = '─'; btn.title = 'Kecilkan'; }
+      if(sub) sub.textContent = 'Ditenagai Groq · Data Real-time';
+    }
+  }
+  window.toggleAiSummaryMinimize = function(){
+    _isPanelMinimized = !_isPanelMinimized;
+    applyAiSummaryMinimizeState();
   };
 
   // ── Kumpulkan SEMUA data konteks dari aplikasi ──

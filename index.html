@@ -1878,6 +1878,10 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         </div>
         <!-- RUTE KURIR -->
         <div id="kgf-kurir" style="display:none;">
+          <div style="background:#E8F5E9;border:1.5px solid #2D7A4F;border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12.5px;color:#1B5E20;line-height:1.55;">
+            🛵 <b>Kamu posting sebagai Kurir.</b> Artinya kamu yang akan mengantar barang.<br>
+            User lain bisa <b>memesan jasa kurirmu</b> dan melacak posisimu secara live setelah mereka memesan.
+          </div>
           <label>Judul singkat</label>
           <input type="text" id="kgTitleK" placeholder="cth: Antar barang Tangerang ke Jakarta Barat">
           <label>&#128205; Lokasi asal (kota/kecamatan)</label>
@@ -8958,9 +8962,19 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const isMyKurir = ownerKey && ownerKey===getOwnerKey();
       const myId = myIdentity();
       const isInterestedParty = !!(it.interestedUids && it.interestedUids[myId]);
-      const canTrack = isMyKurir || isInterestedParty; // hanya pemilik & yg sudah chat boleh lacak live
+      // Cek juga apakah myId ada di orders (pembeli yang sudah pesan via form)
+      const hasPesan = !!(it.orders && Object.values(it.orders).some(o=>o.uid===myId));
+      const canTrack = isMyKurir || isInterestedParty || hasPesan; // hanya kurir (pemilik) & pembeli yang sudah pesan boleh lacak live
       const trackStatus = it.tracking ? `<span id="kurir-live-badge-${it.id}" style="font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;">🟢 Kurir Online</span>` : `<span id="kurir-live-badge-${it.id}" style="display:none;font-size:10.5px;background:#DCFCE7;color:#166534;border-radius:20px;padding:2px 8px;font-weight:700;margin-left:6px;"></span>`;
-      const kurirExtra = it.mode==='kurir' ? `
+      // Badge peran: kurir (pembuat tawaran) vs pembeli (sudah pesan)
+      const roleBadge = it.mode==='kurir' ? (
+        isMyKurir
+          ? `<div style="margin-bottom:8px;display:inline-flex;align-items:center;gap:5px;background:#E8F5E9;border:1.5px solid #2D7A4F;border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;color:#1B5E20;">🛵 Kamu adalah Kurir — ini tawaran milikmu</div>`
+          : (hasPesan || isInterestedParty)
+            ? `<div style="margin-bottom:8px;display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;border:1.5px solid #3B5BDB;border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;color:#1E3A8A;">📦 Kamu Pembeli — sudah pesan kurir ini</div>`
+            : ''
+      ) : '';
+      const kurirExtra = it.mode==='kurir' ? `${roleBadge}
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
           <span style="background:#DCEFE9;color:#1B4D4A;padding:3px 9px;border-radius:20px;font-weight:700;">📍 ${escapeHtml(it.from||it.city||'—')}</span>
           <span style="color:#999;">→</span>
@@ -8978,7 +8992,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
           ${isMyKurir && it.to ? `<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Tujuan</button>` : ''}
           ${!isMyKurir && it.tracking && canTrack ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
-          ${!isMyKurir && it.tracking && !canTrack ? `<span style="flex:1;min-width:140px;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">🔒 Chat penjual dulu untuk lacak live</span>` : ''}
+          ${!isMyKurir && it.tracking && !canTrack ? `<span style="flex:1;min-width:140px;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">🔒 Pesan kurir dulu untuk bisa lacak live</span>` : ''}
         </div>
         <div id="lrmap-${it.id}" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:8px;">
           <div class="kurir-map-wrap">
@@ -8997,7 +9011,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <div id="lrsv-inner-${it.id}"></div>
         </div>
         ${!isMyKurir ? `<div class="kg-order-panel" id="kgOrderForm-${it.id}" style="display:none;background:#F7F3EC;border:1.5px solid #1B4D4A;border-radius:12px;padding:12px;margin-top:8px;">
-          <div style="font-size:12.5px;font-weight:700;color:#1B4D4A;margin-bottom:8px;">📦 Pesan Kurir Ini</div>
+          <div style="font-size:12.5px;font-weight:700;color:#1B4D4A;margin-bottom:4px;">📦 Pesan Kurir Ini</div>
+          <div style="font-size:11px;color:#6B645A;margin-bottom:8px;">Kamu akan jadi <b>pembeli/pengirim</b>. Setelah pesan, kamu bisa lacak posisi kurir secara live.</div>
           <input type="text" class="kg-order-name" placeholder="Nama kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
           <input type="text" class="kg-order-wa" placeholder="No. WA kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
           <textarea class="kg-order-note" placeholder="Barang yang dikirim / catatan (opsional)" rows="2" style="width:100%;margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;resize:vertical;box-sizing:border-box;"></textarea>
@@ -9013,7 +9028,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             ${!isMyKurir && it.mode==='kurir' ? `<button class="kc-order-toggle-btn" data-id="${it.id}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:#E8633F;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">📦 Pesan Kurir Ini</button>`:''}
-            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Penjual')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> Chat Penjual</button>`:''}
+            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Kurir')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> ${it.mode==='kurir'?'Chat Kurir':'Chat Penjual'}</button>`:''}
             ${wa?`<a class="kc-wa" data-item-id="${it.id}" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
           </div>
         </div>
@@ -9499,7 +9514,10 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(!it) return false;
     if(it.ownerKey && it.ownerKey===getOwnerKey()) return true;
     const myId = myIdentity();
-    return !!(it.interestedUids && it.interestedUids[myId]);
+    // Cek interestedUids (didaftarkan saat submitKurirOrder) DAN orders langsung
+    const inInterested = !!(it.interestedUids && it.interestedUids[myId]);
+    const inOrders = !!(it.orders && Object.values(it.orders).some(o=>o.uid===myId));
+    return inInterested || inOrders;
   }
 
   // Tandai user sebagai "sudah pesan / berhubungan transaksi" dengan kurir ini —

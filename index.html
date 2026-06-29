@@ -8939,7 +8939,35 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     listRouteMaps={};
     const filtered=items.filter(i=>i.mode===kgMode).sort((a,b)=>(b.ts||0)-(a.ts||0));
     if(filtered.length===0){list.innerHTML='<div class="empty-state">Belum ada tawaran di mode ini. Jadilah yang pertama posting!</div>';return;}
-    list.innerHTML=filtered.map(it=>{
+
+    // ===== PANEL KURIR PICKER (untuk konsumen) =====
+    let pickerHtml = '';
+    if(kgMode==='kurir'){
+      const myOwnerKey = getOwnerKey();
+      const kurirAvail = filtered.filter(k=>(k.ownerKey||'')!==myOwnerKey);
+      if(kurirAvail.length>=1){
+        pickerHtml = `<div style="background:white;border:2px solid #1B4D4A;border-radius:14px;padding:13px 14px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-weight:700;color:#1B4D4A;font-size:13px;">🛵 Pilih Kurir Tersedia (${kurirAvail.length})</div>
+            <span style="font-size:11px;color:#888;">Pilih → langsung pesan</span>
+          </div>
+          <select onchange="if(this.value){const el=document.getElementById('kcard-'+this.value);if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>{const btn=el.querySelector('.kc-order-toggle-btn');if(btn&&document.getElementById('kgOrderForm-'+this.value)?.style.display==='none')btn.click();},350);}this.selectedIndex=0;}" style="width:100%;padding:9px 10px;border-radius:9px;border:1.5px solid #1B4D4A;font-size:12.5px;color:#2A2622;background:#F7F3EC;cursor:pointer;box-sizing:border-box;">
+            <option value="">-- Pilih kurir terbaik untuk kamu --</option>
+            ${(()=>{
+              const online  = kurirAvail.filter(k=>k.tracking);
+              const offline = kurirAvail.filter(k=>!k.tracking);
+              const fmt = k=>`<option value="${k.id}">🛵 ${escapeHtml(k.title)} — 📍 ${escapeHtml(k.from||k.city||'?')} ${Number(k.price)>0?'• Rp '+Number(k.price).toLocaleString('id'):'• Nego'}</option>`;
+              const onlineGroup  = online.length  ? `<optgroup label="🟢 Sedang Online (${online.length})">${online.map(fmt).join('')}</optgroup>`  : '';
+              const offlineGroup = offline.length ? `<optgroup label="⚫ Sedang Offline (${offline.length})">${offline.map(fmt).join('')}</optgroup>` : '';
+              return onlineGroup + offlineGroup;
+            })()}
+          </select>
+          <div style="font-size:11px;color:#6B645A;margin-top:7px;">💡 Kurir <b>Online</b> berarti GPS-nya aktif dan siap dilacak. Scroll ke bawah untuk lihat detail tiap kartu kurir sebelum memesan.</div>
+        </div>`;
+      }
+    }
+
+    list.innerHTML=pickerHtml+filtered.map(it=>{
       const wa=normalizeWA(it.wa);
       const waLink=wa?`https://wa.me/${wa}?text=${encodeURIComponent('Halo, saya tertarik dengan tawaran kamu di Pasar Kongsi: '+it.title)}`:'#';
       const ownerKey=it.ownerKey||'';
@@ -8974,10 +9002,10 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         </div>
         <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
           <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Peta Lokasi</button>
-          ${isMyKurir ? `
-            <button class="kc-share-gps-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#2D7A4F'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Bagikan GPS':'📍 Bagikan GPS ke Pembeli'}</button>
-            ${kurirOrders.length>0 ? kurirOrders.slice(0,2).map(o=>`<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(o.dest)}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Antar ke ${escapeHtml(o.dest.length>18?o.dest.substring(0,18)+'...':o.dest)}</button>`).join('') : `<span style="flex:1;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">⏳ Menunggu pesanan masuk</span>`}
-          ` : ''}
+          ${isMyKurir ? (kurirOrders.length>0 ? `
+            <button class="kc-share-gps-btn" data-id="${it.id}" style="flex:1;min-width:100px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#2D7A4F'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Matikan GPS':'📡 Nyalakan Lokasimu'}</button>
+            ${kurirOrders.slice(0,2).map(o=>`<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(o.dest)}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Antar ke ${escapeHtml(o.dest.length>18?o.dest.substring(0,18)+'...':o.dest)}</button>`).join('')}
+          ` : `<span style="flex:1;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">⏳ Menunggu pesanan — GPS live belum aktif</span>`) : ''}
           ${!isMyKurir && it.tracking && canTrack ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
           ${!isMyKurir && it.tracking && !canTrack ? `<span style="flex:1;min-width:140px;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">🔒 Pesan kurir dulu untuk bisa lacak live</span>` : ''}
         </div>
@@ -9006,8 +9034,27 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <textarea class="kg-order-note" placeholder="Barang yang dikirim / catatan tambahan (opsional)" rows="2" style="width:100%;margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;resize:vertical;box-sizing:border-box;"></textarea>
           <button class="kc-order-submit-btn" data-id="${it.id}" style="width:100%;padding:9px;border-radius:9px;border:none;background:#1B4D4A;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">✅ Kirim Pesanan ke Kurir</button>
           <div style="font-size:10.5px;color:#A08B5E;margin-top:6px;text-align:center;">🔒 Setelah pesan, kamu otomatis bisa lacak posisi kurir secara live</div>
+        </div>` : ''}
+        ${isMyKurir && it.orders && Object.keys(it.orders).length>0 ? `
+        <div style="margin-top:8px;background:#F7F3EC;border:1.5px solid #1B4D4A;border-radius:12px;padding:11px 12px;">
+          <div style="font-size:12.5px;font-weight:700;color:#1B4D4A;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+            <span>📋 Pesanan Masuk</span>
+            <span style="background:#1B4D4A;color:white;border-radius:20px;padding:2px 9px;font-size:11.5px;">${Object.keys(it.orders).length} orang</span>
+          </div>
+          ${Object.values(it.orders).map(o=>`
+          <div style="background:white;border-radius:10px;padding:9px 11px;margin-bottom:7px;border:1.5px solid #EFE6D8;">
+            <div style="font-weight:700;font-size:12.5px;color:#2A2622;margin-bottom:3px;">👤 ${escapeHtml(o.name||'—')}</div>
+            <div style="font-size:12px;color:#1B4D4A;margin-bottom:2px;">🏁 <b>${escapeHtml(o.dest||'Belum diisi')}</b></div>
+            <div style="font-size:11.5px;color:#6B645A;margin-bottom:2px;">📱 ${escapeHtml(o.wa||'—')}</div>
+            ${o.note?`<div style="font-size:11px;color:#888;margin-bottom:4px;">📝 ${escapeHtml(o.note)}</div>`:''}
+            <div style="font-size:10.5px;color:#A08B5E;margin-bottom:6px;">⏱️ ${fmtTime(o.ts||Date.now())}</div>
+            <div style="display:flex;gap:6px;">
+              <a href="https://wa.me/${(o.wa||'').replace(/\D/g,'')}?text=${encodeURIComponent('Halo '+escapeHtml(o.name||'')+', saya kurir yang kamu pesan. Siap mengantarkan ke '+escapeHtml(o.dest||'tujuanmu')+'.')}" target="_blank" style="flex:1;padding:6px 0;border-radius:8px;background:#25D366;color:white;font-weight:700;font-size:12px;text-align:center;text-decoration:none;">💬 Chat WA</a>
+              ${o.dest?`<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(o.dest)}" style="flex:1;padding:6px;border-radius:8px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Sini</button>`:''}
+            </div>
+          </div>`).join('')}
         </div>` : ''}` : '';
-      return `<div class="kongsi-card">
+      return `<div class="kongsi-card" id="kcard-${it.id}">
         <div class="kc-head"><div class="kc-title">${escapeHtml(it.title)}</div>${badge(it.mode)}</div>
         <div class="kc-meta">📍 ${escapeHtml(it.city||'—')} • ⏱️ ${fmtTime(it.ts||Date.now())}</div>
         ${kurirExtra}

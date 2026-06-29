@@ -1879,41 +1879,26 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         <!-- RUTE KURIR -->
         <div id="kgf-kurir" style="display:none;">
           <div style="background:#E8F5E9;border:1.5px solid #2D7A4F;border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12.5px;color:#1B5E20;line-height:1.55;">
-            🛵 <b>Kamu posting sebagai Kurir.</b> Artinya kamu yang akan mengantar barang.<br>
-            User lain bisa <b>memesan jasa kurirmu</b> dan melacak posisimu secara live setelah mereka memesan.
+            🛵 <b>Kamu posting sebagai Kurir.</b> Lokasi awalmu terdeteksi otomatis dari GPS.<br>
+            Pembeli akan mengisi <b>tujuan pengiriman</b> saat memesan — kamu bisa navigasi ke sana lewat peta setelah ada pesanan.
           </div>
           <label>Judul singkat</label>
-          <input type="text" id="kgTitleK" placeholder="cth: Antar barang Tangerang ke Jakarta Barat">
-          <label>&#128205; Lokasi asal (kota/kecamatan)</label>
-          <input type="text" id="kgFrom" placeholder="cth: Ciledug, Tangerang">
-          <label>&#127937; Lokasi tujuan (kota/kecamatan)</label>
-          <input type="text" id="kgTo" placeholder="cth: Grogol, Jakarta Barat">
+          <input type="text" id="kgTitleK" placeholder="cth: Siap antar barang dari Tangerang, tarif nego">
+          <label>📍 Lokasi asal kamu (GPS otomatis)</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+            <input type="text" id="kgFrom" placeholder="Klik tombol Deteksi GPS →" readonly style="flex:1;background:#F5F3EF;font-size:13px;padding:10px 12px;border-radius:10px;border:1.5px solid #EFE6D8;color:#2A2622;min-width:0;">
+            <button type="button" id="kgDetectLocBtn" style="padding:10px 13px;border-radius:10px;border:none;background:#1B4D4A;color:white;font-weight:700;font-size:12.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;">📡 Deteksi GPS</button>
+          </div>
+          <input type="hidden" id="kgFromLat">
+          <input type="hidden" id="kgFromLng">
+          <div id="kgGpsStatus" style="display:none;font-size:11.5px;margin-top:-6px;margin-bottom:10px;padding:6px 10px;border-radius:8px;background:#E8F5E9;color:#1B5E20;font-weight:600;"></div>
           <label>Keterangan muatan / jadwal</label>
-          <textarea id="kgDescK" placeholder="Jenis barang, berat, jadwal berangkat, tarif..."></textarea>
+          <textarea id="kgDescK" placeholder="Jenis barang yang bisa diangkut, berat maks, jadwal tersedia, tarif..."></textarea>
           <label>Ongkos kirim (Rp, 0 = nego)</label>
           <input type="number" id="kgPriceK" placeholder="0">
           <label>WhatsApp kurir</label>
           <input type="text" id="kgWaK" placeholder="08123456789">
-
-          <!-- Mode rute -->
-          <label style="margin-top:10px;display:block;">Mode Rute</label>
-          <div class="kurir-map-controls" id="kgRouteModes">
-            <button class="km-mode-btn active" data-mode="driving">🚗 Kendaraan</button>
-            <button class="km-mode-btn" data-mode="walking">🚶 Jalan Kaki</button>
-            <button class="km-mode-btn" data-mode="cycling">🚲 Sepeda</button>
-          </div>
-
-          <button type="button" id="kgPreviewRouteBtn" style="margin-top:4px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:13px;cursor:pointer;">&#128506; Preview Rute di Peta</button>
-          <div id="kgRoutePreview" style="display:none;margin-top:8px;">
-            <div class="kurir-map-wrap">
-              <div id="kgRoutePreviewMap" class="km-inner"></div>
-            </div>
-            <div class="km-route-info" id="kgRouteInfo">
-              <div class="kri-row"><span class="kri-label">📏 Jarak</span><span class="kri-val" id="kgRouteDistance">—</span></div>
-              <div class="kri-row"><span class="kri-label">⏱️ Estimasi waktu</span><span class="kri-val" id="kgRouteDuration">—</span></div>
-              <div class="kri-row"><span class="kri-label">🚦 Kondisi jalan</span><span class="kri-val" id="kgRouteTraffic">—</span></div>
-            </div>
-          </div>
+          <div id="kgRoutePreview" style="display:none;"></div>
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
           <button class="kg-primary" id="kgSubmit" style="flex:1;">Posting</button>
@@ -8974,11 +8959,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
             ? `<div style="margin-bottom:8px;display:inline-flex;align-items:center;gap:5px;background:#EEF2FF;border:1.5px solid #3B5BDB;border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:700;color:#1E3A8A;">📦 Kamu Pembeli — sudah pesan kurir ini</div>`
             : ''
       ) : '';
+      // Ambil daftar pesanan yang punya tujuan (untuk navigasi kurir)
+      const kurirOrders = it.orders ? Object.values(it.orders).filter(o=>o.dest) : [];
       const kurirExtra = it.mode==='kurir' ? `${roleBadge}
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap;">
           <span style="background:#DCEFE9;color:#1B4D4A;padding:3px 9px;border-radius:20px;font-weight:700;">📍 ${escapeHtml(it.from||it.city||'—')}</span>
-          <span style="color:#999;">→</span>
-          <span style="background:#FFF1D6;color:#A07000;padding:3px 9px;border-radius:20px;font-weight:700;">🏁 ${escapeHtml(it.to||'—')}</span>
+          ${it.to ? `<span style="color:#999;">→</span><span style="background:#FFF1D6;color:#A07000;padding:3px 9px;border-radius:20px;font-weight:700;">🏁 ${escapeHtml(it.to)}</span>` : ''}
           ${trackStatus}
         </div>
         <div class="kurir-map-controls" style="margin-bottom:6px;">
@@ -8987,10 +8973,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <button class="km-mode-btn" data-mapmode="cycling" data-mapid="${it.id}">🚲 Sepeda</button>
         </div>
         <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-          <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
-          <button class="kc-streetview-btn-open" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;font-weight:700;font-size:12px;cursor:pointer;">📸 Street View</button>
-          ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
-          ${isMyKurir && it.to ? `<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Tujuan</button>` : ''}
+          <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Peta Lokasi</button>
+          ${isMyKurir ? `
+            <button class="kc-share-gps-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#2D7A4F'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Bagikan GPS':'📍 Bagikan GPS ke Pembeli'}</button>
+            ${kurirOrders.length>0 ? kurirOrders.slice(0,2).map(o=>`<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(o.dest)}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Antar ke ${escapeHtml(o.dest.length>18?o.dest.substring(0,18)+'...':o.dest)}</button>`).join('') : `<span style="flex:1;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">⏳ Menunggu pesanan masuk</span>`}
+          ` : ''}
           ${!isMyKurir && it.tracking && canTrack ? `<button class="kc-lacak-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:#2D7A4F;color:white;font-weight:700;font-size:12px;cursor:pointer;">📡 Lacak Kurir Live</button>` : ''}
           ${!isMyKurir && it.tracking && !canTrack ? `<span style="flex:1;min-width:140px;padding:7px;border-radius:9px;border:1.5px dashed #C9B89A;color:#A08B5E;font-weight:600;font-size:11px;text-align:center;">🔒 Pesan kurir dulu untuk bisa lacak live</span>` : ''}
         </div>
@@ -9012,10 +8999,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         </div>
         ${!isMyKurir ? `<div class="kg-order-panel" id="kgOrderForm-${it.id}" style="display:none;background:#F7F3EC;border:1.5px solid #1B4D4A;border-radius:12px;padding:12px;margin-top:8px;">
           <div style="font-size:12.5px;font-weight:700;color:#1B4D4A;margin-bottom:4px;">📦 Pesan Kurir Ini</div>
-          <div style="font-size:11px;color:#6B645A;margin-bottom:8px;">Kamu akan jadi <b>pembeli/pengirim</b>. Setelah pesan, kamu bisa lacak posisi kurir secara live.</div>
-          <input type="text" class="kg-order-name" placeholder="Nama kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
-          <input type="text" class="kg-order-wa" placeholder="No. WA kamu" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
-          <textarea class="kg-order-note" placeholder="Barang yang dikirim / catatan (opsional)" rows="2" style="width:100%;margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;resize:vertical;box-sizing:border-box;"></textarea>
+          <div style="font-size:11px;color:#6B645A;margin-bottom:8px;">Kamu akan jadi <b>pembeli/pengirim</b>. Isi tujuan pengirimanmu — kurir akan navigasi ke sana. Setelah pesan, kamu bisa lacak posisi kurir secara live.</div>
+          <input type="text" class="kg-order-name" placeholder="Nama kamu *" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
+          <input type="text" class="kg-order-wa" placeholder="No. WA kamu *" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;box-sizing:border-box;">
+          <input type="text" class="kg-order-dest" placeholder="🏁 Tujuan pengiriman (alamat/kota) *" style="width:100%;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid #1B4D4A;font-size:12.5px;box-sizing:border-box;background:#fff;font-weight:500;">
+          <textarea class="kg-order-note" placeholder="Barang yang dikirim / catatan tambahan (opsional)" rows="2" style="width:100%;margin-bottom:8px;padding:8px 10px;border-radius:8px;border:1.5px solid #EFE6D8;font-size:12.5px;resize:vertical;box-sizing:border-box;"></textarea>
           <button class="kc-order-submit-btn" data-id="${it.id}" style="width:100%;padding:9px;border-radius:9px;border:none;background:#1B4D4A;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">✅ Kirim Pesanan ke Kurir</button>
           <div style="font-size:10.5px;color:#A08B5E;margin-top:6px;text-align:center;">🔒 Setelah pesan, kamu otomatis bisa lacak posisi kurir secara live</div>
         </div>` : ''}` : '';
@@ -9300,12 +9288,13 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   const listMapModes = {}; // id -> current mode
 
   $$('kgList').addEventListener('click', async e=>{
-    // Track button
-    const trackBtn = e.target.closest('.kc-track-btn');
-    if(trackBtn){
-      const id = trackBtn.dataset.id;
-      const isTracking = trackBtn.style.background.includes('FDE') || trackBtn.textContent.includes('Stop');
-      if(isTracking){ await stopKurirTracking(id); }
+    // Tombol "Bagikan GPS ke Pembeli" — hanya untuk kurir (pembuat tawaran)
+    // Fungsi: broadcast posisi GPS kurir ke Firebase agar pembeli bisa melacak live
+    const shareGpsBtn = e.target.closest('.kc-share-gps-btn');
+    if(shareGpsBtn){
+      const id = shareGpsBtn.dataset.id;
+      const isSharing = shareGpsBtn.style.background.includes('FDE') || shareGpsBtn.textContent.includes('Stop');
+      if(isSharing){ await stopKurirTracking(id); }
       else { await startKurirTracking(id); }
       return;
     }
@@ -9438,11 +9427,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     }
   });
 
-  // Handler klik "Lihat Rute" di card kurir
+  // Handler klik "Lihat Peta Lokasi" di card kurir
   $$('kgList').addEventListener('click', async e=>{
     const btn=e.target.closest('.kc-show-route');
     if(!btn) return;
     const id=btn.dataset.id;
+    const item = cache.find(x=>x.id===id);
     const from=(btn.dataset.from||'').trim();
     const to=(btn.dataset.to||'').trim();
     const wrap=document.getElementById('lrmap-'+id);
@@ -9450,15 +9440,28 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
     if(wrap.style.display==='block'){
       wrap.style.display='none';
-      btn.textContent='🗺️ Lihat Rute';
+      btn.textContent='🗺️ Lihat Peta Lokasi';
       if(listRouteMaps[id]){listRouteMaps[id].remove();delete listRouteMaps[id];}
       return;
     }
 
     btn.textContent='⏳ Memuat peta...'; btn.disabled=true;
-    const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
-    btn.textContent='🗺️ Sembunyikan Rute'; btn.disabled=false;
-    if(!orig||!dest){alert('Lokasi tidak ditemukan.');return;}
+
+    // Jika kurir sudah punya koordinat GPS tersimpan, pakai langsung (lebih akurat)
+    let origLatLon = null;
+    if(item && item.fromLat && item.fromLng){
+      origLatLon = {lat: item.fromLat, lon: item.fromLng};
+    } else if(from) {
+      origLatLon = await geocode(from);
+    }
+
+    if(!origLatLon){ btn.textContent='🗺️ Lihat Peta Lokasi'; btn.disabled=false; alert('Lokasi kurir tidak ditemukan.'); return; }
+
+    // Kalau ada tujuan, geocode juga
+    let destLatLon = null;
+    if(to) destLatLon = await geocode(to);
+
+    btn.textContent='🗺️ Sembunyikan Peta'; btn.disabled=false;
 
     wrap.style.display='block';
     if(listRouteMaps[id]){listRouteMaps[id].remove();}
@@ -9466,30 +9469,35 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const innerEl = document.getElementById('lrmap-inner-'+id);
     if(!innerEl) return;
 
-    const m = L.map(innerEl,{zoomControl:true}).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
-    addLabeledTileLayer(m);
+    // Jika ada tujuan → tampilkan rute. Jika tidak → tampilkan hanya lokasi kurir.
+    if(destLatLon){
+      const m = L.map(innerEl,{zoomControl:true}).setView([(origLatLon.lat+destLatLon.lat)/2,(origLatLon.lon+destLatLon.lon)/2],10);
+      addLabeledTileLayer(m);
+      const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+      const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+      L.marker([origLatLon.lat,origLatLon.lon],{icon:startIcon}).addTo(m).bindPopup(`<div style="font-size:12px;"><b>📍 Lokasi Kurir</b><br>${escapeHtml(from)}</div>`).openPopup();
+      L.marker([destLatLon.lat,destLatLon.lon],{icon:endIcon}).addTo(m).bindPopup(`<div style="font-size:12px;"><b>🏁 Tujuan</b><br>${escapeHtml(to)}</div>`);
+      listRouteMaps[id]=m;
+      const currentMode = listMapModes[id] || 'driving';
+      const routeInfoEl = document.getElementById('lrinfo-'+id);
+      const stepsEl = document.getElementById('lrsteps-'+id);
+      const stepsBtnEl = document.getElementById('lrstepsbtn-'+id);
+      if(stepsBtnEl) stepsBtnEl.style.display='none';
+      await drawRouteOnMap(m,[origLatLon.lat,origLatLon.lon],[destLatLon.lat,destLatLon.lon],currentMode,routeInfoEl,stepsEl,stepsBtnEl);
+    } else {
+      // Hanya tampilkan lokasi kurir (belum ada tujuan / belum ada pesanan)
+      const m = L.map(innerEl,{zoomControl:true}).setView([origLatLon.lat,origLatLon.lon],14);
+      addLabeledTileLayer(m);
+      const courierIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:10px;">🛵</div>',iconSize:[18,18],iconAnchor:[9,9]});
+      L.marker([origLatLon.lat,origLatLon.lon],{icon:courierIcon}).addTo(m).bindPopup(`<b>📍 Posisi Kurir</b><br>${escapeHtml(from)}<br><span style="font-size:11px;color:#666;">Belum ada pesanan masuk</span>`).openPopup();
+      listRouteMaps[id]=m;
+      const routeInfoEl = document.getElementById('lrinfo-'+id);
+      if(routeInfoEl) routeInfoEl.innerHTML=`<div style="padding:8px;font-size:12px;color:#6B645A;">ℹ️ Tujuan akan muncul setelah pembeli memesan dan mengisi alamat tujuan.</div>`;
+    }
+    setTimeout(()=>listRouteMaps[id]&&listRouteMaps[id].invalidateSize(),150);
 
-    // Start marker
-    const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-    const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-    L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(m)
-      .bindPopup(`<div style="font-size:12px;"><b>📍 Asal</b><br>${escapeHtml(from)}</div>`).openPopup();
-    L.marker([dest.lat,dest.lon],{icon:endIcon}).addTo(m)
-      .bindPopup(`<div style="font-size:12px;"><b>🏁 Tujuan</b><br>${escapeHtml(to)}</div>`);
-
-    listRouteMaps[id]=m;
-    const currentMode = listMapModes[id] || 'driving';
-    const routeInfoEl = document.getElementById('lrinfo-'+id);
-    const stepsEl = document.getElementById('lrsteps-'+id);
-    const stepsBtnEl = document.getElementById('lrstepsbtn-'+id);
-    if(stepsBtnEl) stepsBtnEl.style.display='none';
-    await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],currentMode,routeInfoEl,stepsEl,stepsBtnEl);
-    setTimeout(()=>m.invalidateSize(),150);
-
-    // Pasang listener posisi kurir live — HANYA untuk pemilik kurir & user yang sudah
-    // chat/berhubungan dengannya. Orang lain tetap bisa lihat rute umum (dari-ke) saja,
-    // tanpa titik posisi GPS real-time kurirnya (privasi).
-    if(window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id)){ attachKurirPosListener(id,m); }
+    // Pasang listener posisi kurir live — HANYA untuk pembuat tawaran & user yang sudah pesan
+    if(window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id) && listRouteMaps[id]){ attachKurirPosListener(id,listRouteMaps[id]); }
   });
 
   function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -9551,7 +9559,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(!itemId) return;
     const myId = myIdentity();
     const orderId = 'o_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    const order = { uid: myId, name: data.name, wa: data.wa, note: data.note||'', ts: Date.now() };
+    const order = { uid: myId, name: data.name, wa: data.wa, dest: data.dest||'', note: data.note||'', ts: Date.now() };
     const it = cache.find(c=>c.id===itemId);
     if(it){
       it.orders = it.orders || {};
@@ -9641,33 +9649,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   let kgRouteMap=null;
   let kgPreviewMode='driving';
 
-  // Mode buttons in the form
-  document.querySelectorAll('#kgRouteModes .km-mode-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.querySelectorAll('#kgRouteModes .km-mode-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      kgPreviewMode = btn.dataset.mode;
-      // If map already open, redraw
-      if(kgRouteMap){
-        const from=$$('kgFrom').value.trim(), to=$$('kgTo').value.trim();
-        if(from && to) previewKurirRoute();
-      }
-    });
-  });
-
+  // previewKurirRoute sudah tidak dipakai (form kurir sekarang pakai GPS otomatis,
+  // rute ke tujuan ditampilkan di card setelah pembeli mengisi tujuan pesanan)
   async function previewKurirRoute(){
-    const from=$$('kgFrom').value.trim();
-    const to=$$('kgTo').value.trim();
-    if(!from||!to){alert('Isi lokasi asal dan tujuan dulu ya.');return;}
-    const btn=$$('kgPreviewRouteBtn');
-    btn.textContent='⏳ Mencari rute...'; btn.disabled=true;
-    const [orig,dest]=await Promise.all([geocode(from),geocode(to)]);
-    btn.textContent='🗺️ Preview Rute di Peta'; btn.disabled=false;
-    if(!orig||!dest){alert('Lokasi tidak ditemukan. Coba tulis lebih spesifik, contoh: "Ciledug, Tangerang".');return;}
-
-    const wrap=$$('kgRoutePreview');
-    wrap.style.display='block';
-    if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
+    // stub — tidak dipanggil lagi
+    return;
 
     const mapEl = document.getElementById('kgRoutePreviewMap');
     if(!mapEl){ return; }
@@ -9712,16 +9698,49 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     $$('kgAddBtn')?.addEventListener('click',()=>{
       updateFormFields();
       $$('kgForm')?.classList.toggle('open');
+      // Auto-trigger GPS detect saat form kurir dibuka dan belum ada koordinat
+      if(kgMode==='kurir' && $$('kgForm')?.classList.contains('open') && !$$('kgFromLat')?.value){
+        setTimeout(()=>{ $$('kgDetectLocBtn')?.click(); }, 400);
+      }
     });
     $$('kgCancel')?.addEventListener('click',()=>{
       $$('kgForm')?.classList.remove('open');
       if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
-      $$('kgRoutePreview').style.display='none';
-      // Reset route info
-      const ri=$$('kgRouteInfo'); if(ri) ri.classList.remove('show');
+      const rp=$$('kgRoutePreview'); if(rp) rp.style.display='none';
+      const gst=$$('kgGpsStatus'); if(gst){gst.style.display='none';}
     });
     $$('kgRefreshBtn')?.addEventListener('click',refresh);
-    $$('kgPreviewRouteBtn')?.addEventListener('click',previewKurirRoute);
+
+    // ===== GPS AUTO-DETECT untuk form kurir =====
+    $$('kgDetectLocBtn')?.addEventListener('click', async function(){
+      const btn = this;
+      const inp = $$('kgFrom');
+      const statusEl = $$('kgGpsStatus');
+      if(!navigator.geolocation){ alert('Browser kamu tidak mendukung GPS.'); return; }
+      btn.textContent='⏳ Mendeteksi...'; btn.disabled=true;
+      if(statusEl){ statusEl.style.display='block'; statusEl.textContent='📡 Mendeteksi posisi GPS...'; statusEl.style.background='#FFF8E1'; statusEl.style.color='#A07000'; }
+      navigator.geolocation.getCurrentPosition(async pos=>{
+        const {latitude:lat, longitude:lng} = pos.coords;
+        if($$('kgFromLat')) $$('kgFromLat').value = lat;
+        if($$('kgFromLng')) $$('kgFromLng').value = lng;
+        inp.value = lat.toFixed(5)+', '+lng.toFixed(5);
+        try{
+          const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`,{headers:{'Accept-Language':'id'}});
+          const d = await r.json();
+          if(d && d.address){
+            const a = d.address;
+            const name = [a.suburb||a.village||a.neighbourhood||a.hamlet, a.city||a.town||a.county].filter(Boolean).slice(0,2).join(', ');
+            if(name) inp.value = name;
+          }
+        }catch(e){}
+        btn.textContent='✅ Terdeteksi'; btn.disabled=false;
+        if(statusEl){ statusEl.style.display='block'; statusEl.textContent='✅ Lokasi GPS terdeteksi: '+inp.value; statusEl.style.background='#E8F5E9'; statusEl.style.color='#1B5E20'; }
+      }, err=>{
+        btn.textContent='📡 Deteksi GPS'; btn.disabled=false;
+        if(statusEl){ statusEl.style.display='block'; statusEl.textContent='⚠️ Gagal deteksi GPS. Pastikan izin lokasi diaktifkan.'; statusEl.style.background='#FDEAEA'; statusEl.style.color='#C84F2F'; }
+        console.warn('[KurirGPS]', err.message);
+      }, {enableHighAccuracy:true, timeout:12000, maximumAge:30000});
+    });
     $$('kgSubmit')?.addEventListener('click',()=>{
       let item={mode:kgMode};
       if(kgMode==='stok'){
@@ -9740,14 +9759,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
         ['kgTitleB','kgDescB','kgPriceB','kgCityB','kgWaB'].forEach(id=>$$(id).value='');
       } else if(kgMode==='kurir'){
         const title=$$('kgTitleK').value.trim(), desc=$$('kgDescK').value.trim(),
-              from=$$('kgFrom').value.trim(), to=$$('kgTo').value.trim(),
+              from=$$('kgFrom').value.trim(),
+              fromLat=$$('kgFromLat')?.value||'', fromLng=$$('kgFromLng')?.value||'',
               wa=$$('kgWaK').value.trim(), price=Number($$('kgPriceK').value)||0;
-        if(!title||!from||!to||!wa){alert('Isi judul, lokasi asal, tujuan, dan WA kurir dulu ya.');return;}
-        Object.assign(item,{title,desc,city:from,from,to,wa,price});
-        ['kgTitleK','kgDescK','kgFrom','kgTo','kgPriceK','kgWaK'].forEach(id=>$$(id).value='');
-        if(kgRouteMap){kgRouteMap.remove();kgRouteMap=null;}
-        $$('kgRoutePreview').style.display='none';
-        const ri=$$('kgRouteInfo'); if(ri) ri.classList.remove('show');
+        if(!title||!wa){alert('Isi judul dan WA kurir dulu ya.');return;}
+        if(!from||!fromLat||!fromLng){alert('Klik tombol "📡 Deteksi GPS" untuk mendeteksi lokasi awalmu dulu.');return;}
+        Object.assign(item,{title,desc,city:from,from,fromLat:parseFloat(fromLat),fromLng:parseFloat(fromLng),wa,price});
+        ['kgTitleK','kgDescK','kgPriceK','kgWaK'].forEach(id=>$$(id).value='');
+        $$('kgFrom').value=''; if($$('kgFromLat'))$$('kgFromLat').value=''; if($$('kgFromLng'))$$('kgFromLng').value='';
+        const gst=$$('kgGpsStatus'); if(gst){gst.style.display='none';gst.textContent='';}
       }
       addItem(item);
       $$('kgForm').classList.remove('open');
@@ -9776,11 +9796,13 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(!panel) return;
     const name = panel.querySelector('.kg-order-name')?.value.trim() || '';
     const wa = panel.querySelector('.kg-order-wa')?.value.trim() || '';
+    const dest = panel.querySelector('.kg-order-dest')?.value.trim() || '';
     const note = panel.querySelector('.kg-order-note')?.value.trim() || '';
     if(!name || !wa){ alert('Isi nama & WA dulu ya, biar kurir bisa hubungi kamu.'); return; }
+    if(!dest){ alert('Isi tujuan pengiriman dulu ya, biar kurir tahu harus ke mana.'); return; }
     submitBtn.disabled = true; submitBtn.textContent = '⏳ Mengirim...';
     try{
-      await submitKurirOrder(id, {name, wa, note});
+      await submitKurirOrder(id, {name, wa, dest, note});
       alert('📦 Pesanan terkirim ke kurir! Sekarang kamu bisa lacak posisinya secara live di kartu ini.');
     }catch(err){
       alert('Gagal mengirim pesanan: ' + err.message);

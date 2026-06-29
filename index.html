@@ -4200,9 +4200,45 @@ function getOrCreateNavPanel(){
   if(p) return p;
   p=document.createElement('div');
   p.id='navPanel';
-  // Di communityMapContainer (bukan leafletMap/clipWrapper) → tidak ikut rotate
-  // Posisi BAWAH agar tidak menutup jalan di depan user
-  p.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
+  // Di communityMapContainer — tidak ikut rotate
+  // Mulai di bawah, bisa digeser naik/turun oleh user
+  p.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;touch-action:none;';
+
+  // ── Drag handle: geser card naik/turun (sumbu Y) ──
+  let _dragStartY=0, _dragStartBottom=0, _dragging=false;
+  function _navDragStart(e){
+    // Hanya mulai drag dari handle (div.nav-drag-handle)
+    if(!e.target.closest('.nav-drag-handle')) return;
+    _dragging=true;
+    _dragStartY = (e.touches?e.touches[0].clientY:e.clientY);
+    const container=document.getElementById('communityMapContainer');
+    const cH=container?container.offsetHeight:400;
+    const pB=parseInt(p.style.bottom)||0;
+    _dragStartBottom=pB;
+    e.preventDefault();
+  }
+  function _navDragMove(e){
+    if(!_dragging) return;
+    const curY=(e.touches?e.touches[0].clientY:e.clientY);
+    const dy=_dragStartY-curY; // positif = geser ke atas
+    const container=document.getElementById('communityMapContainer');
+    const cH=container?container.offsetHeight:400;
+    const pH=p.offsetHeight||80;
+    // Batasi: min bottom=0 (bawah), max bottom=cH-pH-10 (hampir paling atas)
+    const newB=Math.max(0, Math.min(cH-pH-10, _dragStartBottom+dy));
+    p.style.bottom=newB+'px';
+    p.style.top='auto';
+    e.preventDefault();
+  }
+  function _navDragEnd(){ _dragging=false; }
+
+  p.addEventListener('touchstart',_navDragStart,{passive:false});
+  p.addEventListener('touchmove', _navDragMove,{passive:false});
+  p.addEventListener('touchend',  _navDragEnd);
+  p.addEventListener('mousedown', _navDragStart);
+  window.addEventListener('mousemove',_navDragMove);
+  window.addEventListener('mouseup',  _navDragEnd);
+
   const c=document.getElementById('communityMapContainer');
   if(c) c.appendChild(p);
   return p;
@@ -4211,8 +4247,9 @@ function getOrCreateNavPanel(){
 function updateNavPanel(stepIdx, userLat, userLng){
   const panel=getOrCreateNavPanel();
   if(!navMode||!activeRouteSteps.length){ panel.innerHTML=''; return; }
-  // Selalu di bawah agar tidak menutup jalan di depan user
-  panel.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
+  // JANGAN override bottom/top — user mungkin sudah geser panel ke posisi lain
+  // Hanya set pointer-events supaya tombol bisa diklik
+  panel.style.pointerEvents='none';
 
   const step  = activeRouteSteps[stepIdx]||activeRouteSteps[activeRouteSteps.length-1];
   const next  = activeRouteSteps[stepIdx+1];
@@ -4226,16 +4263,23 @@ function updateNavPanel(stepIdx, userLat, userLng){
   const traveledStr = fmtDist(navDistanceTraveled);
 
   panel.innerHTML=`
-  <div style="pointer-events:auto;margin:8px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:10px 14px;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:'Plus Jakarta Sans',sans-serif;">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:15px;font-weight:800;line-height:1.3;">${label}</div>
-        ${next?`<div style="font-size:11.5px;opacity:0.8;margin-top:2px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
-      </div>
-      <button onclick="stopNavigation();" style="flex-shrink:0;border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer;margin-top:2px;">✕ Stop</button>
+  <div style="pointer-events:auto;margin:8px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;
+    padding:0;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;">
+    <!-- Drag handle — area ini bisa digeser naik/turun -->
+    <div class="nav-drag-handle" style="display:flex;justify-content:center;padding:6px 0 2px;cursor:grab;touch-action:none;">
+      <div style="width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.35);"></div>
     </div>
-    <div style="font-size:11px;opacity:0.85;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);">
-      <span>⏱ ${elapsedStr}</span><span>🚶 ${traveledStr}</span><span>🏁 Sisa ${fmtDist(distToGoal)}</span>
+    <div style="padding:8px 14px 10px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:800;line-height:1.3;">${label}</div>
+          ${next?`<div style="font-size:11.5px;opacity:0.8;margin-top:2px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
+        </div>
+        <button onclick="stopNavigation();" style="flex-shrink:0;border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer;margin-top:2px;">✕ Stop</button>
+      </div>
+      <div style="font-size:11px;opacity:0.85;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);">
+        <span>⏱ ${elapsedStr}</span><span>🚶 ${traveledStr}</span><span>🏁 Sisa ${fmtDist(distToGoal)}</span>
+      </div>
     </div>
   </div>`;
 }
@@ -4522,28 +4566,16 @@ function startNavigation(){
           bearing = (bFar + delta * 0.6 + 360) % 360;
         }
 
-        // --- Update ikon panah user (zoom-aware, tidak double-marker) ---
+        // --- Update ikon panah user (zoom-aware, arah benar) ---
         try {
-          const _navPhoto = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+          const _ph = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
           const _sz   = navIconSizeForZoom(communityMap ? communityMap.getZoom() : 17);
           const _half = Math.round(_sz / 2);
-          const _aSz  = Math.max(10, Math.round(_sz * 0.38));
-          const _aTop = -Math.round(_aSz * 0.65);
-          const _fSz  = Math.max(10, Math.round(_sz * 0.34));
           const arrowIcon = L.divIcon({
             className:'',
-            html:`<div style="position:relative;width:${_sz}px;height:${_sz}px;">
-              <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;
-                box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;
-                font-size:${_fSz}px;overflow:hidden;">
-                ${_navPhoto?`<img src="${_navPhoto}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">`:'😊'}
-              </div>
-              <div style="position:absolute;top:${_aTop}px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);
-                font-size:${_aSz}px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
-            </div>`,
+            html: buildNavMarkerHtml(_sz, bearing, _ph),
             iconSize:[_sz,_sz], iconAnchor:[_half,_half], popupAnchor:[0,-_half]
           });
-          // setIcon saja — jangan buat marker baru agar tidak double
           if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
         } catch(e){}
 
@@ -5116,7 +5148,7 @@ function initCommunityMap(centerLat, centerLng){
   // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
   communityMap.on('zoomend', () => {
     _navUserZoom = communityMap.getZoom();
-    _updateNavMarkerSize(); // resize marker navigasi proporsional dengan zoom
+    _updateNavMarkerSize();
   });
   communityMap.on('dragend zoomend', () => {
     // Kalau navigasi aktif dan user drag/zoom sendiri, tandai manual control.
@@ -5270,41 +5302,6 @@ function makeUserIcon(isMe, photoUrl){
   });
 }
 
-// ── Ukuran marker navigasi berdasarkan zoom level ────────────────────────────
-// zoom 10 → 18px, zoom 17 → ~36px, zoom 20 → 48px
-function navIconSizeForZoom(zoom){
-  const z = Math.max(8, Math.min(20, zoom || 17));
-  return Math.round(18 + (z - 8) * (48 - 18) / (20 - 8));
-}
-
-// Rebuild ikon marker navigasi (myMarkerLive) sesuai zoom sekarang.
-// Dipanggil dari zoomend — TIDAK membuat marker baru, hanya setIcon.
-function _updateNavMarkerSize(){
-  if(!communityMap || !myMarkerLive || !navMode) return;
-  const sz   = navIconSizeForZoom(communityMap.getZoom());
-  const half = Math.round(sz / 2);
-  const aSz  = Math.max(10, Math.round(sz * 0.38));
-  const aTop = -Math.round(aSz * 0.65);
-  const fSz  = Math.max(10, Math.round(sz * 0.34));
-  const bearing = (typeof _smoothedBearing === 'number') ? _smoothedBearing : 0;
-  const _ph  = (typeof myProfile!=='undefined' && myProfile) ? myProfile.profilePhotoUrl||null : null;
-  try{
-    myMarkerLive.setIcon(L.divIcon({
-      className:'',
-      html:`<div style="position:relative;width:${sz}px;height:${sz}px;">
-        <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;border:3px solid white;
-          box-shadow:0 2px 10px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;
-          font-size:${fSz}px;overflow:hidden;">
-          ${_ph?`<img src="${_ph}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">`:'😊'}
-        </div>
-        <div style="position:absolute;top:${aTop}px;left:50%;transform:translateX(-50%) rotate(${bearing}deg);
-          font-size:${aSz}px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));">▲</div>
-      </div>`,
-      iconSize:[sz,sz], iconAnchor:[half,half], popupAnchor:[0,-half]
-    }));
-  }catch(e){}
-}
-
 function makeStoreIcon(logoUrl){
   if(logoUrl){
     return L.divIcon({
@@ -5318,6 +5315,60 @@ function makeStoreIcon(logoUrl){
     html: '<div style="width:34px;height:34px;border-radius:8px;background:#E8633F;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;">&#x1F3EA;</div>',
     iconSize: [34,34], iconAnchor: [17,34], popupAnchor: [0,-36]
   });
+}
+
+// ── Zoom-aware navigation marker helpers ──────────────────────────────────────
+// zoom 8→20 maps to size 20px→50px
+function navIconSizeForZoom(zoom){
+  const z = Math.max(8, Math.min(20, zoom || 17));
+  return Math.round(20 + (z - 8) * (50 - 20) / (20 - 8));
+}
+
+// Build nav marker HTML with CORRECT arrow direction.
+// Teknik: arrow div di center container, pivot = center lingkaran,
+// transform: rotate(bearing)deg lalu translateY(-offset) → panah selalu
+// menunjuk ke arah bearing relatif north-up, posisi selalu di luar lingkaran.
+function buildNavMarkerHtml(sz, bearing, photoUrl){
+  const half   = Math.round(sz / 2);
+  const arrowOffset = Math.round(half + 4);  // seberapa jauh panah dari center
+  const arrowFs     = Math.max(9, Math.round(sz * 0.36));
+  const faceFs      = Math.max(10, Math.round(sz * 0.36));
+  const photo = photoUrl
+    ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='😊'">`
+    : '😊';
+  // Wrapper overflow:visible supaya panah tidak terpotong
+  return `<div style="position:relative;width:${sz}px;height:${sz}px;overflow:visible;">
+    <!-- Lingkaran foto -->
+    <div style="position:absolute;inset:0;border-radius:50%;background:#1B4D4A;
+      border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.45);
+      display:flex;align-items:center;justify-content:center;
+      font-size:${faceFs}px;overflow:hidden;">${photo}</div>
+    <!-- Panah: pivot di center lingkaran, geser ke atas lalu rotate -->
+    <div style="position:absolute;top:50%;left:50%;width:0;height:0;
+      transform-origin:0 0;
+      transform:rotate(${bearing}deg) translateY(-${arrowOffset}px) translateX(-${Math.round(arrowFs*0.3)}px);
+      pointer-events:none;">
+      <span style="display:block;font-size:${arrowFs}px;line-height:1;
+        filter:drop-shadow(0 1px 3px rgba(0,0,0,0.7));color:#fff;
+        transform:translateY(-${arrowFs}px);">▲</span>
+    </div>
+  </div>`;
+}
+
+// Update icon marker navigasi saat zoom berubah (tidak buat marker baru)
+function _updateNavMarkerSize(){
+  if(!communityMap || !myMarkerLive || !navMode) return;
+  const sz      = navIconSizeForZoom(communityMap.getZoom());
+  const half    = Math.round(sz / 2);
+  const bearing = (typeof _smoothedBearing === 'number') ? _smoothedBearing : 0;
+  const ph = (typeof myProfile !== 'undefined' && myProfile) ? myProfile.profilePhotoUrl||null : null;
+  try{
+    myMarkerLive.setIcon(L.divIcon({
+      className:'',
+      html: buildNavMarkerHtml(sz, bearing, ph),
+      iconSize:[sz,sz], iconAnchor:[half,half], popupAnchor:[0,-half]
+    }));
+  }catch(e){}
 }
 
 // ── Map busy overlay helper ────────────────────────────────────────────────────
@@ -8733,7 +8784,6 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <button class="kc-show-route" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')} " data-to="${escapeHtml(it.to||'')} " style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:1.5px solid #1B4D4A;background:transparent;color:#1B4D4A;font-weight:700;font-size:12px;cursor:pointer;">🗺️ Lihat Rute</button>
           <button class="kc-streetview-btn-open" data-id="${it.id}" data-from="${escapeHtml(it.from||it.city||'')}" data-to="${escapeHtml(it.to||'')}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a73e8,#1557b0);color:white;font-weight:700;font-size:12px;cursor:pointer;">📸 Street View</button>
           ${isMyKurir ? `<button class="kc-track-btn" data-id="${it.id}" style="flex:1;min-width:90px;padding:7px;border-radius:9px;border:none;background:${it.tracking?'#FDEAEA':'#1B4D4A'};color:${it.tracking?'#C84F2F':'white'};font-weight:700;font-size:12px;cursor:pointer;">${it.tracking?'⏹ Stop Tracking':'📡 Mulai Tracking'}</button>` : ''}
-          ${!isMyKurir && it.tracking ? `<span style="font-size:11px;background:#DCFCE7;color:#166534;padding:4px 10px;border-radius:20px;font-weight:700;align-self:center;">🟢 Kurir Online – Buka Rute untuk lacak</span>` : ''}
         </div>
         <div id="lrmap-${it.id}" style="display:none;border-radius:12px;overflow:hidden;margin-bottom:8px;">
           <div class="kurir-map-wrap">
@@ -8769,242 +8819,50 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
   // ===== KURIR LIVE TRACKING =====
-  let kurirWatchId    = null;
+  let kurirWatchId = null;
   let kurirTrackingId = null;
-  // Per-map marker map: mapId → L.Marker  (menghindari satu kurirLiveMarker global yang bentrok)
-  const kurirLiveMarkers = {};
-  // Cache koordinat rute per item
-  const kurirRouteCoords = {}; // itemId → [[lat,lng],...]
-  // ETA state per item
-  const kurirEtaTimers = {};
-
-  // ── Helper: ukuran marker kurir berdasarkan zoom map kurir ─────────────────
-  function kurirIconSizeForZoom(zoom){
-    const z = Math.max(8, Math.min(20, zoom || 13));
-    return Math.round(14 + (z - 8) * (36 - 14) / (20 - 8));
-  }
-
-  // ── Buat/update marker kurir di peta (sisi user) ──────────────────────────
-  function _updateKurirMarker(map, itemId, lat, lng, speed, bearing){
-    const sz   = kurirIconSizeForZoom(map.getZoom());
-    const half = Math.round(sz / 2);
-    const aSz  = Math.max(8, Math.round(sz * 0.44));
-    const aTop = -Math.round(aSz * 0.6);
-    const bearStr = (typeof bearing === 'number') ? bearing : 0;
-    const icon = L.divIcon({
-      className:'',
-      html:`<div style="position:relative;width:${sz}px;height:${sz}px;">
-        <div style="position:absolute;inset:0;border-radius:50%;background:#E8633F;border:2.5px solid white;
-          box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;font-size:${Math.round(sz*0.5)}px;">
-          🛵
-        </div>
-        <div style="position:absolute;top:${aTop}px;left:50%;transform:translateX(-50%) rotate(${bearStr}deg);
-          font-size:${aSz}px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.55));">▲</div>
-      </div>`,
-      iconSize:[sz,sz], iconAnchor:[half,half], popupAnchor:[0,-half]
-    });
-
-    const popupHtml = '🛵 Kurir sedang di sini'+(speed?'<br>🚀 '+speed:'');
-    if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
-      kurirLiveMarkers[itemId].setLatLng([lat,lng]).setIcon(icon);
-      kurirLiveMarkers[itemId].getPopup() && kurirLiveMarkers[itemId].setPopupContent(popupHtml);
-    } else {
-      if(kurirLiveMarkers[itemId]) try{ map.removeLayer(kurirLiveMarkers[itemId]); }catch(e){}
-      kurirLiveMarkers[itemId] = L.marker([lat,lng],{icon}).addTo(map).bindPopup(popupHtml);
-    }
-
-    // Resize saat user zoom peta kurir
-    if(!map._kurirZoomBound){
-      map._kurirZoomBound = true;
-      map.on('zoomend', ()=>{
-        if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
-          const pos = kurirLiveMarkers[itemId].getLatLng();
-          _updateKurirMarker(map, itemId, pos.lat, pos.lng, null,
-            kurirLiveMarkers[itemId]._lastBearing || 0);
-        }
-      });
-    }
-    if(kurirLiveMarkers[itemId]) kurirLiveMarkers[itemId]._lastBearing = bearStr;
-  }
-
-  // ── Hitung sisa jarak dari posisi kurir ke tujuan di rute ─────────────────
-  function kurirRemainingDist(lat, lng, coords){
-    if(!coords || coords.length < 2) return null;
-    let minD = Infinity, minI = 0;
-    for(let i = 0; i < coords.length; i++){
-      const d = Math.hypot(coords[i][0]-lat, coords[i][1]-lng);
-      if(d < minD){ minD = d; minI = i; }
-    }
-    let dist = 0;
-    for(let i = minI; i < coords.length - 1; i++){
-      dist += haversineM(coords[i][0],coords[i][1],coords[i+1][0],coords[i+1][1]);
-    }
-    return dist; // meter
-  }
-
-  // ── Update panel ETA sisi user ────────────────────────────────────────────
-  function _updateKurirEtaPanel(itemId, remainM, speedKmh){
-    const panel = document.getElementById('kurir-eta-'+itemId);
-    if(!panel) return;
-    const distTxt = remainM >= 1000 ? (remainM/1000).toFixed(1)+' km' : Math.round(remainM)+' m';
-    let etaTxt = '—';
-    if(speedKmh && speedKmh > 0){
-      const etaMin = Math.round((remainM / 1000) / speedKmh * 60);
-      etaTxt = etaMin <= 1 ? '<1 menit' : etaMin+' menit';
-    }
-    panel.innerHTML = `<span style="font-weight:700;color:#1B4D4A;">📏 Sisa: ${distTxt}</span>`
-      + (etaTxt !== '—' ? `&ensp;·&ensp;<span style="color:#E8633F;font-weight:700;">⏱ ETA: ${etaTxt}</span>` : '');
-  }
+  let kurirLiveMarker = null;
 
   async function startKurirTracking(itemId){
     if(!navigator.geolocation){ alert('GPS tidak tersedia di perangkat ini.'); return; }
     if(!window.firebaseReady){ alert('Firebase belum tersambung.'); return; }
     kurirTrackingId = itemId;
     await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId), {tracking:true});
-
-    // Ambil rute dulu untuk navigasi kurir
-    const item = (typeof cache !== 'undefined') ? cache.find(x=>x.id===itemId) : null;
-    let routeCoords = null;
-    if(item && item.from && item.to){
-      try{
-        const [orig, dest] = await Promise.all([geocode(item.from), geocode(item.to)]);
-        if(orig && dest){
-          const r = await getOSRMRoute([orig.lat,orig.lon],[dest.lat,dest.lon], listMapModes[itemId]||'driving');
-          if(r && r.geometry){
-            routeCoords = r.geometry.coordinates.map(c=>[c[1],c[0]]);
-            kurirRouteCoords[itemId] = routeCoords;
-            // Simpan di Firebase agar user bisa lihat rute lengkap
-            const simplified = routeCoords.filter((_,i)=>i%5===0||i===routeCoords.length-1);
-            await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId),
-              {routeCoords: JSON.stringify(simplified)});
-          }
-        }
-      }catch(e){}
-    }
-
-    let lastLat = null, lastLng = null, lastBearing = 0;
-
     kurirWatchId = navigator.geolocation.watchPosition(async pos=>{
-      const {latitude:lat, longitude:lng} = pos.coords;
-      const speedMs = pos.coords.speed;
-      const speedKmh = speedMs && speedMs > 0 ? speedMs * 3.6 : null;
-      const speedStr = speedKmh ? speedKmh.toFixed(1)+' km/h' : null;
-
-      // Hitung bearing dari posisi sebelumnya
-      if(lastLat !== null) lastBearing = computeBearing(lastLat, lastLng, lat, lng);
-      lastLat = lat; lastLng = lng;
-
-      // Hitung sisa jarak
-      const coords = kurirRouteCoords[itemId] || routeCoords;
-      const remainM = coords ? kurirRemainingDist(lat, lng, coords) : null;
-
+      const {latitude:lat,longitude:lng} = pos.coords;
+      const speed = pos.coords.speed ? (pos.coords.speed*3.6).toFixed(1)+' km/h' : null;
       try{
-        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'), {
-          lat, lng,
-          speed: speedStr,
-          speedKmh: speedKmh || 0,
-          bearing: lastBearing,
-          remainM: remainM || 0,
-          t: Date.now()
-        });
+        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'), {lat,lng,speed,t:Date.now()});
       }catch(e){}
-
-      // Update panel navigasi kurir (hanya kalau panel ada = kurir buka "Lihat Rute"-nya sendiri)
-      const kurirNavEl = document.getElementById('kurir-nav-'+itemId);
-      if(kurirNavEl && coords){
-        const sisa = remainM !== null ? (remainM >= 1000 ? (remainM/1000).toFixed(1)+' km' : Math.round(remainM)+' m') : '—';
-        const etaMin = (speedKmh && speedKmh > 2 && remainM) ? Math.round((remainM/1000)/speedKmh*60) : null;
-        const eta = etaMin !== null ? (etaMin<=1?'hampir tiba':etaMin+' menit lagi') : '—';
-        kurirNavEl.innerHTML =
-          `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <span style="font-size:13px;font-weight:700;color:#1B4D4A;">📡 GPS Aktif</span>
-            <span style="font-size:12px;color:#555;">Sisa: <b>${sisa}</b></span>
-            ${etaMin!==null?`<span style="font-size:12px;color:#E8633F;">ETA: <b>${eta}</b></span>`:''}
-            ${speedStr?`<span style="font-size:12px;color:#888;">🚀 ${speedStr}</span>`:''}
-          </div>`;
-      }
-    }, ()=>{}, {enableHighAccuracy:true, maximumAge:3000});
-
-    // Tampilkan panel navigasi kurir jika peta terbuka
-    const wrap = document.getElementById('lrmap-'+itemId);
-    if(wrap && wrap.style.display === 'block'){
-      let navEl = document.getElementById('kurir-nav-'+itemId);
-      if(!navEl){
-        navEl = document.createElement('div');
-        navEl.id = 'kurir-nav-'+itemId;
-        navEl.style.cssText = 'background:#E8F5E9;border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:12.5px;border:1px solid #A7D7B8;';
-        wrap.insertBefore(navEl, wrap.firstChild);
-      }
-      navEl.innerHTML = '<span style="color:#1B4D4A;font-weight:700;">⏳ Menghitung rute...</span>';
-    }
-
-    // Perbarui tombol
-    const btn = document.querySelector(`.kc-track-btn[data-id="${itemId}"]`);
-    if(btn){ btn.textContent='⏹ Stop Tracking'; btn.style.background='#FDEAEA'; btn.style.color='#C84F2F'; }
+    }, ()=>{}, {enableHighAccuracy:true,maximumAge:5000});
+    alert('📡 Tracking GPS aktif! Posisi kamu akan muncul di peta untuk semua orang yang membuka rute ini.');
   }
 
   async function stopKurirTracking(itemId){
     if(kurirWatchId!==null){ navigator.geolocation.clearWatch(kurirWatchId); kurirWatchId=null; }
     kurirTrackingId=null;
-    delete kurirRouteCoords[itemId];
     if(window.firebaseReady){
       try{
         await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId), {tracking:false});
         await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos'));
       }catch(e){}
     }
-    const navEl = document.getElementById('kurir-nav-'+itemId);
-    if(navEl) navEl.remove();
-    const btn = document.querySelector(`.kc-track-btn[data-id="${itemId}"]`);
-    if(btn){ btn.textContent='📡 Mulai Tracking'; btn.style.background='#1B4D4A'; btn.style.color='white'; }
+    alert('⏹ Tracking GPS dihentikan.');
   }
 
   const kurirPosListeners = {};
   function attachKurirPosListener(itemId, map){
     if(kurirPosListeners[itemId]) return;
-    // Buat panel ETA untuk sisi user (di bawah peta)
-    const wrap = document.getElementById('lrmap-'+itemId);
-    if(wrap){
-      let etaEl = document.getElementById('kurir-eta-'+itemId);
-      if(!etaEl){
-        etaEl = document.createElement('div');
-        etaEl.id = 'kurir-eta-'+itemId;
-        etaEl.style.cssText = 'background:#FFF8EC;border-radius:10px;padding:9px 14px;margin-top:6px;font-size:12.5px;border:1px solid #F0D6A0;min-height:24px;';
-        etaEl.textContent = '⏳ Menunggu posisi kurir...';
-        wrap.appendChild(etaEl);
-      }
-    }
-
     const posRef = window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos');
-    let lastKurirLat = null;
     const unsub = window.rtdbOnValue(posRef, snap=>{
       const pos = snap.val();
       if(!pos||!pos.lat) return;
-      const bearing = pos.bearing || (lastKurirLat !== null
-        ? computeBearing(lastKurirLat, pos.lng||0, pos.lat, pos.lng)
-        : 0);
-      lastKurirLat = pos.lat;
-
-      // Update/buat marker kurir (zoom-aware, tidak double)
-      _updateKurirMarker(map, itemId, pos.lat, pos.lng, pos.speed||null, bearing);
-
-      // Pan ke kurir hanya kalau peta belum di-drag user
-      if(!map._userDragged) map.panTo([pos.lat,pos.lng]);
-
-      // Update ETA panel (sisi user)
-      if(pos.remainM && pos.remainM > 0){
-        _updateKurirEtaPanel(itemId, pos.remainM, pos.speedKmh||null);
-      }
-
-      // Gambar sisa rute kalau belum ada (ambil dari Firebase)
-      if(!kurirRouteCoords[itemId]){
-        window.rtdbGet(window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/routeCoords'))
-          .then(s=>{ const v=s.val(); if(v){ try{ kurirRouteCoords[itemId]=JSON.parse(v); }catch(e){} } })
-          .catch(()=>{});
-      }
+      if(kurirLiveMarker && map.hasLayer(kurirLiveMarker)) map.removeLayer(kurirLiveMarker);
+      const icon = L.divIcon({className:'',html:'<div class="kurir-live-pulse"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+      kurirLiveMarker = L.marker([pos.lat,pos.lng],{icon}).addTo(map)
+        .bindPopup('🛵 Kurir sedang di sini'+(pos.speed?'<br>🚀 Kecepatan: '+pos.speed:'')).openPopup();
+      map.panTo([pos.lat,pos.lng]);
     });
-    // Tandai kalau map di-drag supaya tidak auto-pan rebut kontrol
-    map.on('dragstart', ()=>{ map._userDragged = true; });
     kurirPosListeners[itemId] = unsub;
   }
 

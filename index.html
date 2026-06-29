@@ -9105,24 +9105,31 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
   const kurirPosListeners = {};
   const kurirLiveMarkers = {}; // FIX: per-item marker, bukan satu global
+  const kurirLiveRouteLayers = {}; // rute sisa (dari posisi kurir ke tujuan)
 
   function attachKurirPosListener(itemId, map){
     if(kurirPosListeners[itemId]) return; // already attached
     const posRef = window.rtdbRef(window.firebaseDb,'pasarKongsi/'+itemId+'/livePos');
-    const unsub = window.rtdbOnValue(posRef, snap=>{
+    const unsub = window.rtdbOnValue(posRef, async snap=>{
       const pos = snap.val();
       if(!pos||!pos.lat) {
-        // Kurir offline — hapus marker lama
+        // Kurir offline — hapus marker & rute lama
         if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
           map.removeLayer(kurirLiveMarkers[itemId]);
           delete kurirLiveMarkers[itemId];
         }
+        if(kurirLiveRouteLayers[itemId]){
+          kurirLiveRouteLayers[itemId].forEach(l=>{ try{ map.removeLayer(l); }catch(e){} });
+          delete kurirLiveRouteLayers[itemId];
+        }
         return;
       }
+
       // Hapus marker lama kalau ada
       if(kurirLiveMarkers[itemId] && map.hasLayer(kurirLiveMarkers[itemId])){
         map.removeLayer(kurirLiveMarkers[itemId]);
       }
+
       const icon = L.divIcon({className:'',html:'<div class="kurir-live-pulse"></div>',iconSize:[18,18],iconAnchor:[9,9]});
       const timeAgo = pos.t ? Math.round((Date.now()-pos.t)/1000) : null;
       const timeStr = timeAgo !== null ? (timeAgo < 60 ? timeAgo+'d lalu' : Math.round(timeAgo/60)+'m lalu') : '';
@@ -9131,7 +9138,56 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           +(pos.speed?'<br>🚀 Kecepatan: '+pos.speed:'')
           +(timeStr?'<br>🕐 Diperbarui: '+timeStr:'')
         ).openPopup();
-      map.panTo([pos.lat,pos.lng]);
+
+      // === RUTE LIVE: hapus rute lama (yang sudah dilalui hilang) lalu gambar rute sisa ===
+      // Hapus semua layer rute live sebelumnya agar bagian yang sudah dilalui tidak muncul
+      if(kurirLiveRouteLayers[itemId]){
+        kurirLiveRouteLayers[itemId].forEach(l=>{ try{ map.removeLayer(l); }catch(e){} });
+        delete kurirLiveRouteLayers[itemId];
+      }
+
+      // Ambil tujuan dari cache item
+      const item = cache.find(c=>c.id===itemId);
+      if(item && (item.to || item.toLat)){
+        try{
+          let destLatLon = null;
+          if(item.toLat && item.toLng){
+            destLatLon = [parseFloat(item.toLat), parseFloat(item.toLng)];
+          } else if(item.to){
+            const g = await geocode(item.to);
+            if(g) destLatLon = [g.lat, g.lon];
+          }
+
+          if(destLatLon){
+            // Gambar rute SISA dari posisi kurir saat ini ke tujuan
+            const kurirLatLon = [pos.lat, pos.lng];
+            const route = await getOSRMRoute(kurirLatLon, destLatLon, 'driving');
+            const layers = [];
+            if(route && route.geometry){
+              const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+              // Casing putih untuk ketebalan
+              const casing = L.polyline(coords,{color:'white',weight:9,opacity:0.5}).addTo(map);
+              casing._routeLayer = true;
+              casing.bringToBack();
+              layers.push(casing);
+              // Garis rute sisa berwarna hijau teal
+              const routeLine = L.polyline(coords,{color:'#1B4D4A',weight:5,opacity:0.92}).addTo(map);
+              routeLine._routeLayer = true;
+              routeLine.bringToFront();
+              layers.push(routeLine);
+            } else {
+              // Fallback garis lurus putus-putus
+              const fallback = L.polyline([kurirLatLon, destLatLon],{color:'#1B4D4A',weight:4,opacity:0.7,dashArray:'10,7'}).addTo(map);
+              fallback._routeLayer = true;
+              layers.push(fallback);
+            }
+            kurirLiveRouteLayers[itemId] = layers;
+          }
+        } catch(e){ console.warn('[kurirRoute]', e); }
+      }
+
+      // Kamera ikuti posisi kurir (panTo smooth)
+      map.panTo([pos.lat,pos.lng], {animate:true, duration:0.8});
 
       // FIX: update badge di card kurir tanpa harus reload peta
       const badge = document.getElementById('kurir-live-badge-'+itemId);
@@ -9353,29 +9409,76 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const item = cache.find(x=>x.id===id);
       if(!item) return;
       const wrap = document.getElementById('lrmap-'+id);
-      const showRouteBtn = wrap && wrap.parentElement.querySelector('.kc-show-route');
       if(wrap){
         // Buka peta kalau belum terbuka
         if(wrap.style.display !== 'block'){
           lacakBtn.textContent = '⏳ Memuat...'; lacakBtn.disabled = true;
-          const [orig, dest] = await Promise.all([geocode(item.from||item.city||''), geocode(item.to||'')]);
+          const dest = item.to ? await geocode(item.to) : null;
           lacakBtn.textContent = '📡 Lacak Kurir Live'; lacakBtn.disabled = false;
-          if(!orig || !dest){ alert('Lokasi tidak ditemukan.'); return; }
+          if(!dest){ alert('Lokasi tujuan tidak ditemukan.'); return; }
           wrap.style.display = 'block';
           if(listRouteMaps[id]) { listRouteMaps[id].remove(); }
           const innerEl = document.getElementById('lrmap-inner-'+id);
           if(!innerEl) return;
-          const m = L.map(innerEl,{zoomControl:true}).setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+
+          // Cek apakah kurir sudah kirim posisi live — kalau ada, pakai itu sebagai center awal
+          let livePos = null;
+          if(item.livePos && item.livePos.lat) livePos = item.livePos;
+          const centerLat = livePos ? livePos.lat : dest.lat;
+          const centerLng = livePos ? livePos.lng : dest.lon;
+          const initZoom  = livePos ? 14 : 10;
+
+          const m = L.map(innerEl,{zoomControl:true}).setView([centerLat, centerLng], initZoom);
           addLabeledTileLayer(m);
-          const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+
+          // Marker tujuan selalu ada
           const endIcon = L.divIcon({className:'',html:'<div style="background:#E8633F;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
-          L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(m).bindPopup(`<b>📍 Asal</b><br>${escapeHtml(item.from||item.city||'')}</div>`).openPopup();
           L.marker([dest.lat,dest.lon],{icon:endIcon}).addTo(m).bindPopup(`<b>🏁 Tujuan</b><br>${escapeHtml(item.to||'')}`);
+
           listRouteMaps[id] = m;
           const routeInfoEl = document.getElementById('lrinfo-'+id);
-          await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],'driving',routeInfoEl,null,null);
+
+          if(livePos){
+            // Sudah ada posisi live kurir — gambar rute SISA langsung (kurir → tujuan)
+            const route = await getOSRMRoute([livePos.lat, livePos.lng],[dest.lat, dest.lon],'driving');
+            if(route && route.geometry){
+              const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+              const casing = L.polyline(coords,{color:'white',weight:9,opacity:0.5}).addTo(m);
+              casing._routeLayer=true; casing.bringToBack();
+              const routeLine = L.polyline(coords,{color:'#1B4D4A',weight:5,opacity:0.92}).addTo(m);
+              routeLine._routeLayer=true;
+              if(!kurirLiveRouteLayers[id]) kurirLiveRouteLayers[id]=[];
+              kurirLiveRouteLayers[id].push(casing, routeLine);
+              m.fitBounds(routeLine.getBounds(),{padding:[40,40],maxZoom:15});
+              if(routeInfoEl){
+                const km=(route.distance/1000).toFixed(1), mins=Math.round(route.duration/60);
+                routeInfoEl.innerHTML=`<div style="font-size:12px;color:#1B4D4A;font-weight:600;">🛵 Kurir menuju tujuan · ${km} km · ~${mins} mnt</div>`;
+                routeInfoEl.classList.add('show');
+              }
+            } else {
+              const fallback = L.polyline([[livePos.lat,livePos.lng],[dest.lat,dest.lon]],{color:'#1B4D4A',weight:4,opacity:0.7,dashArray:'10,7'}).addTo(m);
+              fallback._routeLayer=true;
+              if(!kurirLiveRouteLayers[id]) kurirLiveRouteLayers[id]=[];
+              kurirLiveRouteLayers[id].push(fallback);
+            }
+          } else {
+            // Kurir belum kirim posisi — tampilkan rute umum asal→tujuan sebagai preview
+            const orig = (item.from||item.city) ? await geocode(item.from||item.city||'') : null;
+            if(orig){
+              const startIcon = L.divIcon({className:'',html:'<div style="background:#1B4D4A;border:3px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>',iconSize:[14,14],iconAnchor:[7,7]});
+              L.marker([orig.lat,orig.lon],{icon:startIcon}).addTo(m).bindPopup(`<b>📍 Asal Kurir</b><br>${escapeHtml(item.from||item.city||'')}`).openPopup();
+              await drawRouteOnMap(m,[orig.lat,orig.lon],[dest.lat,dest.lon],'driving',routeInfoEl,null,null);
+              m.setView([(orig.lat+dest.lat)/2,(orig.lon+dest.lon)/2],10);
+            }
+            if(routeInfoEl){
+              const existing = routeInfoEl.innerHTML;
+              routeInfoEl.innerHTML = (existing||'') + '<div style="font-size:11.5px;color:#888;margin-top:4px;">⏳ Menunggu kurir mengaktifkan GPS live...</div>';
+              routeInfoEl.classList.add('show');
+            }
+          }
+
           setTimeout(()=>m.invalidateSize(),150);
-          // Attach live position listener — hanya kalau berhak (pemilik/sudah chat)
+          // Attach live position listener — hanya kalau berhak (pemilik/sudah pesan)
           if(window.firebaseReady && window.firebaseDb && canSeeLiveKurir(id)) attachKurirPosListener(id, m);
         } else {
           // Peta sudah terbuka — re-attach listener saja

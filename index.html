@@ -4195,71 +4195,47 @@ function speak(text){
 }
 
 // ── Panel navigasi overlay ────────────────────────────────────────────────────
+// State minimize card nav (true = card kecil/minimized)
+let _navCardMinimized = false;
+
 function getOrCreateNavPanel(){
   let p=document.getElementById('navPanel');
   if(p) return p;
   p=document.createElement('div');
   p.id='navPanel';
-  // Di communityMapContainer — tidak ikut rotate
-  // Mulai di bawah, bisa digeser naik/turun oleh user
+  // Wrapper pointer-events:none — hanya inner card (#navCardInner) yang interaktif
+  // Sehingga area kosong di atas card tetap bisa untuk drag peta
   p.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
 
-  // ── Drag handle: geser card naik/turun (sumbu Y) ──
-  let _dragStartY=0, _dragStartBottom=0, _dragging=false;
-  function _navDragStart(e){
-    // Mulai drag dari handle
-    if(!e.target.closest('.nav-drag-handle')) return;
-    _dragging=true;
-    _dragStartY = (e.touches?e.touches[0].clientY:e.clientY);
-    const container=document.getElementById('communityMapContainer');
-    const pB=parseInt(p.style.bottom)||0;
-    _dragStartBottom=pB;
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  function _navDragMove(e){
-    if(!_dragging) return;
-    const curY=(e.touches?e.touches[0].clientY:e.clientY);
-    const dy=_dragStartY-curY; // positif = geser ke atas
-    const container=document.getElementById('communityMapContainer');
-    const cH=container?container.offsetHeight:400;
-    const pH=p.offsetHeight||80;
-    // Batasi: min bottom=0 (bawah), max bottom=cH-pH-10 (hampir paling atas)
-    const newB=Math.max(0, Math.min(cH-pH-10, _dragStartBottom+dy));
-    p.style.bottom=newB+'px';
-    p.style.top='auto';
-    // Sementara aktifkan pointer-events selama drag agar tidak terblokir
-    p.style.pointerEvents='auto';
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  function _navDragEnd(){
-    if(_dragging){
-      _dragging=false;
-      p.style.pointerEvents='none'; // kembali ke none agar peta bisa di-drag
+  // ── Swipe up/down pada #navCardInner untuk resize card ──
+  let _sy=0, _st=0, _sw=false;
+  p.addEventListener('touchstart', function(e){
+    const inner=e.target.closest('#navCardInner');
+    if(!inner) return;
+    if(e.target.closest('button,a')) return;
+    _sw=true; _sy=e.touches[0].clientY; _st=Date.now();
+  },{passive:true});
+  p.addEventListener('touchend', function(e){
+    if(!_sw) return; _sw=false;
+    const dy=e.changedTouches[0].clientY-_sy;
+    if(Math.abs(dy)>35 && (Date.now()-_st)<450){
+      _navCardMinimized = (dy>0);
+      if(navMode) updateNavPanel(
+        lastSpokenStep>=0?lastSpokenStep:0,
+        myLocation?myLocation.lat:null,
+        myLocation?myLocation.lng:null
+      );
     }
-  }
-
-  // Gunakan capture:true agar event tercapture walaupun parent pointer-events:none
-  p.addEventListener('touchstart',_navDragStart,{passive:false,capture:true});
-  p.addEventListener('touchmove', _navDragMove,{passive:false,capture:true});
-  p.addEventListener('touchend',  _navDragEnd,{capture:true});
-  p.addEventListener('mousedown', _navDragStart,true);
-  window.addEventListener('mousemove',_navDragMove,true);
-  window.addEventListener('mouseup',  _navDragEnd,true);
+  },{passive:true});
 
   const c=document.getElementById('communityMapContainer');
   if(c) c.appendChild(p);
   return p;
 }
 
-// State minimize card nav
-let _navCardMinimized = false;
-
 function updateNavPanel(stepIdx, userLat, userLng){
   const panel=getOrCreateNavPanel();
   if(!navMode||!activeRouteSteps.length){ panel.innerHTML=''; return; }
-  // JANGAN override bottom/top — user mungkin sudah geser panel ke posisi lain
   panel.style.pointerEvents='none';
 
   const step  = activeRouteSteps[stepIdx]||activeRouteSteps[activeRouteSteps.length-1];
@@ -4269,63 +4245,67 @@ function updateNavPanel(stepIdx, userLat, userLng){
   let distToGoal=0;
   if(activeDestLat!==null && userLat!=null) distToGoal=haversineM(userLat,userLng,activeDestLat,activeDestLng);
 
-  const elapsedMs = navStartTime ? (Date.now()-navStartTime) : 0;
+  const elapsedMs  = navStartTime ? (Date.now()-navStartTime) : 0;
   const elapsedStr = fmtElapsed(elapsedMs);
-  const traveledStr = fmtDist(navDistanceTraveled);
+  const traveledStr= fmtDist(navDistanceTraveled);
+  const distStr    = fmtDist(distToGoal);
+  const svLat = userLat || activeDestLat || '';
+  const svLng = userLng || activeDestLng || '';
+  const svUrl = svLat ? ('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+svLat+','+svLng) : '#';
+  const nextHtml = next ? ('<div style="font-size:11.5px;opacity:0.8;margin-bottom:4px;">Selanjutnya: '+stepLabel(next)+'</div>') : '';
+  const svHtml   = svLat ? ('<a href="'+svUrl+'" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;background:rgba(255,255,255,0.13);color:white;border-radius:10px;padding:7px 0;font-size:12px;font-weight:700;text-decoration:none;">&#x1F52D; Lihat Street View</a>') : '';
 
   if(_navCardMinimized){
-    // Mode minimized — hanya tampilkan instruksi singkat + tombol expand
-    panel.innerHTML=`
-    <div style="pointer-events:auto;margin:8px 10px 4px;background:rgba(27,77,74,0.97);color:white;border-radius:14px;
-      padding:8px 12px;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:'Plus Jakarta Sans',sans-serif;
-      display:flex;align-items:center;gap:8px;">
-      <div class="nav-drag-handle" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:grab;flex-shrink:0;touch-action:none;">
-        <div style="width:3px;height:14px;background:rgba(255,255,255,0.5);border-radius:2px;margin-right:2px;"></div>
-        <div style="width:3px;height:14px;background:rgba(255,255,255,0.5);border-radius:2px;"></div>
-      </div>
-      <div style="flex:1;min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>
-      <span style="font-size:11px;opacity:0.8;white-space:nowrap;">🏁 ${fmtDist(distToGoal)}</span>
-      <button onclick="event.stopPropagation();_navCardMinimized=false;updateNavPanel(${stepIdx},${userLat||'null'},${userLng||'null'});"
-        style="flex-shrink:0;border:none;background:rgba(255,255,255,0.18);color:white;border-radius:10px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;pointer-events:auto;">▲</button>
-      <button onclick="stopNavigation();" style="flex-shrink:0;border:none;background:rgba(232,99,63,0.8);color:white;border-radius:10px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;pointer-events:auto;">■</button>
-    </div>`;
+    // Strip tipis — tap di mana saja untuk expand
+    panel.innerHTML =
+      '<div id="navCardInner" style="pointer-events:auto;margin:6px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:14px;'+
+      'padding:7px 12px;box-shadow:0 -2px 14px rgba(0,0,0,0.25);font-family:Plus Jakarta Sans,sans-serif;'+
+      'display:flex;align-items:center;gap:8px;cursor:pointer;">'+
+        '<div style="width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,0.4);flex-shrink:0;"></div>'+
+        '<div style="flex:1;min-width:0;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+label+'</div>'+
+        '<span style="font-size:11px;opacity:0.8;white-space:nowrap;flex-shrink:0;">&#x1F3C1; '+distStr+'</span>'+
+        '<span style="font-size:10px;opacity:0.55;flex-shrink:0;">&#x25B2; tap</span>'+
+        '<button id="navStopBtnMin" style="flex-shrink:0;border:none;background:rgba(232,99,63,0.85);color:white;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;">&#x25A0;</button>'+
+      '</div>';
+    // Tap card = expand
+    const _inner = document.getElementById('navCardInner');
+    if(_inner) _inner.addEventListener('click', function(e){
+      if(e.target.id==='navStopBtnMin'){ stopNavigation(); return; }
+      _navCardMinimized=false;
+      updateNavPanel(stepIdx,userLat,userLng);
+    });
     return;
   }
 
-  // Tombol Street View (Google Maps Street View di posisi user)
-  const svLat = userLat || activeDestLat || '';
-  const svLng = userLng || activeDestLng || '';
-  const svUrl = svLat ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${svLat},${svLng}` : '#';
+  // Card penuh
+  panel.innerHTML =
+    '<div id="navCardInner" style="pointer-events:auto;margin:8px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;'+
+    'padding:0;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:Plus Jakarta Sans,sans-serif;overflow:hidden;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px 3px;">'+
+        '<div style="display:flex;align-items:center;gap:8px;">'+
+          '<div style="width:32px;height:4px;border-radius:2px;background:rgba(255,255,255,0.3);"></div>'+
+          '<span style="font-size:10px;opacity:0.5;">geser bawah = kecilkan</span>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;">'+
+          '<button id="navMinBtn" style="border:none;background:rgba(255,255,255,0.15);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25BC;</button>'+
+          '<button id="navStopBtn" style="border:none;background:rgba(232,99,63,0.85);color:white;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;cursor:pointer;">&#x25A0; Stop</button>'+
+        '</div>'+
+      '</div>'+
+      '<div style="padding:4px 14px 10px;">'+
+        '<div style="font-size:15px;font-weight:800;line-height:1.3;margin-bottom:2px;">'+label+'</div>'+
+        nextHtml+
+        '<div style="font-size:11px;opacity:0.85;display:flex;gap:10px;flex-wrap:wrap;padding-top:5px;border-top:1px solid rgba(255,255,255,0.15);">'+
+          '<span>&#x23F1; '+elapsedStr+'</span><span>&#x1F6B6; '+traveledStr+'</span><span>&#x1F3C1; Sisa '+distStr+'</span>'+
+        '</div>'+
+        svHtml+
+      '</div>'+
+    '</div>';
 
-  panel.innerHTML=`
-  <div style="pointer-events:auto;margin:8px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;
-    padding:0;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;">
-    <!-- Drag handle — area ini bisa digeser naik/turun (seluruh bar) -->
-    <div class="nav-drag-handle" style="display:flex;align-items:center;justify-content:space-between;padding:7px 14px 4px;cursor:grab;touch-action:none;">
-      <div style="display:flex;align-items:center;gap:6px;">
-        <div style="width:28px;height:4px;border-radius:2px;background:rgba(255,255,255,0.35);"></div>
-        <span style="font-size:10px;opacity:0.55;">geser</span>
-      </div>
-      <div style="display:flex;gap:6px;">
-        <button onclick="event.stopPropagation();_navCardMinimized=true;updateNavPanel(${stepIdx},${userLat||'null'},${userLng||'null'});"
-          title="Perkecil card"
-          style="border:none;background:rgba(255,255,255,0.15);color:white;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;pointer-events:auto;">▼ Kecilkan</button>
-        <button onclick="stopNavigation();" style="border:none;background:rgba(232,99,63,0.75);color:white;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;cursor:pointer;pointer-events:auto;">■ Stop</button>
-      </div>
-    </div>
-    <div style="padding:6px 14px 10px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:800;line-height:1.3;">${label}</div>
-          ${next?`<div style="font-size:11.5px;opacity:0.8;margin-top:2px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
-        </div>
-      </div>
-      <div style="font-size:11px;opacity:0.85;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);">
-        <span>⏱ ${elapsedStr}</span><span>🚶 ${traveledStr}</span><span>🏁 Sisa ${fmtDist(distToGoal)}</span>
-      </div>
-      ${svLat ? `<a href="${svUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:8px;background:rgba(255,255,255,0.13);color:white;border-radius:10px;padding:7px 0;font-size:12px;font-weight:700;text-decoration:none;pointer-events:auto;">🔭 Lihat Street View Lokasi Ini</a>` : ''}
-    </div>
-  </div>`;
+  // Pasang event tombol
+  const _nbMin  = document.getElementById('navMinBtn');
+  const _nbStop = document.getElementById('navStopBtn');
+  if(_nbMin)  _nbMin.onclick  = function(e){ e.stopPropagation(); _navCardMinimized=true;  updateNavPanel(stepIdx,userLat,userLng); };
+  if(_nbStop) _nbStop.onclick = function(e){ e.stopPropagation(); stopNavigation(); };
 }
 
 function stopNavigation(){
@@ -4587,7 +4567,9 @@ function startNavigation(){
     updateRouteProgress(lat, lng);
 
     // === Camera Follow ===
-    if(followCameraMode && communityMap && !mapUserInteracting && !_mapManualControl){
+    // Kamera selalu ikut GPS kecuali user SEDANG aktif drag/zoom sekarang.
+    // _mapManualControl hanya menunda sementara, bukan memblokir selamanya.
+    if(followCameraMode && communityMap && !mapUserInteracting){
       const now = Date.now();
       // Heading-up: cek tiap 400ms (lebih responsif saat belok)
       // North-up  : cek tiap 1000ms (stabil)
@@ -5259,20 +5241,28 @@ function initCommunityMap(centerLat, centerLng){
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
   communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
-  // Setelah 2 detik berhenti berinteraksi, izinkan GPS kamera kembali
-  // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
   communityMap.on('zoomend', () => {
     _navUserZoom = communityMap.getZoom();
     _updateNavMarkerSize();
   });
   communityMap.on('dragend zoomend', () => {
-    // Kalau navigasi aktif dan user drag/zoom sendiri, tandai manual control.
-    // Layar tidak akan bergerak sendiri sampai user tekan tombol Follow lagi.
     if(navMode){
+      // Saat navigasi: user drag peta = tandai manual control (kamera berhenti ikut GPS).
+      // User bisa bebas lihat sekitar. Tekan 🎯 untuk balik follow.
       _mapManualControl = true;
-      // mapUserInteracting tetap true — TIDAK di-reset otomatis saat nav aktif
+      mapUserInteracting = true;
+      // AUTO RESUME follow setelah 2 detik berhenti drag (biar user bisa lihat sekitar sebentar)
+      clearTimeout(communityMap._autoResumeTimer);
+      communityMap._autoResumeTimer = setTimeout(() => {
+        if(!navMode) return;
+        mapUserInteracting = false;
+        _mapManualControl = false;
+        // Langsung snap balik ke posisi user
+        if(myLocation && myLocation.lat && communityMap){
+          communityMap.setView([myLocation.lat, myLocation.lng], _navUserZoom || communityMap.getZoom(), {animate:true, duration:0.5});
+        }
+      }, 2000);
     } else {
-      // Di luar navigasi: reset setelah 4 detik seperti semula
       setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 4000);
     }
   });
@@ -5285,18 +5275,25 @@ function initCommunityMap(centerLat, centerLng){
   btnFollow.style.cssText = 'width:40px;height:40px;border:none;border-radius:10px;background:#1B4D4A;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.18);cursor:pointer;display:none;align-items:center;justify-content:center;font-size:18px;';
   btnFollow.innerHTML = '🎯';
   btnFollow.onclick = () => {
-    followCameraMode = !followCameraMode;
-    btnFollow.style.background = followCameraMode ? '#1B4D4A' : '#999';
-    btnFollow.title = followCameraMode ? 'Follow ON — klik untuk OFF' : 'Follow OFF — klik untuk ON';
-    if(followCameraMode && myLocation && myLocation.lat){
-      // User secara eksplisit minta follow lagi — izinkan kamera bergerak
-      mapUserInteracting = false;
-      _mapManualControl = false;
-      _smoothedBearing = null;
-      communityMap.setView([myLocation.lat, myLocation.lng], _navUserZoom || communityMap.getZoom(), {animate:false, noMoveStart:true});
+    // Tekan 🎯 = selalu kembali follow (balik dari mode eksplorasi bebas)
+    followCameraMode = true;
+    mapUserInteracting = false;
+    _mapManualControl = false;
+    clearTimeout(communityMap && communityMap._autoResumeTimer);
+    _smoothedBearing = null;
+    btnFollow.style.background = '#1B4D4A';
+    btnFollow.title = 'Kembali ikuti lokasi saya';
+    if(myLocation && myLocation.lat){
+      communityMap.setView([myLocation.lat, myLocation.lng], _navUserZoom || communityMap.getZoom(), {animate:true, duration:0.5});
     }
-    if(!followCameraMode) setMapHeadingRotation(0);
   };
+  // Update tampilan tombol saat peta di-drag (jadi abu-abu = bebas eksplorasi)
+  communityMap.on('dragstart', () => {
+    if(navMode && btnFollow) { btnFollow.style.background='#666'; btnFollow.title='Peta bebas — tap 🎯 untuk kembali ikuti'; }
+  });
+  communityMap.on('dragend', () => {
+    if(navMode && btnFollow && _mapManualControl) { btnFollow.style.background='#E8633F'; btnFollow.title='Tap untuk kembali ikuti lokasi'; }
+  });
   controlDiv.insertBefore(btnFollow, btnGPS);
 
   // === Tombol Heading-Up (rotasi peta searah jalan) ===

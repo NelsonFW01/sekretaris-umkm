@@ -4125,6 +4125,8 @@ let navDistanceTraveled = 0;  // meter, akumulasi jarak yang sudah ditempuh
 let lastNavLat        = null; // posisi GPS terakhir untuk hitung delta
 let lastNavLng        = null;
 let navStatsTimer     = null; // interval untuk update jam berjalan walau GPS belum fire
+let _navUserZoom      = null; // zoom yang dipilih user (null = belum pernah set, pakai default 17)
+let _mapManualControl = false;// true = user sudah interaksi manual, jangan override posisi peta
 
 function fmtElapsed(ms){
   const s = Math.max(0, Math.floor(ms/1000));
@@ -4241,6 +4243,8 @@ function updateNavPanel(stepIdx, userLat, userLng){
 function stopNavigation(){
   navMode=false;
   lastSpokenStep=-1;
+  _mapManualControl=false;
+  _navUserZoom=null; // reset zoom saat navigasi selesai, siap untuk sesi berikutnya
   if(navWatchId!==null){ navigator.geolocation.clearWatch(navWatchId); navWatchId=null; }
   if(navFallbackTimer){ clearInterval(navFallbackTimer); navFallbackTimer=null; }
   if(navStatsTimer){ clearInterval(navStatsTimer); navStatsTimer=null; }
@@ -4321,6 +4325,9 @@ function startNavigation(){
   navMode=true;
   lastSpokenStep=-1;
   mapUserInteracting=false;
+  _mapManualControl=false;   // reset manual control tiap mulai navigasi baru
+  // _navUserZoom: pertahankan kalau user sudah pernah pilih zoom, reset ke null hanya saat pertama kali
+  if(_navUserZoom === null) _navUserZoom = null; // akan di-set oleh snapCameraNow → default 17
   followCameraMode=true;
   navFixCount=0;
   lastCameraUpdate=0;
@@ -4414,8 +4421,9 @@ function startNavigation(){
     if(!myLocation) myLocation={};
     myLocation.lat = lat; myLocation.lng = lng;
 
-    // Selalu setView ke posisi user, zoom 18
-    communityMap.setView([lat, lng], 18, {animate:false, noMoveStart:true});
+    // Gunakan zoom pilihan user jika sudah pernah di-set, default 17 untuk pertama kali
+    if(_navUserZoom === null) _navUserZoom = 17;
+    communityMap.setView([lat, lng], _navUserZoom, {animate:false, noMoveStart:true});
 
     if(activeRouteCoords && activeRouteCoords.length > 1){
       // Gunakan near+far blend yang sama seperti camera follow
@@ -4489,7 +4497,7 @@ function startNavigation(){
     updateRouteProgress(lat, lng);
 
     // === Camera Follow ===
-    if(followCameraMode && communityMap && !mapUserInteracting){
+    if(followCameraMode && communityMap && !mapUserInteracting && !_mapManualControl){
       const now = Date.now();
       // Heading-up: cek tiap 400ms (lebih responsif saat belok)
       // North-up  : cek tiap 1000ms (stabil)
@@ -4532,29 +4540,26 @@ function startNavigation(){
 
         if(headingUpMode){
           // === HEADING-UP ===
-          // Rotasi CSS yang "menggerakkan" pandangan — bukan panTo.
-          // setView ke posisi user HANYA saat user sudah jauh dari center
-          // (> 20m), supaya peta tidak gerak-gerak sendiri tiap GPS fix.
           setMapHeadingRotation(bearing);
           const mapCenter = communityMap.getCenter();
           const distFromCenter = haversineM(lat, lng, mapCenter.lat, mapCenter.lng);
           const curZoom = communityMap.getZoom();
-          const targetZoom = Math.max(curZoom, 18);
-          if(distFromCenter > 20 || curZoom !== targetZoom){
-            communityMap.setView([lat, lng], targetZoom, {animate:false, noMoveStart:true});
+          // Gunakan zoom pilihan user; jangan override
+          if(_navUserZoom === null) _navUserZoom = curZoom;
+          if(distFromCenter > 20){
+            communityMap.setView([lat, lng], _navUserZoom, {animate:false, noMoveStart:true});
           }
         } else {
           // === NORTH-UP ===
-          // Geser kamera sedikit ke depan agar rute terlihat, tanpa animate
           let camLat = lat, camLng = lng;
           if(activeRouteCoords && activeRouteCoords.length > 1){
             const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
             camLat = lat + (la.lat - lat) * 0.40;
             camLng = lng + (la.lng - lng) * 0.40;
           }
-          const curZoom = communityMap.getZoom();
-          const targetZoom = Math.max(curZoom, 17);
-          communityMap.setView([camLat, camLng], targetZoom, {animate:false, noMoveStart:true});
+          // Gunakan zoom pilihan user; jangan override
+          if(_navUserZoom === null) _navUserZoom = communityMap.getZoom();
+          communityMap.setView([camLat, camLng], _navUserZoom, {animate:false, noMoveStart:true});
         }
       }
     }
@@ -5100,9 +5105,20 @@ function initCommunityMap(centerLat, centerLng){
   communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
   // Setelah 2 detik berhenti berinteraksi, izinkan GPS kamera kembali
   // (sebelumnya 5s — terlalu lama, bikin Follow Mode kelihatan tidak jalan)
+  communityMap.on('zoomend', () => {
+    // Simpan zoom yang dipilih user — jangan pernah override dengan hardcode
+    _navUserZoom = communityMap.getZoom();
+  });
   communityMap.on('dragend zoomend', () => {
-    // 4 detik — beri waktu cukup sebelum follow kamera kembali aktif
-    setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 4000);
+    // Kalau navigasi aktif dan user drag/zoom sendiri, tandai manual control.
+    // Layar tidak akan bergerak sendiri sampai user tekan tombol Follow lagi.
+    if(navMode){
+      _mapManualControl = true;
+      // mapUserInteracting tetap true — TIDAK di-reset otomatis saat nav aktif
+    } else {
+      // Di luar navigasi: reset setelah 4 detik seperti semula
+      setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 4000);
+    }
   });
 
   // === Tombol Follow Mode (Camera Follow) ===
@@ -5117,11 +5133,12 @@ function initCommunityMap(centerLat, centerLng){
     btnFollow.style.background = followCameraMode ? '#1B4D4A' : '#999';
     btnFollow.title = followCameraMode ? 'Follow ON — klik untuk OFF' : 'Follow OFF — klik untuk ON';
     if(followCameraMode && myLocation && myLocation.lat){
+      // User secara eksplisit minta follow lagi — izinkan kamera bergerak
       mapUserInteracting = false;
-      _smoothedBearing = null; // reset smooth agar bearing tidak lompat
-      communityMap.setView([myLocation.lat, myLocation.lng], Math.max(communityMap.getZoom(), 18), {animate:false, noMoveStart:true});
+      _mapManualControl = false;
+      _smoothedBearing = null;
+      communityMap.setView([myLocation.lat, myLocation.lng], _navUserZoom || communityMap.getZoom(), {animate:false, noMoveStart:true});
     }
-    // Heading-Up otomatis ikut Follow Mode: kalau follow dimatikan, peta balik North-Up
     if(!followCameraMode) setMapHeadingRotation(0);
   };
   controlDiv.insertBefore(btnFollow, btnGPS);
@@ -5141,13 +5158,15 @@ function initCommunityMap(centerLat, centerLng){
     } else {
       followCameraMode = true;
       mapUserInteracting = false;
+      _mapManualControl = false; // user minta heading-up = izinkan follow kembali
       lastCameraUpdate = 0;
       const bF = document.getElementById('btnFollowCam');
       if(bF){ bF.style.background='#1B4D4A'; }
       const doSnap = (lat, lng) => {
         if(!communityMap) return;
         _smoothedBearing = null; // reset agar tidak lompat dari bearing sebelumnya
-        communityMap.setView([lat,lng], Math.max(communityMap.getZoom(),18), {animate:false, noMoveStart:true});
+        // Gunakan zoom pilihan user, bukan hardcode
+        communityMap.setView([lat,lng], _navUserZoom || communityMap.getZoom(), {animate:false, noMoveStart:true});
         if(activeRouteCoords && activeRouteCoords.length > 1){
           const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
           const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);

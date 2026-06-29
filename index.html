@@ -1753,9 +1753,10 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <button id="mapSearchBtn" style="flex-shrink:0;padding:10px 15px;border-radius:11px;border:none;background:var(--teal);color:white;font-weight:600;font-size:13px;cursor:pointer;">🔍</button>
         </div>
         <div id="mapSearchResults" style="display:none;background:var(--bg-card);border:1px solid var(--line);border-radius:11px;margin-bottom:8px;max-height:160px;overflow-y:auto;"></div>
-        <div id="communityMapContainer" style="border-radius:14px;border:1.5px solid var(--line);box-shadow:var(--shadow);height:340px;background:var(--sand);position:relative;">
-          <!-- Clipper: hanya leafletMap yang di-clip saat rotate, bukan UI overlay -->
-          <div id="mapClipWrapper" style="position:absolute;inset:0;border-radius:13px;overflow:hidden;z-index:0;">
+        <div id="communityMapContainer" style="border-radius:14px;border:1.5px solid var(--line);box-shadow:var(--shadow);height:420px;background:var(--sand);position:relative;overflow:hidden;">
+          <!-- Clipper: overflow:visible agar rute hijau tidak terpotong saat rotate.
+               Clipping dilakukan oleh #communityMapContainer di atas. -->
+          <div id="mapClipWrapper" style="position:absolute;inset:0;border-radius:13px;overflow:visible;z-index:0;">
             <!-- leafletMap akan di-inject di sini oleh initCommunityMap -->
           </div>
           <!-- Overlay mencegah klik user saat sedang proses GPS / routing -->
@@ -4198,7 +4199,8 @@ function getOrCreateNavPanel(){
   p=document.createElement('div');
   p.id='navPanel';
   // Di communityMapContainer (bukan leafletMap/clipWrapper) → tidak ikut rotate
-  p.style.cssText='position:absolute;top:0;left:0;right:0;z-index:700;pointer-events:none;';
+  // Posisi BAWAH agar tidak menutup jalan di depan user
+  p.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
   const c=document.getElementById('communityMapContainer');
   if(c) c.appendChild(p);
   return p;
@@ -4207,12 +4209,13 @@ function getOrCreateNavPanel(){
 function updateNavPanel(stepIdx, userLat, userLng){
   const panel=getOrCreateNavPanel();
   if(!navMode||!activeRouteSteps.length){ panel.innerHTML=''; return; }
+  // Selalu di bawah agar tidak menutup jalan di depan user
+  panel.style.cssText='position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
 
   const step  = activeRouteSteps[stepIdx]||activeRouteSteps[activeRouteSteps.length-1];
   const next  = activeRouteSteps[stepIdx+1];
   const label = stepLabel(step);
 
-  // Hitung sisa jarak ke tujuan
   let distToGoal=0;
   if(activeDestLat!==null && userLat!=null) distToGoal=haversineM(userLat,userLng,activeDestLat,activeDestLng);
 
@@ -4221,16 +4224,16 @@ function updateNavPanel(stepIdx, userLat, userLng){
   const traveledStr = fmtDist(navDistanceTraveled);
 
   panel.innerHTML=`
-  <div style="pointer-events:auto;margin:10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:14px 16px;box-shadow:0 4px 18px rgba(0,0,0,0.35);font-family:'Plus Jakarta Sans',sans-serif;">
-    <div style="font-size:16px;font-weight:800;line-height:1.3;margin-bottom:6px;">${label}</div>
-    ${next?`<div style="font-size:12px;opacity:0.8;margin-bottom:8px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;flex-wrap:wrap;">
-      <div style="font-size:11.5px;opacity:0.9;display:flex;gap:10px;flex-wrap:wrap;">
-        <span>⏱ ${elapsedStr}</span>
-        <span>🚶 ${traveledStr}</span>
-        <span>🏁 Sisa ${fmtDist(distToGoal)}</span>
+  <div style="pointer-events:auto;margin:8px 10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:10px 14px;box-shadow:0 -2px 18px rgba(0,0,0,0.25);font-family:'Plus Jakarta Sans',sans-serif;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;font-weight:800;line-height:1.3;">${label}</div>
+        ${next?`<div style="font-size:11.5px;opacity:0.8;margin-top:2px;">Selanjutnya: ${stepLabel(next)}</div>`:''}
       </div>
-      <button onclick="stopNavigation();" style="border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:4px 13px;font-size:12px;font-weight:700;cursor:pointer;">✕ Stop</button>
+      <button onclick="stopNavigation();" style="flex-shrink:0;border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:5px 13px;font-size:12px;font-weight:700;cursor:pointer;margin-top:2px;">✕ Stop</button>
+    </div>
+    <div style="font-size:11px;opacity:0.85;display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.15);">
+      <span>⏱ ${elapsedStr}</span><span>🚶 ${traveledStr}</span><span>🏁 Sisa ${fmtDist(distToGoal)}</span>
     </div>
   </div>`;
 }
@@ -4349,17 +4352,32 @@ function startNavigation(){
     delete communityMapMarkers['route_user'];
   }
 
-  // ── LANGSUNG sembunyikan bar bawah & tampilkan nav panel atas ──────────────
+  // FIX: Buat marker user SEGERA saat navMode dimulai (jangan tunggu GPS fix pertama)
+  // agar tidak ada jeda dimana peta kosong tanpa marker.
+  if(communityMap && myLocation && myLocation.lat != null){
+    const _navPhoto0 = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+    if(!myMarkerLive){
+      myMarkerLive = L.marker([myLocation.lat, myLocation.lng], {icon: makeUserIcon(true, _navPhoto0)})
+        .addTo(communityMap).bindPopup('📍 Lokasi Kamu');
+    } else {
+      myMarkerLive.setLatLng([myLocation.lat, myLocation.lng]);
+    }
+    if(communityMapMarkers) communityMapMarkers['route_user'] = myMarkerLive;
+  }
+
+  // ── LANGSUNG sembunyikan bar bawah & tampilkan nav panel BAWAH ──────────────
   const _navBar = document.getElementById('routeInfoBar');
   if(_navBar) _navBar.style.display = 'none';
 
+  // Nav panel dipindah ke BAWAH agar tidak menutup jalan di depan user
   const _initPanel = getOrCreateNavPanel();
+  _initPanel.style.cssText = 'position:absolute;bottom:0;left:0;right:0;top:auto;z-index:700;pointer-events:none;';
   const _totalKm = (activeRouteInfo && activeRouteInfo.km) ? activeRouteInfo.km + ' km' : '...';
   const _dest = escapeHtml(activeDestName || 'tujuan');
   _initPanel.innerHTML = `
-  <div style="pointer-events:auto;margin:10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:14px 16px;box-shadow:0 4px 18px rgba(0,0,0,0.35);font-family:'Plus Jakarta Sans',sans-serif;">
-    <div style="font-size:16px;font-weight:800;line-height:1.3;margin-bottom:6px;">📍 Mendeteksi posisi GPS...</div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+  <div style="pointer-events:auto;margin:10px;background:rgba(27,77,74,0.97);color:white;border-radius:16px;padding:12px 16px;box-shadow:0 4px 18px rgba(0,0,0,0.35);font-family:'Plus Jakarta Sans',sans-serif;">
+    <div style="font-size:15px;font-weight:800;line-height:1.3;margin-bottom:4px;">📍 Mendeteksi posisi GPS...</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;">
       <div><div style="font-size:11px;opacity:0.7;margin-bottom:1px;">Menuju</div><div style="font-size:13px;font-weight:700;">${_dest}</div><div style="font-size:12px;opacity:0.75;margin-top:2px;">🏁 Sisa ~${_totalKm}</div></div>
       <button onclick="stopNavigation();" style="border:none;background:rgba(255,255,255,0.18);color:white;border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700;cursor:pointer;">■ Stop</button>
     </div>
@@ -4379,20 +4397,30 @@ function startNavigation(){
   // Umumkan mulai
   speak('Navigasi dimulai. '+(activeRouteSteps[0] ? stepLabel(activeRouteSteps[0]) : ''));
 
-  // SNAP KAMERA: user muncul di bawah layar, rute terlihat di depan
+  // SNAP KAMERA: saat heading-up, center di user. Saat north-up, geser ke depan.
   function snapCameraNow(lat, lng){
     if(!communityMap) return;
-    let cLat = lat, cLng = lng;
+    // Pastikan marker user sudah ada sebelum snap
+    if(!myMarkerLive){
+      const _ph = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
+      myMarkerLive = L.marker([lat, lng], {icon: makeUserIcon(true, _ph)})
+        .addTo(communityMap).bindPopup('📍 Lokasi Kamu');
+      if(communityMapMarkers) communityMapMarkers['route_user'] = myMarkerLive;
+    } else {
+      myMarkerLive.setLatLng([lat, lng]);
+    }
+    if(!myLocation) myLocation={};
+    myLocation.lat = lat; myLocation.lng = lng;
+
     if(activeRouteCoords && activeRouteCoords.length > 1){
       const la = findLookAheadPoint(L.latLng(lat, lng), activeRouteCoords, 300);
       const bearing = computeBearing(lat, lng, la.lat, la.lng);
-      // Putar peta sesuai arah jalan dulu
+      // heading-up: pan ke user langsung, peta yang berputar
+      communityMap.setView([lat, lng], 18, {animate:false});
       setMapHeadingRotation(bearing);
-      // Geser center 65% ke depan → user otomatis tampil di bawah layar
-      cLat = lat + (la.lat - lat) * 0.65;
-      cLng = lng + (la.lng - lng) * 0.65;
+    } else {
+      communityMap.setView([lat, lng], 18, {animate:false});
     }
-    communityMap.setView([cLat, cLng], 18, {animate:false});
   }
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(

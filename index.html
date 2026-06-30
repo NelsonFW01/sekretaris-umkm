@@ -1655,6 +1655,12 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         <div id="profileCompleteReminder" style="display:none;background:#FFF8E1;border:1px solid #FFD54F;border-radius:10px;padding:10px 13px;font-size:12.5px;color:#7B5E00;margin-bottom:12px;font-weight:500;">
           ⚠️ Nama kamu belum diisi — pengguna lain hanya melihat <em>"(Belum isi nama)"</em>. Isi <strong>Nama Tampilan</strong> lalu klik Simpan Profil.
         </div>
+        <!-- Banner: profil kosong = admin sedang perbaiki -->
+        <div id="adminMaintenanceBanner" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:10px 13px;font-size:12px;color:#1E40AF;margin-bottom:13px;display:flex;align-items:flex-start;gap:8px;line-height:1.5;">
+          <span style="font-size:15px;flex-shrink:0;">&#8505;&#65039;</span>
+          <span>Jika foto profil atau data pengguna <strong>tiba-tiba kosong</strong>, kemungkinan admin sedang melakukan perbaikan.<br>Silakan ketuk <strong>&#8942; &rarr; Setelan &rarr; Privasi &rarr; Hapus data penjelajahan</strong> di browser HP kamu, lalu buka ulang halaman ini.</span>
+          <button onclick="this.parentElement.style.display='none'" style="margin-left:auto;flex-shrink:0;background:none;border:none;font-size:16px;cursor:pointer;color:#93C5FD;line-height:1;padding:0 2px;" title="Tutup">&times;</button>
+        </div>
         <!-- Foto Profil -->
         <div style="margin-bottom:14px;display:flex;align-items:center;gap:13px;">
           <div id="profilePhotoPreview" style="width:60px;height:60px;border-radius:50%;background:var(--sand);border:2.5px solid var(--teal);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;cursor:pointer;" onclick="document.getElementById('profilePhotoInput').click()">😊</div>

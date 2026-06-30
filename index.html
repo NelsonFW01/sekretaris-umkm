@@ -6815,33 +6815,57 @@ $('shareLocBtn').addEventListener('click', () => {
   if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi, lokasi tidak bisa dibagikan online.'); return; }
   if(!navigator.geolocation){ alert('Browser kamu tidak mendukung fitur lokasi.'); return; }
 
-  // FIX: Langsung minta izin lokasi dari browser saat tombol diklik.
-  // Popup "Izinkan lokasi?" muncul seketika, tidak perlu user nyalain manual.
-  $('shareLocBtn').disabled = true;
-  $('shareLocBtn').textContent = '\u23f3 Meminta izin lokasi...';
+  // FIX: Cek permission state dulu. Kalau sudah 'denied', tampilkan panduan ramah
+  // bukan alert popup yang mengagetkan. Kalau 'prompt'/'granted', langsung minta.
 
-  navigator.geolocation.getCurrentPosition(
-    (_pos) => {
-      // Izin diberikan - simpan koordinat awal lalu tampilkan modal visibilitas
-      if(!myLocation) myLocation = {};
-      myLocation.lat = _pos.coords.latitude;
-      myLocation.lng = _pos.coords.longitude;
-      $('shareLocBtn').disabled = false;
-      $('shareLocBtn').textContent = '\ud83d\udccd Bagikan Lokasi Saya';
-      selectLocOpt('public');
-      $('locVisibilityModal').style.display = 'flex';
-    },
-    (err) => {
-      $('shareLocBtn').disabled = false;
-      $('shareLocBtn').textContent = '\ud83d\udccd Bagikan Lokasi Saya';
-      if(err.code === 1){
-        alert('Izin lokasi ditolak. Silakan izinkan akses lokasi di pengaturan browser, lalu coba lagi.');
+  function _showLocDeniedToast(){
+    let t = document.getElementById('locDeniedToast');
+    if(!t){
+      t = document.createElement('div');
+      t.id = 'locDeniedToast';
+      t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:9999;background:#1B4D4A;color:white;padding:14px 18px;border-radius:16px;font-family:Plus Jakarta Sans,sans-serif;font-size:13px;line-height:1.5;max-width:310px;width:calc(100% - 40px);text-align:center;box-shadow:0 6px 24px rgba(0,0,0,0.3);';
+      document.body.appendChild(t);
+    }
+    t.innerHTML = '<div style="font-size:22px;margin-bottom:6px;">📍</div>'
+      + '<div style="font-weight:700;margin-bottom:5px;">Izin Lokasi Dibutuhkan</div>'
+      + '<div style="opacity:0.85;font-size:12px;">Ketuk ikon kunci 🔒 di address bar browser, pilih <b>Izin situs</b> → aktifkan <b>Lokasi</b>, lalu muat ulang halaman ini.</div>'
+      + '<button onclick="document.getElementById(\'locDeniedToast\').remove()" style="margin-top:10px;border:none;background:rgba(255,255,255,0.2);color:white;border-radius:10px;padding:6px 18px;font-size:12px;font-weight:700;cursor:pointer;">Mengerti</button>';
+    setTimeout(() => { if(t.parentNode) t.remove(); }, 12000);
+  }
+
+  function _doRequestLoc(){
+    $('shareLocBtn').disabled = true;
+    $('shareLocBtn').textContent = '⏳ Meminta izin lokasi...';
+    navigator.geolocation.getCurrentPosition(
+      (_pos) => {
+        if(!myLocation) myLocation = {};
+        myLocation.lat = _pos.coords.latitude;
+        myLocation.lng = _pos.coords.longitude;
+        $('shareLocBtn').disabled = false;
+        $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
+        selectLocOpt('public');
+        $('locVisibilityModal').style.display = 'flex';
+      },
+      (err) => {
+        $('shareLocBtn').disabled = false;
+        $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
+        _showLocDeniedToast();
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+    );
+  }
+
+  if(navigator.permissions){
+    navigator.permissions.query({name:'geolocation'}).then(perm => {
+      if(perm.state === 'denied'){
+        _showLocDeniedToast();
       } else {
-        alert('Gagal mendapatkan lokasi: ' + err.message);
+        _doRequestLoc();
       }
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-  );
+    }).catch(() => _doRequestLoc());
+  } else {
+    _doRequestLoc();
+  }
 });
 
 $('locVisibilityConfirmBtn').addEventListener('click', () => {
@@ -6928,9 +6952,9 @@ $('locVisibilityConfirmBtn').addEventListener('click', () => {
       $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
     }
   }, (err) => {
-    alert('Gagal mengambil lokasi: '+err.message+'. Pastikan izin lokasi browser diaktifkan.');
     $('shareLocBtn').disabled = false; $('shareLocBtn').textContent = '📍 Bagikan Lokasi Saya';
     locWatchId = null;
+    if(typeof _showLocDeniedToast === 'function') _showLocDeniedToast();
   }, {enableHighAccuracy:true, timeout:15000, maximumAge:2000});
 });
 

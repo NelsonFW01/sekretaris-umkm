@@ -11016,8 +11016,24 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       if(totalUnread > 0){ badge.textContent=totalUnread+' baru'; badge.style.display=''; }
       else { badge.style.display='none'; }
     }
-    // Notif dot di header
-    if(totalUnread > 0 && typeof addNotif==='function'){
+    // Notif dot di header — sekaligus tambahkan entri pesannya ke daftar
+    // notifikasi (sebelumnya cuma nyalain titik tanpa isi pesan).
+    if(totalUnread > 0){
+      chats.forEach(c=>{
+        const myUnread = c.unread && c.unread[MY_UID];
+        if(!myUnread) return;
+        const peerUid = c.chatId.replace(MY_UID+'_','').replace('_'+MY_UID,'');
+        const peerInfo = (c.participants && c.participants[peerUid]) || {};
+        const peerName = peerInfo.name || (typeof allUsersCache !== 'undefined' && allUsersCache[peerUid] && (allUsersCache[peerUid].displayName||allUsersCache[peerUid].storeName)) || 'Pengguna';
+        const lastMsg = (c.lastMsg||'').slice(0,60);
+        // Tandai per chatId + lastTs supaya tidak dobel notif tiap kali list re-render.
+        const notifKey = c.chatId + ':' + (c.lastTs||0);
+        window._convNotifSeen = window._convNotifSeen || new Set();
+        if(!window._convNotifSeen.has(notifKey)){
+          window._convNotifSeen.add(notifKey);
+          if(typeof addNotif === 'function') addNotif('💬 Pesan dari ' + peerName + ': ' + (lastMsg||'(tanpa teks)'), '💬');
+        }
+      });
       document.getElementById('notifDot')?.classList.add('show');
     }
   }

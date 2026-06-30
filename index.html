@@ -20,7 +20,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
     getDatabase, ref, push, set, update, remove, get,
-    query, orderByChild, limitToLast, onValue, onChildAdded, onDisconnect, serverTimestamp
+    query, orderByChild, limitToLast, onValue, onChildAdded, onDisconnect, serverTimestamp,
+    goOnline, goOffline
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import {
     getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject
@@ -83,6 +84,8 @@
       window.rtdbOnValue = onValue;
       window.rtdbOnChildAdded = onChildAdded;
       window.rtdbOnDisconnect = onDisconnect;
+      window.rtdbGoOnline = () => goOnline(db);
+      window.rtdbGoOffline = () => goOffline(db);
       window.storageRef = storageRef;
       window.storageUploadBytes = uploadBytes;
       window.storageUploadBytesResumable = uploadBytesResumable;
@@ -7157,29 +7160,37 @@ if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEv
     if(now - _lastRefreshTime < REFRESH_COOLDOWN_MS) return;
     _lastRefreshTime = now;
 
+    // ── LANGKAH 1: Paksa Firebase reconnect WebSocket SEKARANG ──
+    // Ini kunci utamanya. Tanpa goOnline(), Firebase di HP pakai
+    // exponential backoff — bisa nunggu 30-60 detik sendiri.
+    // goOnline() memberitahu SDK: "sambung ulang sekarang juga."
+    if(typeof window.rtdbGoOnline === 'function'){
+      try{ window.rtdbGoOnline(); } catch(e){}
+    }
+
+    // ── LANGKAH 2: Refresh data via get() tanpa tunggu onValue ──
+    // get() bypass cache lokal & langsung ke server Firebase,
+    // jadi data segar meski WebSocket belum sepenuhnya reconnect.
     try{
-      // 1. Refresh profil diri sendiri (foto profil, nama toko, dll.)
+      // 2a. Profil diri sendiri (foto profil, nama toko, dll.)
       if(typeof MY_UID !== 'undefined' && MY_UID && typeof loadMyProfile === 'function'){
         loadMyProfile();
       }
 
-      // 2. Refresh direktori user (termasuk foto profil orang lain)
-      // Pakai get() sekali langsung bukan tunggu onValue reconnect
+      // 2b. Data semua user (foto profil orang lain, direktori)
       const usersSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users'));
-      if(usersSnap && usersSnap.val()){
-        allUsersCache = usersSnap.val();
-        if(typeof renderUserDirectory === 'function') renderUserDirectory();
-        if(communityMap && !activeRoute && !routePending) renderCommunityMap();
-      }
+      allUsersCache = (usersSnap && usersSnap.val()) ? usersSnap.val() : (allUsersCache || {});
+      if(typeof renderUserDirectory === 'function') renderUserDirectory();
+      if(communityMap && !activeRoute && !routePending) renderCommunityMap();
 
-      // 3. Refresh presence (status online)
+      // 2c. Presence (status online/offline)
       const presSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence'));
       if(presSnap && presSnap.val()){
         allPresenceCache = presSnap.val();
         if(typeof renderUserDirectory === 'function') renderUserDirectory();
       }
     } catch(e){
-      // Diam-diam gagal — tidak perlu alert user, onValue akan coba lagi sendiri
+      // Gagal diam-diam — onValue tetap coba reconnect sendiri
     }
   }
 

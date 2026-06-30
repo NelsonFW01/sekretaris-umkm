@@ -916,6 +916,7 @@
 .chat-messages { scrollbar-width:none; }
 .chat-bubble-wrap {
   display:flex; flex-direction:column; gap:2px; max-width:82%;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
 .chat-bubble-wrap.mine { align-self:flex-end; align-items:flex-end; }
 .chat-bubble-wrap.theirs { align-self:flex-start; align-items:flex-start; }
@@ -12028,6 +12029,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     function onPointerDown(e){
       const wrap = e.target.closest && e.target.closest('.chat-bubble-wrap');
       if(!wrap) return;
+      // Cegah menu "Salin/Bagikan" bawaan browser & seleksi teks yang sering
+      // membatalkan long-press kita di tengah jalan (Android/iOS Safari/Chrome).
+      if(e.cancelable) e.preventDefault();
       const point = e.touches ? e.touches[0] : e;
       startX = point.clientX; startY = point.clientY;
       pressTarget = wrap;
@@ -12051,10 +12055,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 
     const container = document.getElementById('chatMessages');
     if(container){
-      container.addEventListener('touchstart', onPointerDown, { passive: true });
+      container.addEventListener('touchstart', onPointerDown, { passive: false });
       container.addEventListener('touchmove', onPointerMove, { passive: true });
       container.addEventListener('touchend', onPointerUp, { passive: true });
-      container.addEventListener('touchcancel', onPointerUp, { passive: true });
       container.addEventListener('mousedown', onPointerDown);
       container.addEventListener('mousemove', onPointerMove);
       container.addEventListener('mouseup', onPointerUp);

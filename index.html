@@ -1224,6 +1224,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 #threeDModal .td-controls .td-primary { background:var(--teal); color:white; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
 <body>
 <div class="app">
@@ -13696,7 +13697,10 @@ Contoh: "8|Mengandung tag script dan eval"`;
 
 // ============ MODUL 3D VIEWER ============
 (function() {
-  let scene, camera, renderer, mesh, animating = false;
+  let scene, camera, renderer, controls, mesh, wireMesh, buildAnim = null;
+  let buildState = 'idle'; // 'idle' | 'building' | 'done'
+  let buildStart = 0;
+  const BUILD_DURATION = 2200; // ms
 
   window.open3DViewer = function(imageSrc, productName) {
     const modal = document.getElementById('threeDModal');
@@ -13707,7 +13711,7 @@ Contoh: "8|Mengandung tag script dan eval"`;
       renderer.domElement.remove();
       renderer = null;
     }
-    animating = false;
+    buildState = 'idle';
     modal.classList.add('show');
     document.getElementById('tdStatus').textContent = '⏳ Memuat tekstur...';
 
@@ -13717,7 +13721,7 @@ Contoh: "8|Mengandung tag script dan eval"`;
     scene.background = new THREE.Color(0x111827);
 
     camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 0, 4);
+    camera.position.set(0, 0, 3.2);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(width, height);
@@ -13725,7 +13729,17 @@ Contoh: "8|Mengandung tag script dan eval"`;
     renderer.shadowMap.enabled = true;
     wrap.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0x404060);
+    // Kontrol rotate manual (drag mouse / touch)
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enableZoom = true;
+    controls.enablePan = false;
+    controls.minDistance = 1.8;
+    controls.maxDistance = 6;
+    controls.target.set(0, 0, 0);
+
+    const ambientLight = new THREE.AmbientLight(0x404060, 1.1);
     scene.add(ambientLight);
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(1, 2, 3);
@@ -13742,20 +13756,28 @@ Contoh: "8|Mengandung tag script dan eval"`;
       document.getElementById('tdStatus').textContent = '⚠️ Gagal memuat tekstur, tampilkan warna solid.';
     });
 
-    const geometry = new THREE.SphereGeometry(1.2, 64, 64);
-    const material = new THREE.MeshStandardMaterial({
+    // Bentuk kartu/produk datar (bukan bola/globe) agar foto produk tampil wajar dari depan & belakang
+    const geometry = new THREE.BoxGeometry(2, 2, 0.12, 8, 8, 1);
+    const sideMat = new THREE.MeshStandardMaterial({ color: 0x1B4D4A, roughness: 0.6, metalness: 0.1 });
+    const faceMat = new THREE.MeshStandardMaterial({
       map: texture,
-      roughness: 0.3,
-      metalness: 0.1,
-      emissive: new THREE.Color(0x111122),
-      emissiveIntensity: 0.1
+      roughness: 0.35,
+      metalness: 0.05
     });
-    mesh = new THREE.Mesh(geometry, material);
+    // urutan material BoxGeometry: [+x,-x,+y,-y,+z,-z] -> +z & -z pakai foto (depan/belakang)
+    const materials = [sideMat, sideMat, sideMat, sideMat, faceMat, faceMat];
+    mesh = new THREE.Mesh(geometry, materials);
     mesh.castShadow = true;
     scene.add(mesh);
 
+    // Mesh rangka (wireframe) — dipakai untuk efek "AI membentuk dari rangka"
+    const wireGeo = new THREE.EdgesGeometry(geometry);
+    const wireMat = new THREE.LineBasicMaterial({ color: 0x4FE3C1, transparent: true, opacity: 0 });
+    wireMesh = new THREE.LineSegments(wireGeo, wireMat);
+    scene.add(wireMesh);
+
     const starGeo = new THREE.BufferGeometry();
-    const starCount = 1000;
+    const starCount = 800;
     const positions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount * 3; i++) positions[i] = (Math.random() - 0.5) * 200;
     starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -13766,32 +13788,47 @@ Contoh: "8|Mengandung tag script dan eval"`;
     function animate() {
       if (!renderer || !scene) return;
       requestAnimationFrame(animate);
-      if (mesh) {
-        if (animating) {
-          const now = Date.now() / 1000;
-          const scale = Math.min(1, (Math.sin(now * 0.8) * 0.5 + 0.5) * 1.2);
-          mesh.scale.set(scale, scale, scale);
-          mesh.rotation.y += 0.01;
-          mesh.rotation.x += 0.005;
-        } else {
-          mesh.rotation.y += 0.008;
-          mesh.rotation.x += 0.003;
+
+      if (buildState === 'building' && mesh) {
+        const t = Math.min(1, (Date.now() - buildStart) / BUILD_DURATION);
+        const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+
+        // Tahap 1 (0-0.5): rangka muncul & membesar dari titik pusat
+        // Tahap 2 (0.5-1): material produk "menutup" rangka jadi bentuk solid
+        const growScale = Math.min(1, ease / 0.6);
+        mesh.scale.set(growScale, growScale, growScale);
+        wireMesh.scale.set(growScale, growScale, growScale);
+        wireMesh.material.opacity = t < 0.5 ? 1 : Math.max(0, 1 - (t - 0.5) * 2.2);
+
+        materials.forEach(m => { m.transparent = true; m.opacity = t < 0.45 ? 0 : Math.min(1, (t - 0.45) / 0.4); });
+
+        mesh.rotation.y += 0.02;
+        if (t >= 1) {
+          buildState = 'done';
+          mesh.scale.set(1, 1, 1);
+          wireMesh.scale.set(1, 1, 1);
+          wireMesh.material.opacity = 0;
+          materials.forEach(m => { m.opacity = 1; m.transparent = false; });
+          document.getElementById('tdStatus').textContent = '✅ Produk selesai dibentuk!';
+          document.getElementById('tdAnimateBtn').textContent = '🔄 Lihat Proses Pembuatan';
         }
       }
+
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
 
     document.getElementById('tdAnimateBtn').onclick = function() {
-      animating = !animating;
-      this.textContent = animating ? '⏹ Hentikan Proses' : '🔄 Lihat Proses Pembuatan';
-      if (animating) {
-        mesh.scale.set(0.01, 0.01, 0.01);
-        document.getElementById('tdStatus').textContent = '🎨 Menampilkan proses pembuatan 3D...';
-      } else {
-        mesh.scale.set(1, 1, 1);
-        document.getElementById('tdStatus').textContent = '✅ Tampilan normal';
-      }
+      if (buildState === 'building') return;
+      buildState = 'building';
+      buildStart = Date.now();
+      mesh.scale.set(0.01, 0.01, 0.01);
+      wireMesh.scale.set(0.01, 0.01, 0.01);
+      wireMesh.material.opacity = 1;
+      materials.forEach(m => { m.transparent = true; m.opacity = 0; });
+      this.textContent = '⏳ Membentuk produk...';
+      document.getElementById('tdStatus').textContent = '🎨 AI sedang membentuk produk dari rangka 3D...';
     };
 
     window._tdResize = function() {
@@ -13815,10 +13852,17 @@ Contoh: "8|Mengandung tag script dan eval"`;
     if (window._tdResize) {
       window.removeEventListener('resize', window._tdResize);
     }
-    animating = false;
+    buildState = 'idle';
+    if (controls) {
+      controls.dispose();
+      controls = null;
+    }
     if (scene) {
       scene.traverse(obj => {
-        if (obj.material) obj.material.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
         if (obj.geometry) obj.geometry.dispose();
       });
       scene = null;

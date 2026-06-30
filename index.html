@@ -10812,7 +10812,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     } else if(m.mediaType === 'music'){
       // Kartu musik besar (judul + progress bar + tombol Wallpaper) DISEMBUNYIKAN.
       // Cukup baris ringkas yang saat di-tap akan membuka mini-player musik di bagian bawah chat.
-      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;" onclick="window._setBgMusic('${escHtml(m.mediaUrl)}','${escHtml(m.mediaName||'Musik')}')"><span style="font-size:16px;">🎵</span><span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(m.mediaName||'Musik')}</span><span style="font-size:11px;opacity:.7;">▶</span></div>`;
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'} js-music-card" data-music-url="${escHtml(m.mediaUrl)}" data-music-name="${escHtml(m.mediaName||'Musik')}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;"><span style="font-size:16px;">🎵</span><span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(m.mediaName||'Musik')}</span><span style="font-size:11px;opacity:.7;">▶</span></div>`;
     } else {
       bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>`;
     }
@@ -11870,6 +11870,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   }
 
   // ── Background music (wallpaper musik) ─────────────────────────
+  // Event delegation: hindari inline onclick string yang bisa rusak kalau
+  // judul lagu mengandung tanda kutip (', ") atau karakter spesial lain.
+  document.addEventListener('click', function(e){
+    const card = e.target.closest('.js-music-card');
+    if(!card) return;
+    const url = card.dataset.musicUrl;
+    const name = card.dataset.musicName;
+    if(url && typeof window._setBgMusic === 'function') window._setBgMusic(url, name);
+  });
   let _bgAudio = null;
   window._setBgMusic = function(url, name){
     // Buat atau update floating player
@@ -11902,7 +11911,12 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const fill = document.getElementById('bgMusicFill');
       if(fill && _bgAudio.duration) fill.style.width = (_bgAudio.currentTime/_bgAudio.duration*100)+'%';
     });
-    _bgAudio.play().catch(e => console.warn('[bgMusic]', e.message));
+    _bgAudio.play().catch(e => {
+      console.warn('[bgMusic]', e.message);
+      const fill = document.getElementById('bgMusicFill');
+      const nameEl = bar.querySelector('div > div');
+      if(nameEl) nameEl.textContent = '⚠️ Gagal play: ' + e.message;
+    });
   };
   window._bgToggle = function(){
     if(!_bgAudio) return;
@@ -11946,7 +11960,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const titleSafe = typeof escHtml==='function'?escHtml(title):title;
       const urlSafe = typeof escHtml==='function'?escHtml(url):url;
       return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}" data-msg-id="${m.id||''}" data-chat-id="${typeof activeChatId!=='undefined'?activeChatId:''}" data-mine="${isMine?'1':'0'}">
-        <div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;" onclick="window._setBgMusic('${urlSafe}','${titleSafe}')">
+        <div class="chat-bubble ${isMine?'mine':'theirs'} js-music-card" data-music-url="${urlSafe}" data-music-name="${titleSafe}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;">
           <span style="font-size:16px;">🎵</span>
           <span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${titleSafe}</span>
           <span style="font-size:11px;opacity:.7;">▶</span>

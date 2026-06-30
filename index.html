@@ -2275,6 +2275,11 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <div class="fc-desc">Terhubung & kolaborasi live bareng UMKM lain</div>
         </div>
         <div class="feature-card">
+          <div class="fc-icon">🎮</div>
+          <div class="fc-title">Game & Poin</div>
+          <div class="fc-desc">Main game seru, kumpulkan poin, tukar hadiah menarik di tab 🎮 Game</div>
+        </div>
+        <div class="feature-card">
           <div class="fc-icon">🤖</div>
           <div class="fc-title">Asisten AI</div>
           <div class="fc-desc">Tanya jawab & ringkasan bisnis kamu, tersedia di tombol bulat kanan-bawah</div>
@@ -10769,10 +10774,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     } else if(m.mediaType === 'file'){
       bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}"><a href="${escHtml(m.mediaUrl)}" target="_blank" style="color:${isMine?'white':'var(--teal)'};display:flex;align-items:center;gap:6px;text-decoration:none;font-weight:600;">📎 <span>${escHtml(m.mediaName||'File')}</span></a></div>`;
     } else if(m.mediaType === 'music'){
-      const mId = 'mu_'+(m.ts||Date.now());
-      const btnColor = isMine ? 'rgba(255,255,255,0.2)' : 'var(--teal)';
-      const btnTxt = isMine ? 'white' : 'white';
-      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:10px 14px;min-width:220px;"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:20px;">🎵</span><span style="font-weight:700;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(m.mediaName||'Musik')}</span></div><div style="background:rgba(0,0,0,0.12);border-radius:8px;height:5px;cursor:pointer;margin-bottom:8px;" onclick="window._musicSeek(event,'${mId}')"><div id="cbmf_${mId}" style="height:100%;background:${isMine?'rgba(255,255,255,0.9)':'var(--teal)'};border-radius:8px;width:0%;transition:width .3s;"></div></div><div style="display:flex;align-items:center;gap:8px;"><button id="cbmp_${mId}" onclick="window._musicToggle('${mId}','${escHtml(m.mediaUrl)}')" style="background:${btnColor};color:${btnTxt};border:none;border-radius:50%;width:30px;height:30px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;">▶</button><span id="cbmd_${mId}" style="font-size:11px;opacity:0.75;flex:1;">0:00</span><button onclick="window._setBgMusic('${escHtml(m.mediaUrl)}','${escHtml(m.mediaName||'Musik')}')" style="background:rgba(255,255,255,0.15);color:${isMine?'white':'var(--teal)'};border:none;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;">🎶 Wallpaper</button></div></div>`;
+      // Kartu musik besar (judul + progress bar + tombol Wallpaper) DISEMBUNYIKAN.
+      // Cukup baris ringkas yang saat di-tap akan membuka mini-player musik di bagian bawah chat.
+      bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;" onclick="window._setBgMusic('${escHtml(m.mediaUrl)}','${escHtml(m.mediaName||'Musik')}')"><span style="font-size:16px;">🎵</span><span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(m.mediaName||'Musik')}</span><span style="font-size:11px;opacity:.7;">▶</span></div>`;
     } else {
       bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>`;
     }
@@ -11896,28 +11900,20 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const _origRender = renderMsgBubble;
     window.renderMsgBubble = function(m){
       if(m.mediaType !== 'music') return _origRender(m);
+      // Kartu musik besar (header + progress bar + tombol Wallpaper) DISEMBUNYIKAN sesuai permintaan.
+      // Cukup baris ringkas; tap untuk membuka mini-player musik di bagian bawah chat (chatBgMusicBar).
       const isMine = m.from === (typeof MY_UID !== 'undefined' ? MY_UID : '');
       const timeStr = typeof fmtMsgTime === 'function' ? fmtMsgTime(m.ts||Date.now()) : '';
       const readTick = isMine ? (m.read ? ' <span style="color:#8FE3B0;font-size:10px;">✓✓</span>' : ' <span style="opacity:0.5;font-size:10px;">✓</span>') : '';
       const title = (m.mediaName||'Musik').slice(0, 40);
       const url = m.mediaUrl||'';
-      const id = m.id||('m'+Date.now());
+      const titleSafe = typeof escHtml==='function'?escHtml(title):title;
+      const urlSafe = typeof escHtml==='function'?escHtml(url):url;
       return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">
-        <div class="chat-bubble ${isMine?'mine':'theirs'} chat-bubble-music">
-          <div class="cbm-header">
-            <div class="cbm-icon">🎵</div>
-            <div>
-              <div class="cbm-title">${typeof escHtml==='function'?escHtml(title):title}</div>
-              <div class="cbm-sub">Ketuk untuk putar</div>
-            </div>
-          </div>
-          <div class="cbm-controls">
-            <button class="cbm-play" id="cbmp_${id}" onclick="_musicToggle('${id}','${url.replace(/'/g,'%27')}')">▶</button>
-            <div class="cbm-prog" onclick="_musicSeek(event,'${id}')">
-              <div class="cbm-prog-fill" id="cbmf_${id}"></div>
-            </div>
-            <span class="cbm-dur" id="cbmd_${id}">0:00</span>
-          </div>
+        <div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;" onclick="window._setBgMusic('${urlSafe}','${titleSafe}')">
+          <span style="font-size:16px;">🎵</span>
+          <span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${titleSafe}</span>
+          <span style="font-size:11px;opacity:.7;">▶</span>
         </div>
         <div class="chat-bubble-meta">${timeStr}${readTick}</div>
       </div>`;
@@ -12526,7 +12522,7 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
       <div id="gameResultMsg" style="min-height:22px;font-weight:700;font-size:14px;color:var(--teal);margin-bottom:14px;"></div>
       <button id="gameSpinBtn" onclick="window.gameDoSpin()" style="width:100%;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,var(--coral),var(--coral-dark));color:white;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 4px 16px rgba(232,99,63,0.35);">🎰 PUTAR!</button>
       <div style="margin-top:10px;font-size:12px;color:var(--ink-soft);">
-        Gratis 3x/hari &nbsp;·&nbsp; Premium +6x &nbsp;·&nbsp; VVIP Tak Terbatas
+        Gratis 2x/hari &nbsp;·&nbsp; Premium +4x &nbsp;·&nbsp; VVIP Tak Terbatas
       </div>
     </div>
 
@@ -12538,7 +12534,7 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
         <div style="flex:1;background:white;border:1.5px solid var(--teal);border-radius:12px;padding:12px;text-align:center;">
           <div style="font-size:10px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;">⭐ Premium</div>
           <div style="font-size:18px;font-weight:800;margin:4px 0;">Rp 50rb</div>
-          <div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px;">+6 main/hari</div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-bottom:8px;">+4 main/hari</div>
           <button onclick="window.gameUpgrade('premium')" style="width:100%;padding:7px;border-radius:9px;border:none;background:var(--teal);color:white;font-weight:700;font-size:12px;cursor:pointer;">Pilih</button>
         </div>
         <div style="flex:1;background:white;border:1.5px solid var(--coral);border-radius:12px;padding:12px;text-align:center;position:relative;">
@@ -12549,6 +12545,57 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
           <button onclick="window.gameUpgrade('vvip')" style="width:100%;padding:7px;border-radius:9px;border:none;background:var(--coral);color:white;font-weight:700;font-size:12px;cursor:pointer;">Pilih</button>
         </div>
       </div>
+    </div>
+
+    <!-- Mini-game 2: Tebak Angka -->
+    <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:14px;text-align:center;">
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🎲 Tebak Angka</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Tebak angka 1–10, kalau benar dapat poin!</div>
+      <div id="guessNumGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px;"></div>
+      <div id="guessResultMsg" style="min-height:20px;font-weight:700;font-size:13px;color:var(--teal);"></div>
+    </div>
+
+    <!-- Mini-game 3: Gosok Kartu -->
+    <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:14px;text-align:center;">
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🧧 Gosok Kartu Untung</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Pilih satu kartu, gosok, dan lihat hadiahnya!</div>
+      <div id="scratchCardGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;"></div>
+      <div id="scratchResultMsg" style="min-height:20px;font-weight:700;font-size:13px;color:var(--teal);"></div>
+    </div>
+
+    <!-- Top Up Poin -->
+    <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:14px;">
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px;">💳 Top Up Poin</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Mau poin lebih banyak? Top up ke admin, nanti poin ditambahkan setelah pembayaran dikonfirmasi.</div>
+      <input id="topupAmountInput" type="number" min="10000" step="5000" placeholder="Jumlah top up (Rp), misal 20000" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+      <button onclick="window.gameRequestTopup()" style="width:100%;padding:12px;border-radius:12px;border:none;background:#25D366;color:white;font-weight:800;font-size:14px;cursor:pointer;">💬 Ajukan Top Up via WhatsApp</button>
+      <div style="font-size:11px;color:var(--ink-soft);margin-top:8px;">Kira-kira Rp 1.000 = 1 poin. Poin masuk setelah admin konfirmasi pembayaran.</div>
+    </div>
+
+    <!-- Transfer Poin Antar User -->
+    <div style="background:var(--bg-card);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:14px;">
+      <div style="font-weight:800;font-size:16px;margin-bottom:4px;">🔁 Transfer Poin ke Pengguna Lain</div>
+      <div style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Transfer dibatasi maksimal <b id="transferMaxLabel">50</b> poin per transaksi untuk keamanan. Top up admin tidak ada batasan jumlah.</div>
+      <input id="transferTargetInput" type="text" placeholder="Nama toko / email penerima" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);font-size:13px;margin-bottom:8px;box-sizing:border-box;">
+      <input id="transferAmountInput" type="number" min="1" max="50" placeholder="Jumlah poin (maks 50)" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);font-size:13px;margin-bottom:10px;box-sizing:border-box;">
+      <button onclick="window.gameTransferPoin()" style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--teal);color:white;font-weight:800;font-size:14px;cursor:pointer;">Kirim Poin</button>
+    </div>
+
+    <!-- Admin: Kelola Hadiah & Top Up (hanya tampil untuk admin) -->
+    <div id="gameAdminSection" style="display:none;background:#FFF6E9;border:1.5px solid #F0D6A0;border-radius:18px;padding:20px;margin-bottom:14px;">
+      <div style="font-weight:800;font-size:15px;margin-bottom:10px;">👑 Panel Admin — Hadiah & Top Up</div>
+
+      <div style="font-weight:700;font-size:13px;margin-bottom:8px;">➕ Tambah Hadiah Baru</div>
+      <input id="adminRewardName" type="text" placeholder="Nama produk hadiah" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);font-size:13px;margin-bottom:6px;box-sizing:border-box;">
+      <input id="adminRewardPrice" type="number" placeholder="Harga (poin)" style="width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);font-size:13px;margin-bottom:6px;box-sizing:border-box;">
+      <input id="adminRewardImgInput" type="file" accept="image/*" style="width:100%;font-size:12px;margin-bottom:8px;">
+      <button onclick="window.gameAdminAddReward()" style="width:100%;padding:10px;border-radius:9px;border:none;background:var(--teal);color:white;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:14px;">Simpan Hadiah</button>
+
+      <div style="font-weight:700;font-size:13px;margin-bottom:8px;">📩 Permintaan Top Up Menunggu</div>
+      <div id="adminTopupList" style="font-size:12.5px;color:var(--ink-soft);">Memuat...</div>
+
+      <div style="font-weight:700;font-size:13px;margin:14px 0 8px;">🎁 Permintaan Penukaran Hadiah</div>
+      <div id="adminRedeemList" style="font-size:12.5px;color:var(--ink-soft);">Memuat...</div>
     </div>
 
     <!-- Toko Poin -->
@@ -12572,26 +12619,29 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
 (function(){
   'use strict';
 
-  // ── Konfigurasi roda ──────────────────────────────────────────
+  // ── Konfigurasi roda (poin kecil sesuai kebijakan main terbatas) ──
   const WHEEL_PRIZES = [
-    { label: '50 Poin',  poin: 50,   color: '#1B4D4A' },
-    { label: '10 Poin',  poin: 10,   color: '#E8633F' },
-    { label: '100 Poin', poin: 100,  color: '#2D7A4F' },
-    { label: 'Coba Lagi',poin: 0,    color: '#A09A90' },
-    { label: '25 Poin',  poin: 25,   color: '#1B4D4A' },
+    { label: '15 Poin',  poin: 15,   color: '#1B4D4A' },
     { label: '5 Poin',   poin: 5,    color: '#E8633F' },
-    { label: '75 Poin',  poin: 75,   color: '#2D7A4F' },
-    { label: '15 Poin',  poin: 15,   color: '#A09A90' },
+    { label: '25 Poin',  poin: 25,   color: '#2D7A4F' },
+    { label: 'Coba Lagi',poin: 0,    color: '#A09A90' },
+    { label: '10 Poin',  poin: 10,   color: '#1B4D4A' },
+    { label: '5 Poin',   poin: 5,    color: '#E8633F' },
+    { label: '20 Poin',  poin: 20,   color: '#2D7A4F' },
+    { label: '8 Poin',   poin: 8,    color: '#A09A90' },
   ];
 
-  const SHOP_ITEMS = [
-    { id: 'diskon10', name: 'Diskon 10% Toko',     icon: '🏷️', price: 100 },
-    { id: 'boost24',  name: 'Boost Toko 24 jam',   icon: '🚀', price: 250 },
-    { id: 'frame',    name: 'Bingkai Profil Spesial',icon: '🖼️', price: 150 },
-    { id: 'sticker',  name: 'Stiker Premium',       icon: '🎨', price: 80  },
-    { id: 'badge',    name: 'Lencana VIP',          icon: '🏆', price: 500 },
-    { id: 'chat_bg',  name: 'Tema Chat Eksklusif',  icon: '💬', price: 200 },
-  ];
+  // Hadiah angka tebakan (1-10) — menang dapat poin kecil
+  const GUESS_RANGE = 10;
+  const GUESS_WIN_POIN = 30;
+
+  // Kartu gosok — beberapa hasil kecil + sangat jarang besar
+  const SCRATCH_PRIZES = [3, 5, 8, 10, 0, 5, 12, 0];
+
+  // Daftar hadiah TIDAK lagi hardcode di sini — diambil real-time dari Firebase
+  // node 'rewards' yang dikurasi oleh admin (nagoyaflora@gmail.com), termasuk
+  // nama produk, gambar, dan harga poin. Lihat _loadRewards() / _renderShop().
+  let REWARD_ITEMS = [];
 
   // ── Firebase key helpers ───────────────────────────────────────
   function getMyUid(){ return (typeof MY_UID !== 'undefined') ? MY_UID : null; }
@@ -12612,8 +12662,8 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
   function _maxPlaysForTier(){
     const tier = (typeof getMyTier === 'function') ? getMyTier() : 'free';
     if(tier === 'vvip') return Infinity;
-    if(tier === 'premium') return 9;  // 3 gratis + 6 premium
-    return 3;
+    if(tier === 'premium') return 6;  // 2 gratis + 4 premium
+    return 2; // gratis dibatasi 2x/hari, poin kecil
   }
 
   function _playsLeft(){
@@ -12822,13 +12872,32 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
   function _renderShop(){
     const el = document.getElementById('gameShopList');
     if(!el) return;
-    el.innerHTML = SHOP_ITEMS.map(item => `
+    if(!REWARD_ITEMS.length){
+      el.innerHTML = '<div style="padding:14px 0;color:var(--ink-soft);font-size:13px;">Belum ada hadiah tersedia. Cek lagi nanti ya!</div>';
+      return;
+    }
+    el.innerHTML = REWARD_ITEMS.map(item => `
       <div style="display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);">
-        <div style="font-size:26px;flex-shrink:0;">${item.icon}</div>
-        <div style="flex:1;"><div style="font-weight:700;font-size:13.5px;">${item.name}</div><div style="font-size:12px;color:var(--ink-soft);">Harga: <b style="color:var(--teal);">${item.price} poin</b></div></div>
-        <button onclick="window.gameRedeemItem('${item.id}',${item.price},'${item.name}')" style="flex-shrink:0;padding:8px 14px;border-radius:10px;border:none;background:${_gamePoin >= item.price ? 'var(--teal)' : 'var(--sand)'};color:${_gamePoin >= item.price ? 'white' : 'var(--ink-soft)'};font-weight:700;font-size:12px;cursor:${_gamePoin >= item.price ? 'pointer' : 'default'};">Tukar</button>
+        ${item.imageUrl
+          ? `<img src="${item.imageUrl}" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex-shrink:0;">`
+          : `<div style="font-size:26px;flex-shrink:0;">🎁</div>`}
+        <div style="flex:1;"><div style="font-weight:700;font-size:13.5px;">${escHtml2(item.name)}</div><div style="font-size:12px;color:var(--ink-soft);">Harga: <b style="color:var(--teal);">${item.price} poin</b></div></div>
+        <button onclick="window.gameRedeemItem('${item.id}',${item.price},'${escHtml2(item.name).replace(/'/g,"\\'")}')" style="flex-shrink:0;padding:8px 14px;border-radius:10px;border:none;background:${_gamePoin >= item.price ? 'var(--teal)' : 'var(--sand)'};color:${_gamePoin >= item.price ? 'white' : 'var(--ink-soft)'};font-weight:700;font-size:12px;cursor:${_gamePoin >= item.price ? 'pointer' : 'default'};">Tukar</button>
       </div>
     `).join('') + '<div style="height:4px;"></div>';
+  }
+
+  function escHtml2(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  async function _loadRewards(){
+    if(!gameRef) return;
+    const ref = gameRef('rewards');
+    if(!ref || !window.rtdbOnValue) return;
+    window.rtdbOnValue(ref, (snap) => {
+      const v = snap.val() || {};
+      REWARD_ITEMS = Object.keys(v).map(id => ({ id, ...v[id] })).sort((a,b)=>(a.price||0)-(b.price||0));
+      _renderShop();
+    });
   }
 
   function _renderHistory(){
@@ -12842,38 +12911,314 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
     }).join('');
   }
 
-  // ── Redeem item ────────────────────────────────────────────────
-  window.gameRedeemItem = function(id, price, name){
+  const ADMIN_WA_NUMBER = '6282117573435';
+
+  // ── Redeem hadiah (real product, dikurasi admin) ────────────────
+  window.gameRedeemItem = async function(id, price, name){
     if(_gamePoin < price){ alert('Poin tidak cukup! Kamu perlu ' + price + ' poin.'); return; }
-    if(!confirm('Tukar ' + price + ' poin dengan "' + name + '"?')) return;
+    if(!confirm('Tukar ' + price + ' poin dengan "' + name + '"?\n\nSetelah ini kamu akan diarahkan ke WhatsApp admin untuk proses pengambilan/pengiriman hadiah.')) return;
     _gamePoin -= price;
     _addHistory(`-${price} poin tukar: ${name}`);
     _saveGameData();
     _renderGameUI();
-    // Toast
+
+    // Catat permintaan penukaran ke Firebase agar admin bisa pantau
+    try{
+      const uid = getMyUid();
+      if(uid && gameRef){
+        const listRef = gameRef('redemptions');
+        if(window.rtdbPush && window.rtdbSet){
+          const newRef = window.rtdbPush(listRef);
+          await window.rtdbSet(newRef, { uid, rewardId: id, rewardName: name, price, ts: Date.now(), status: 'pending' });
+        }
+      }
+    } catch(e){ console.warn('[game] gagal catat redemption', e); }
+
     const t = document.createElement('div');
-    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:9999;background:#1B4D4A;color:white;padding:12px 20px;border-radius:14px;font-family:Plus Jakarta Sans,sans-serif;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,0.25);';
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:9999;background:#1B4D4A;color:white;padding:12px 20px;border-radius:14px;font-family:Plus Jakarta Sans,sans-serif;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,0.25);text-align:center;';
     t.textContent = '✅ Berhasil menukar: ' + name + '!';
     document.body.appendChild(t);
     setTimeout(()=>t.remove(), 3000);
+
+    const waMsg = encodeURIComponent(`Halo admin, saya mau klaim hadiah "${name}" (${price} poin) dari Sekretaris UMKM.`);
+    window.open(`https://wa.me/${ADMIN_WA_NUMBER}?text=${waMsg}`, '_blank');
   };
 
   // ── Upgrade (placeholder — sambungkan ke payment) ──────────────
   window.gameUpgrade = function(tier){
     const info = tier === 'vvip'
-      ? 'Upgrade ke VVIP (Rp 200.000) — Main tak terbatas!
-
-Hubungi admin untuk proses pembayaran.'
-      : 'Upgrade ke Premium (Rp 50.000) — +6 main per hari!
-
-Hubungi admin untuk proses pembayaran.';
+      ? 'Upgrade ke VVIP (Rp 200.000) — Main tak terbatas!\n\nHubungi admin untuk proses pembayaran.'
+      : 'Upgrade ke Premium (Rp 50.000) — +4 main per hari!\n\nHubungi admin untuk proses pembayaran.';
     alert(info);
+    const waMsg = encodeURIComponent(`Halo admin, saya mau upgrade akun Sekretaris UMKM ke ${tier === 'vvip' ? 'VVIP (Rp 200.000)' : 'Premium (Rp 50.000)'}.`);
+    window.open(`https://wa.me/${ADMIN_WA_NUMBER}?text=${waMsg}`, '_blank');
+  };
+
+  // ── Konsumsi 1 kesempatan main (dipakai bersama oleh semua mini-game) ──
+  function _tryConsumePlay(){
+    const max = _maxPlaysForTier();
+    if(max !== Infinity && _gamePlaysToday >= max){
+      const sec = document.getElementById('gameUpgradeSection');
+      if(sec) sec.style.display = '';
+      return false;
+    }
+    _gamePlaysToday++;
+    return true;
+  }
+
+  // ── Mini-game: Tebak Angka ──────────────────────────────────────
+  let _guessSecret = null;
+  function _newGuessRound(){ _guessSecret = 1 + Math.floor(Math.random() * GUESS_RANGE); }
+  function _renderGuessGrid(){
+    const el = document.getElementById('guessNumGrid');
+    if(!el) return;
+    _newGuessRound();
+    el.innerHTML = '';
+    for(let n = 1; n <= GUESS_RANGE; n++){
+      const btn = document.createElement('button');
+      btn.textContent = n;
+      btn.style.cssText = 'padding:12px 0;border-radius:10px;border:1.5px solid var(--line);background:white;font-weight:700;font-size:14px;cursor:pointer;';
+      btn.onclick = () => window.gameDoGuess(n);
+      el.appendChild(btn);
+    }
+  }
+  window.gameDoGuess = function(n){
+    if(!_gameLoaded){ alert('Data poin sedang dimuat, coba lagi sebentar.'); return; }
+    if(!getMyUid()){ alert('Kamu harus login dulu untuk main!'); return; }
+    if(!_tryConsumePlay()){
+      document.getElementById('guessResultMsg').textContent = '⛔ Kesempatan main hari ini habis! Upgrade untuk main lagi.';
+      return;
+    }
+    const resEl = document.getElementById('guessResultMsg');
+    if(n === _guessSecret){
+      _gamePoin += GUESS_WIN_POIN;
+      _addHistory(`+${GUESS_WIN_POIN} poin dari Tebak Angka (${new Date().toLocaleDateString('id-ID')})`);
+      if(resEl) resEl.textContent = `🎉 Tepat! Angkanya ${_guessSecret}. Kamu menang ${GUESS_WIN_POIN} poin!`;
+    } else {
+      _addHistory(`Salah tebak — angka ${_guessSecret} (${new Date().toLocaleDateString('id-ID')})`);
+      if(resEl) resEl.textContent = `😅 Belum tepat. Angkanya ${_guessSecret}. Coba lagi besok ya!`;
+    }
+    _saveGameData();
+    _renderGameUI();
+    _renderGuessGrid();
+  };
+
+  // ── Mini-game: Gosok Kartu ──────────────────────────────────────
+  let _scratchOrder = [];
+  function _renderScratchGrid(){
+    const el = document.getElementById('scratchCardGrid');
+    if(!el) return;
+    _scratchOrder = SCRATCH_PRIZES.slice().sort(()=>Math.random()-0.5).slice(0,4);
+    el.innerHTML = '';
+    _scratchOrder.forEach((prize, idx) => {
+      const card = document.createElement('button');
+      card.textContent = '🧧';
+      card.dataset.idx = idx;
+      card.style.cssText = 'aspect-ratio:1;border-radius:12px;border:none;background:linear-gradient(135deg,#1B4D4A,#2D7A4F);color:white;font-size:26px;cursor:pointer;';
+      card.onclick = () => window.gameDoScratch(card, idx);
+      el.appendChild(card);
+    });
+  }
+  window.gameDoScratch = function(cardEl, idx){
+    if(cardEl.disabled) return;
+    if(!_gameLoaded){ alert('Data poin sedang dimuat, coba lagi sebentar.'); return; }
+    if(!getMyUid()){ alert('Kamu harus login dulu untuk main!'); return; }
+    if(!_tryConsumePlay()){
+      document.getElementById('scratchResultMsg').textContent = '⛔ Kesempatan main hari ini habis! Upgrade untuk main lagi.';
+      return;
+    }
+    const prize = _scratchOrder[idx];
+    cardEl.disabled = true;
+    cardEl.style.background = '#F4F1ED';
+    cardEl.style.color = '#1B4D4A';
+    cardEl.textContent = prize > 0 ? `+${prize}` : '😅';
+    const resEl = document.getElementById('scratchResultMsg');
+    if(prize > 0){
+      _gamePoin += prize;
+      _addHistory(`+${prize} poin dari Gosok Kartu (${new Date().toLocaleDateString('id-ID')})`);
+      if(resEl) resEl.textContent = `🎉 Selamat! Kamu menang ${prize} poin!`;
+    } else {
+      _addHistory(`Kartu kosong — Gosok Kartu (${new Date().toLocaleDateString('id-ID')})`);
+      if(resEl) resEl.textContent = '😅 Kartu kosong, coba lagi besok ya!';
+    }
+    // Nonaktifkan kartu lain di ronde ini supaya 1 ronde = 1 kesempatan main
+    document.querySelectorAll('#scratchCardGrid button').forEach(b => b.disabled = true);
+    _saveGameData();
+    _renderGameUI();
+    setTimeout(_renderScratchGrid, 1800);
+  };
+
+  // ── Top Up Poin (manual, dikonfirmasi admin via WhatsApp) ───────
+  window.gameRequestTopup = async function(){
+    const input = document.getElementById('topupAmountInput');
+    const amount = parseInt(input && input.value, 10);
+    if(!amount || amount < 10000){ alert('Masukkan jumlah top up minimal Rp 10.000.'); return; }
+    const estPoin = Math.round(amount / 1000);
+    const uid = getMyUid();
+    if(!uid){ alert('Kamu harus login dulu untuk top up!'); return; }
+    try{
+      if(gameRef && window.rtdbPush && window.rtdbSet){
+        const newRef = window.rtdbPush(gameRef('topupRequests'));
+        await window.rtdbSet(newRef, { uid, amount, estPoin, ts: Date.now(), status: 'pending' });
+      }
+    } catch(e){ console.warn('[game] gagal catat topup', e); }
+    const storeName = (typeof myProfile !== 'undefined' && (myProfile.storeName || myProfile.displayName)) || 'Pengguna';
+    const waMsg = encodeURIComponent(`Halo admin, saya ${storeName} mau top up poin Sekretaris UMKM sebesar Rp ${amount.toLocaleString('id-ID')} (≈${estPoin} poin). Mohon konfirmasi setelah saya transfer.`);
+    window.open(`https://wa.me/${ADMIN_WA_NUMBER}?text=${waMsg}`, '_blank');
+    if(input) input.value = '';
+  };
+
+  // ── Transfer poin antar pengguna (dibatasi kecil) ────────────────
+  const TRANSFER_MAX = 50;
+  window.gameTransferPoin = async function(){
+    const targetInput = document.getElementById('transferTargetInput');
+    const amountInput = document.getElementById('transferAmountInput');
+    const targetQuery = (targetInput && targetInput.value || '').trim().toLowerCase();
+    const amount = parseInt(amountInput && amountInput.value, 10);
+    const uid = getMyUid();
+    if(!uid){ alert('Kamu harus login dulu!'); return; }
+    if(!targetQuery){ alert('Masukkan nama toko / email penerima.'); return; }
+    if(!amount || amount < 1){ alert('Masukkan jumlah poin yang valid.'); return; }
+    if(amount > TRANSFER_MAX){ alert(`Transfer dibatasi maksimal ${TRANSFER_MAX} poin per transaksi. Gunakan Top Up admin untuk jumlah lebih besar.`); return; }
+    if(amount > _gamePoin){ alert('Poin kamu tidak cukup.'); return; }
+
+    // Cari penerima dari cache daftar pengguna
+    const users = (typeof allUsersCache !== 'undefined' && allUsersCache) || {};
+    let targetUid = null, targetName = '';
+    for(const [tuid, u] of Object.entries(users)){
+      if(tuid === uid) continue;
+      const sName = (u.storeName || u.displayName || '').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      if(sName === targetQuery || email === targetQuery || sName.includes(targetQuery)){
+        targetUid = tuid; targetName = u.storeName || u.displayName || u.email || 'Pengguna'; break;
+      }
+    }
+    if(!targetUid){ alert('Pengguna tidak ditemukan. Pastikan nama toko / email sudah benar.'); return; }
+    if(!confirm(`Kirim ${amount} poin ke "${targetName}"?`)) return;
+
+    try{
+      // Kurangi poin pengirim (lokal + simpan)
+      _gamePoin -= amount;
+      _addHistory(`-${amount} poin transfer ke ${targetName}`);
+      _saveGameData();
+      _renderGameUI();
+
+      // Tambah poin penerima di Firebase
+      if(gameRef){
+        const targetRef = gameRef('gameData/' + targetUid);
+        const snap = await window.rtdbGet(targetRef);
+        const d = (snap && snap.val()) || {};
+        const newHistory = [{ msg: `+${amount} poin transfer dari ${(typeof myProfile!=='undefined'&&(myProfile.storeName||myProfile.displayName))||'Pengguna'}`, ts: Date.now() }, ...(d.history||[])].slice(0,20);
+        await window.rtdbUpdate(targetRef, { poin: (d.poin||0) + amount, history: newHistory });
+
+        // Log transaksi
+        if(window.rtdbPush && window.rtdbSet){
+          const logRef = window.rtdbPush(gameRef('pointTransfers'));
+          await window.rtdbSet(logRef, { from: uid, to: targetUid, amount, ts: Date.now() });
+        }
+      }
+      alert(`✅ Berhasil mengirim ${amount} poin ke ${targetName}.`);
+      if(targetInput) targetInput.value = '';
+      if(amountInput) amountInput.value = '';
+    } catch(e){
+      alert('Gagal transfer poin: ' + e.message);
+    }
+  };
+
+  // ── Panel Admin: kelola hadiah, top up, dan redemption ───────────
+  window.gameAdminAddReward = async function(){
+    if(!isAdminUser()) return;
+    const nameEl = document.getElementById('adminRewardName');
+    const priceEl = document.getElementById('adminRewardPrice');
+    const imgEl = document.getElementById('adminRewardImgInput');
+    const name = (nameEl && nameEl.value || '').trim();
+    const price = parseInt(priceEl && priceEl.value, 10);
+    if(!name || !price){ alert('Isi nama dan harga poin hadiah.'); return; }
+    let imageUrl = '';
+    const file = imgEl && imgEl.files && imgEl.files[0];
+    if(file){
+      try{
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        fd.append('upload_preset', 'chatMedia');
+        fd.append('folder', 'reward_images');
+        const res = await fetch('https://api.cloudinary.com/v1_1/ddqjgwpgl/image/upload', { method:'POST', body: fd });
+        const data = await res.json();
+        if(data.secure_url) imageUrl = data.secure_url;
+      } catch(e){ console.warn('[game] upload gambar hadiah gagal', e); }
+    }
+    try{
+      if(gameRef && window.rtdbPush && window.rtdbSet){
+        const newRef = window.rtdbPush(gameRef('rewards'));
+        await window.rtdbSet(newRef, { name, price, imageUrl, ts: Date.now() });
+      }
+      if(nameEl) nameEl.value = '';
+      if(priceEl) priceEl.value = '';
+      if(imgEl) imgEl.value = '';
+      alert('✅ Hadiah ditambahkan!');
+    } catch(e){ alert('Gagal menyimpan hadiah: ' + e.message); }
+  };
+
+  function isAdminUser(){ return typeof isAdmin !== 'undefined' && isAdmin; }
+
+  async function _renderAdminPanel(){
+    const sec = document.getElementById('gameAdminSection');
+    if(!sec) return;
+    if(!isAdminUser()){ sec.style.display = 'none'; return; }
+    sec.style.display = '';
+
+    const topupEl = document.getElementById('adminTopupList');
+    const redeemEl = document.getElementById('adminRedeemList');
+    try{
+      const snap = gameRef ? await window.rtdbGet(gameRef('topupRequests')) : null;
+      const v = (snap && snap.val()) || {};
+      const pending = Object.entries(v).filter(([,d]) => d.status === 'pending');
+      topupEl.innerHTML = pending.length ? pending.map(([id,d]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);">
+          <span>UID ${escHtml2((d.uid||'').slice(0,8))}… · Rp ${(d.amount||0).toLocaleString('id-ID')} (~${d.estPoin||0} poin)</span>
+          <button onclick="window.gameAdminConfirmTopup('${id}','${d.uid}',${d.estPoin||0})" style="padding:5px 10px;border-radius:8px;border:none;background:var(--teal);color:white;font-size:11px;font-weight:700;cursor:pointer;">Konfirmasi</button>
+        </div>`).join('') : 'Tidak ada permintaan top up.';
+    } catch(e){ topupEl.textContent = 'Gagal memuat data top up.'; }
+
+    try{
+      const snap2 = gameRef ? await window.rtdbGet(gameRef('redemptions')) : null;
+      const v2 = (snap2 && snap2.val()) || {};
+      const pending2 = Object.entries(v2).filter(([,d]) => d.status === 'pending');
+      redeemEl.innerHTML = pending2.length ? pending2.map(([id,d]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.08);">
+          <span>${escHtml2(d.rewardName)} · ${d.price} poin · UID ${escHtml2((d.uid||'').slice(0,8))}…</span>
+          <button onclick="window.gameAdminCompleteRedeem('${id}')" style="padding:5px 10px;border-radius:8px;border:none;background:var(--coral);color:white;font-size:11px;font-weight:700;cursor:pointer;">Selesai</button>
+        </div>`).join('') : 'Tidak ada permintaan penukaran.';
+    } catch(e){ redeemEl.textContent = 'Gagal memuat data penukaran.'; }
+  }
+
+  window.gameAdminConfirmTopup = async function(id, targetUid, estPoin){
+    if(!isAdminUser()) return;
+    try{
+      const targetRef = gameRef('gameData/' + targetUid);
+      const snap = await window.rtdbGet(targetRef);
+      const d = (snap && snap.val()) || {};
+      const newHistory = [{ msg: `+${estPoin} poin dari top up admin`, ts: Date.now() }, ...(d.history||[])].slice(0,20);
+      await window.rtdbUpdate(targetRef, { poin: (d.poin||0) + estPoin, history: newHistory });
+      await window.rtdbUpdate(gameRef('topupRequests/' + id), { status: 'done' });
+      alert('✅ Poin berhasil ditambahkan ke pengguna.');
+      _renderAdminPanel();
+    } catch(e){ alert('Gagal konfirmasi top up: ' + e.message); }
+  };
+
+  window.gameAdminCompleteRedeem = async function(id){
+    if(!isAdminUser()) return;
+    try{
+      await window.rtdbUpdate(gameRef('redemptions/' + id), { status: 'done' });
+      _renderAdminPanel();
+    } catch(e){ alert('Gagal update status: ' + e.message); }
   };
 
   // ── Init saat tab Game dibuka ──────────────────────────────────
   function _onGameTabOpen(){
     if(!_gameLoaded){ _loadGameData(); }
     else { _renderGameUI(); }
+    _renderAdminPanel();
   }
 
   // Hook ke tab switcher
@@ -12895,14 +13240,15 @@ Hubungi admin untuk proses pembayaran.';
       });
     });
 
-    // Draw wheel immediately
-    setTimeout(_drawWheel, 300);
+    // Draw wheel & mini-games immediately
+    setTimeout(()=>{ _drawWheel(); _renderGuessGrid(); _renderScratchGrid(); }, 300);
 
     // If Firebase ready, load data
     if(window.firebaseReady){
       _loadGameData();
+      _loadRewards();
     } else {
-      document.addEventListener('firebase-ready', _loadGameData);
+      document.addEventListener('firebase-ready', () => { _loadGameData(); _loadRewards(); });
     }
   });
 

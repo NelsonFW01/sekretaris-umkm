@@ -12499,7 +12499,7 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
 </script>
 
 <!-- ===== PANEL GAME ===== -->
-<div id="panel-game" class="panel" style="display:none;">
+<div id="panel-game" class="panel">
   <div style="max-width:480px;margin:0 auto;padding:4px 0 24px;">
 
     <!-- Header poin user -->
@@ -13226,7 +13226,7 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
     // Wait for tab switcher to be ready
     const obs = new MutationObserver(() => {
       const panel = document.getElementById('panel-game');
-      if(panel && panel.style.display !== 'none'){
+      if(panel && panel.classList.contains('active')){
         _onGameTabOpen();
       }
     });

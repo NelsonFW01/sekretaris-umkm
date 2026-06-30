@@ -11958,8 +11958,15 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   let _msgCtxMenuEl = null;
   function _closeMsgCtxMenu(){
     if(_msgCtxMenuEl){ _msgCtxMenuEl.remove(); _msgCtxMenuEl = null; }
-    document.removeEventListener('click', _closeMsgCtxMenu, true);
-    document.removeEventListener('touchstart', _closeMsgCtxMenu, true);
+    document.removeEventListener('click', _outsideMenuHandler, true);
+    document.removeEventListener('touchstart', _outsideMenuHandler, true);
+  }
+  // Hanya tutup menu kalau tap/klik di LUAR menu — supaya tap pada tombol
+  // "Hapus untuk saya/semua" tidak ikut menutup menu sebelum tombolnya
+  // sempat ter-klik (ini sebab menu "kehapus duluan" sebelum sempat ditekan).
+  function _outsideMenuHandler(e){
+    if(_msgCtxMenuEl && _msgCtxMenuEl.contains(e.target)) return;
+    _closeMsgCtxMenu();
   }
 
   function _openMsgCtxMenu(wrapEl, x, y){
@@ -12007,8 +12014,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     _msgCtxMenuEl = menu;
 
     setTimeout(() => {
-      document.addEventListener('click', _closeMsgCtxMenu, true);
-      document.addEventListener('touchstart', _closeMsgCtxMenu, true);
+      document.addEventListener('click', _outsideMenuHandler, true);
+      document.addEventListener('touchstart', _outsideMenuHandler, true);
     }, 50);
   }
 

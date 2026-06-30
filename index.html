@@ -411,6 +411,7 @@
   .live-header p{font-size:13px;opacity:.78;position:relative;}
   .live-dot{display:inline-block;width:8px;height:8px;background:#ff4444;border-radius:50%;animation:liveBlink 1s infinite;margin-right:5px;}
   @keyframes liveBlink{0%,100%{opacity:1;}50%{opacity:0;}}
+  @keyframes btnPulse{0%,100%{transform:scale(1);box-shadow:0 2px 8px rgba(0,0,0,0.18);}50%{transform:scale(1.18);box-shadow:0 4px 16px rgba(232,99,63,0.55);}}
   .live-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,68,68,.18);border:1px solid rgba(255,68,68,.35);border-radius:20px;padding:4px 10px;font-size:11.5px;font-weight:700;color:#ff6666;margin-bottom:10px;}
   .live-setup{background:var(--bg-card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow);}
   .live-view{display:none;}
@@ -4255,7 +4256,7 @@ function updateNavPanel(stepIdx, userLat, userLng){
   const distStr    = fmtDist(distToGoal);
   const svLat = userLat || activeDestLat || '';
   const svLng = userLng || activeDestLng || '';
-  const svUrl = svLat ? ('https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+svLat+','+svLng) : '#';
+  const svUrl = svLat ? ('https://www.google.com/maps/@'+svLat+','+svLng+',3a,90y,0h,90t/data=!3m4!1e1') : '#';
   const nextHtml = next ? ('<div style="font-size:11.5px;opacity:0.8;margin-bottom:4px;">Selanjutnya: '+stepLabel(next)+'</div>') : '';
   const svHtml   = svLat ? ('<a href="'+svUrl+'" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:7px;background:rgba(255,255,255,0.13);color:white;border-radius:10px;padding:7px 0;font-size:12px;font-weight:700;text-decoration:none;">&#x1F52D; Lihat Street View</a>') : '';
 
@@ -4343,7 +4344,7 @@ function stopNavigation(){
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
       + '<button class="nav-start-btn" onclick="startNavigation();" style="flex:2;min-width:0;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button>'
       + '<a href="'+escapeHtml(gmUrl)+'" target="_blank" style="flex:2;min-width:0;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a>'
-      + (activeDestLat ? '<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+activeDestLat+','+activeDestLng+'" target="_blank" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;background:#34A853;color:white;border-radius:12px;padding:12px 0;font-size:13px;font-weight:700;text-decoration:none;">🔭 Street View</a>' : '')
+      + (activeDestLat ? '<a href="https://www.google.com/maps/@'+activeDestLat+','+activeDestLng+',3a,90y,0h,90t/data=!3m4!1e1" target="_blank" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;background:#34A853;color:white;border-radius:12px;padding:12px 0;font-size:13px;font-weight:700;text-decoration:none;">🔭 Street View</a>' : '')
       + '</div>';
   }
 }
@@ -4356,27 +4357,20 @@ function stopNavigation(){
 //   - routeTraveledLine (abu-abu putus-putus): dari start s.d. posisi user
 //   - routeRemainingLine (hijau tebal): dari posisi user s.d. tujuan — INI
 //     yang selalu dijaga supaya tetap terlihat & tidak hilang.
-//
-// FIX OFF-ROUTE: nearestIdx hanya boleh MAJU ke depan, tidak mundur.
-// Kalau user salah jalur (menyimpang), titik potong tetap di depan user
-// sehingga rute hijau menunjukkan jalan ke depan, bukan memanjang ke belakang.
-let _lastNearestRouteIdx = 0; // simpan indeks terakhir agar tidak mundur
+// FIX OFF-ROUTE: nearestIdx hanya boleh MAJU, tidak mundur.
+// Kalau user salah jalur, garis hijau tetap menunjukkan jalan ke depan.
+let _lastNearestRouteIdx = 0;
 function updateRouteProgress(lat, lng){
   if(!communityMap || !activeRouteCoords || activeRouteCoords.length < 2) return;
   const userPt = L.latLng(lat, lng);
 
-  // Cari index titik rute terdekat dengan posisi user saat ini,
-  // NAMUN hanya cari dari _lastNearestRouteIdx ke depan (tidak bisa mundur).
-  // Ini mencegah garis hijau "memanjang ke belakang" saat user salah jalur.
-  // Rentang pencarian: mulai dari max(0, lastIdx-5) agar bisa koreksi sedikit
-  // ke belakang (toleransi GPS jitter), tapi tidak jauh ke belakang.
+  // Cari index terdekat hanya dari posisi terakhir ke depan (tidak mundur)
   const searchStart = Math.max(0, _lastNearestRouteIdx - 5);
   let nearestIdx = _lastNearestRouteIdx, nearestDist = Infinity;
   for(let i = searchStart; i < activeRouteCoords.length; i++){
     const d = userPt.distanceTo(activeRouteCoords[i]);
     if(d < nearestDist){ nearestDist = d; nearestIdx = i; }
   }
-  // Jaga agar tidak mundur lebih dari toleransi kecil
   if(nearestIdx < _lastNearestRouteIdx - 5) nearestIdx = _lastNearestRouteIdx;
   _lastNearestRouteIdx = nearestIdx;
 
@@ -4411,7 +4405,7 @@ function startNavigation(){
   mapUserInteracting=false;
   _mapManualControl=false;
   _navCardMinimized=false; // reset ukuran card tiap mulai navigasi baru
-  _lastNearestRouteIdx=0;  // FIX: reset indeks rute agar mulai dari awal tiap navigasi baru
+  _lastNearestRouteIdx=0;  // FIX: reset indeks rute tiap navigasi baru
   // _navUserZoom: pertahankan kalau user sudah pernah pilih zoom, reset ke null hanya saat pertama kali
   if(_navUserZoom === null) _navUserZoom = null; // akan di-set oleh snapCameraNow → default 17
   followCameraMode=true;
@@ -4625,26 +4619,30 @@ function startNavigation(){
 
         if(headingUpMode){
           // === HEADING-UP ===
+          // FIX KAKU: rotasi peta tetap update (agar marker arah user benar),
+          // tapi setView (paksa scroll posisi) diblok saat user sedang eksplorasi bebas.
           setMapHeadingRotation(bearing);
-          const mapCenter = communityMap.getCenter();
-          const distFromCenter = haversineM(lat, lng, mapCenter.lat, mapCenter.lng);
-          const curZoom = communityMap.getZoom();
-          // Gunakan zoom pilihan user; jangan override
-          if(_navUserZoom === null) _navUserZoom = curZoom;
-          if(distFromCenter > 20){
-            communityMap.setView([lat, lng], _navUserZoom, {animate:false, noMoveStart:true});
+          if(!_mapManualControl){
+            const mapCenter = communityMap.getCenter();
+            const distFromCenter = haversineM(lat, lng, mapCenter.lat, mapCenter.lng);
+            const curZoom = communityMap.getZoom();
+            if(_navUserZoom === null) _navUserZoom = curZoom;
+            if(distFromCenter > 20){
+              communityMap.setView([lat, lng], _navUserZoom, {animate:false, noMoveStart:true});
+            }
           }
         } else {
           // === NORTH-UP ===
-          let camLat = lat, camLng = lng;
-          if(activeRouteCoords && activeRouteCoords.length > 1){
-            const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
-            camLat = lat + (la.lat - lat) * 0.40;
-            camLng = lng + (la.lng - lng) * 0.40;
+          if(!_mapManualControl){
+            let camLat = lat, camLng = lng;
+            if(activeRouteCoords && activeRouteCoords.length > 1){
+              const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
+              camLat = lat + (la.lat - lat) * 0.40;
+              camLng = lng + (la.lng - lng) * 0.40;
+            }
+            if(_navUserZoom === null) _navUserZoom = communityMap.getZoom();
+            communityMap.setView([camLat, camLng], _navUserZoom, {animate:false, noMoveStart:true});
           }
-          // Gunakan zoom pilihan user; jangan override
-          if(_navUserZoom === null) _navUserZoom = communityMap.getZoom();
-          communityMap.setView([camLat, camLng], _navUserZoom, {animate:false, noMoveStart:true});
         }
       }
     }
@@ -4756,7 +4754,7 @@ function startNavigation(){
               const _dst = activeDestName, _dlat = activeDestLat, _dlng = activeDestLng;
               stopNavigation();
               clearActiveRoute();
-              _lastNearestRouteIdx = 0; // FIX: reset indeks sebelum rute baru dimulai
+              _lastNearestRouteIdx = 0; // FIX: reset indeks untuk rute baru
               // Mulai rute ulang + navigasi otomatis
               setTimeout(()=>{
                 routeToCoords(_dlat, _dlng, _dst);
@@ -5166,7 +5164,7 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
     +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
     +'<button class="nav-start-btn" onclick="startNavigation();" style="flex:2;min-width:0;border:none;background:#1B4D4A;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">▶ Mulai Navigasi</button>'
     +'<a href="'+escapeHtml(gmUrl)+'" target="_blank" style="flex:2;min-width:0;display:flex;align-items:center;justify-content:center;background:#4285F4;color:white;border-radius:12px;padding:12px 0;font-size:14px;font-weight:700;text-decoration:none;">Google Maps ↗</a>'
-    +'<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint='+destLat+','+destLng+'" target="_blank" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;background:#34A853;color:white;border-radius:12px;padding:12px 0;font-size:13px;font-weight:700;text-decoration:none;">🔭 Street View</a>'
+    +'<a href="https://www.google.com/maps/@'+destLat+','+destLng+',3a,90y,0h,90t/data=!3m4!1e1" target="_blank" style="flex:1;min-width:80px;display:flex;align-items:center;justify-content:center;background:#34A853;color:white;border-radius:12px;padding:12px 0;font-size:13px;font-weight:700;text-decoration:none;">🔭 Street View</a>'
     +'</div>';
 
   // ── Live tracking ringan: marker user ikut bergerak GPS tanpa navigasi penuh ──
@@ -5262,28 +5260,27 @@ function initCommunityMap(centerLat, centerLng){
   container.appendChild(controlDiv);
 
   // FIX BUG: deteksi interaksi manual user (drag/zoom) agar kamera GPS tidak rebut kontrol
-  communityMap.on('dragstart zoomstart', () => { mapUserInteracting = true; });
+  communityMap.on('dragstart zoomstart', () => {
+    mapUserInteracting = true;
+    // FIX KAKU: batalkan auto-resume timer segera saat drag baru dimulai
+    // supaya kamera tidak tiba-tiba loncat balik di tengah gesture.
+    clearTimeout(communityMap._autoResumeTimer);
+    if(navMode) _mapManualControl = true;
+  });
   communityMap.on('zoomend', () => {
     _navUserZoom = communityMap.getZoom();
     _updateNavMarkerSize();
   });
   communityMap.on('dragend zoomend', () => {
     if(navMode){
-      // Saat navigasi: user drag peta = tandai manual control (kamera berhenti ikut GPS).
-      // User bisa bebas lihat sekitar. Tekan 🎯 untuk balik follow.
+      // Saat navigasi: user drag = masuk mode eksplorasi bebas.
+      // FIX KAKU: auto-resume dihapus. Kamera TIDAK paksa balik sendiri.
+      // User kontrol penuh sampai dia tap tombol Kembali (🎯).
+      // Ini mencegah peta terasa 'kaku' / lompat saat user masih mau geser.
       _mapManualControl = true;
       mapUserInteracting = true;
-      // AUTO RESUME follow setelah 2 detik berhenti drag (biar user bisa lihat sekitar sebentar)
-      clearTimeout(communityMap._autoResumeTimer);
-      communityMap._autoResumeTimer = setTimeout(() => {
-        if(!navMode) return;
-        mapUserInteracting = false;
-        _mapManualControl = false;
-        // Langsung snap balik ke posisi user
-        if(myLocation && myLocation.lat && communityMap){
-          communityMap.setView([myLocation.lat, myLocation.lng], _navUserZoom || communityMap.getZoom(), {animate:true, duration:0.5});
-        }
-      }, 2000);
+      clearTimeout(communityMap._autoResumeTimer); // batalkan timer lama kalau ada
+      // Tidak ada auto-resume di sini. User tap tombol 🎯 untuk balik follow.
     } else {
       setTimeout(() => { mapUserInteracting = false; lastPanTime = 0; }, 4000);
     }
@@ -5314,7 +5311,14 @@ function initCommunityMap(centerLat, centerLng){
     if(navMode && btnFollow) { btnFollow.style.background='#666'; btnFollow.title='Peta bebas — tap 🎯 untuk kembali ikuti'; }
   });
   communityMap.on('dragend', () => {
-    if(navMode && btnFollow && _mapManualControl) { btnFollow.style.background='#E8633F'; btnFollow.title='Tap untuk kembali ikuti lokasi'; }
+    if(navMode && btnFollow && _mapManualControl) {
+      // FIX KAKU: tombol 🎯 jadi oranye + pulsate agar user tahu cara balik follow
+      btnFollow.style.background = '#E8633F';
+      btnFollow.title = 'Tap untuk kembali ikuti lokasi';
+      btnFollow.style.animation = 'none';
+      void btnFollow.offsetWidth; // reflow untuk restart animasi
+      btnFollow.style.animation = 'btnPulse 1.2s ease-in-out 3';
+    }
   });
   controlDiv.insertBefore(btnFollow, btnGPS);
 
@@ -5956,42 +5960,75 @@ async function doMapSearch(){
   resultsDiv.innerHTML = '';
   resultsDiv.style.display = 'block';
 
-  if(hits.length === 0 && q.length >= 3){
-    // Geocode query via Nominatim kalau tidak ada hasil lokal
-    resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Mencari lokasi...</div>';
+  // FIX: Selalu cari keduanya sekaligus -- UMKM lokal (instant) + tempat umum via Nominatim
+  let umkmHtml = '';
+  if(hits.length > 0){
+    umkmHtml = '<div style="padding:5px 14px 3px;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;background:var(--sand);">Toko & UMKM Komunitas</div>'
+      + hits.map(h => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" data-label="${escapeHtml(h.label)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
+        <span style="flex-shrink:0;margin-top:2px;">${h.uid === MY_UID ? '⭐' : '🏪'}</span>
+        <div>
+          <div style="font-weight:600;">${escapeHtml(h.label)}${h.uid === MY_UID ? ' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:1px 6px;font-weight:700;">Toko Saya</span>' : ''}</div>
+          ${h.sub ? '<div style="font-size:11px;color:var(--ink-soft);">' + escapeHtml(h.sub) + '</div>' : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  // Placeholder sementara untuk hasil Nominatim
+  const _nomId = 'nom-' + Date.now();
+  const nomPlaceholder = q.length >= 2
+    ? `<div id="${_nomId}" style="padding:8px 14px;font-size:12px;color:var(--ink-soft);">&#x23F3; Mencari tempat...</div>`
+    : '';
+  resultsDiv.innerHTML = umkmHtml + nomPlaceholder;
+
+  if(hits.length === 0 && q.length < 2){
+    resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Ketik minimal 2 karakter...</div>';
+    return;
+  }
+
+  // Fetch Nominatim paralel (tidak blocking UMKM hits)
+  if(q.length >= 2){
     try{
+      const userBias = (myLocation && myLocation.lat)
+        ? `&viewbox=${myLocation.lng-0.5},${myLocation.lat+0.5},${myLocation.lng+0.5},${myLocation.lat-0.5}&bounded=0`
+        : '';
       const resp = await fetch(
-        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=5&addressdetails=1',
+        'https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=6&addressdetails=1'+userBias,
         {headers:{'Accept-Language':'id','User-Agent':'SekretarisUMKM/1.0'}}
       );
-      const data = await resp.json();
-      if(data && data.length){
-        resultsDiv.innerHTML = data.map((d,i) => `<div class="map-search-result" data-lat="${d.lat}" data-lng="${d.lon}" data-label="${escapeHtml(d.display_name)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
-          <span style="flex-shrink:0;margin-top:1px;">📍</span>
-          <span style="line-height:1.4;">${escapeHtml(d.display_name.split(',').slice(0,3).join(', '))}</span>
-        </div>`).join('');
+      const nomData = await resp.json();
+      const placeholder = document.getElementById(_nomId);
+      if(!placeholder) return; // user sudah ketik ulang
+      if(nomData && nomData.length){
+        // Pilih ikon per kategori OSM
+        const osmIcon = d => {
+          const t = (d.type||'').toLowerCase(), c = (d.class||'').toLowerCase();
+          if(c==='amenity'){ if(/restaurant|cafe|food/.test(t)) return '�7️'; if(/hospital|clinic/.test(t)) return '🏥'; if(/school|university/.test(t)) return '🏫'; if(t==='bank') return '🏦'; if(t==='fuel') return '⛽'; return '🏛️'; }
+          if(c==='shop') return '🛒';
+          if(c==='office') return '🏢';
+          if(c==='tourism') return '🏰';
+          if(c==='natural'||c==='leisure') return '🌳';
+          if(c==='highway') return '🛣️';
+          return '📍';
+        };
+        const nomHtml = '<div style="padding:5px 14px 3px;font-size:10px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.05em;background:var(--sand);">Tempat & Lokasi</div>'
+          + nomData.map(d => `<div class="map-search-result" data-lat="${d.lat}" data-lng="${d.lon}" data-label="${escapeHtml(d.display_name)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
+            <span style="flex-shrink:0;margin-top:1px;">${osmIcon(d)}</span>
+            <div>
+              <div style="font-weight:600;">${escapeHtml(d.display_name.split(',')[0])}</div>
+              <div style="font-size:11px;color:var(--ink-soft);margin-top:1px;">${escapeHtml(d.display_name.split(',').slice(1,3).join(',').trim())}</div>
+            </div>
+          </div>`).join('');
+        placeholder.outerHTML = nomHtml;
       } else {
-        resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Tidak ditemukan.</div>';
+        placeholder.outerHTML = hits.length === 0
+          ? '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Tidak ada tempat ditemukan.</div>'
+          : '';
       }
     } catch(e){
-      resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Gagal mencari, cek koneksi.</div>';
+      const ph = document.getElementById(_nomId);
+      if(ph) ph.outerHTML = '';
     }
-    return;
   }
-
-  if(hits.length === 0){
-    resultsDiv.innerHTML = '<div style="padding:10px 14px;font-size:12.5px;color:var(--ink-soft);">Tidak ditemukan di komunitas.</div>';
-    return;
-  }
-
-  resultsDiv.innerHTML = hits.map((h,i) => `<div class="map-search-result" data-uid="${h.uid}" data-lat="${h.lat||''}" data-lng="${h.lng||''}" data-address="${escapeHtml(h.address||'')}" data-label="${escapeHtml(h.label)}" style="padding:9px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:flex-start;">
-    <span style="flex-shrink:0;margin-top:2px;">${h.uid === MY_UID ? '⭐' : (h.address ? '🏪' : (h.hasGps ? '👤' : '🏪'))}</span>
-    <div>
-      <div style="font-weight:600;">${escapeHtml(h.label)}${h.uid === MY_UID ? ' <span style="font-size:10px;background:#E8F5E9;color:#2D7A4F;border-radius:5px;padding:1px 6px;font-weight:700;">Toko Saya</span>' : ''}</div>
-      ${h.sub ? '<div style="font-size:11.5px;color:var(--ink-soft);">'+escapeHtml(h.sub)+'</div>' : ''}
-      ${(!h.lat && h.address) ? '<div style="font-size:10px;color:#E8633F;margin-top:2px;">📍 Lokasi akan dicari otomatis</div>' : ''}
-    </div>
-  </div>`).join('');
 }
 
 document.getElementById('mapSearchInput').addEventListener('input', () => {
@@ -6777,9 +6814,34 @@ $('locVisibilityCancelBtn').addEventListener('click', () => {
 $('shareLocBtn').addEventListener('click', () => {
   if(!window.firebaseReady){ alert('Firebase belum dikonfigurasi, lokasi tidak bisa dibagikan online.'); return; }
   if(!navigator.geolocation){ alert('Browser kamu tidak mendukung fitur lokasi.'); return; }
-  // Reset dan tampilkan modal
-  selectLocOpt('public');
-  $('locVisibilityModal').style.display='flex';
+
+  // FIX: Langsung minta izin lokasi dari browser saat tombol diklik.
+  // Popup "Izinkan lokasi?" muncul seketika, tidak perlu user nyalain manual.
+  $('shareLocBtn').disabled = true;
+  $('shareLocBtn').textContent = '\u23f3 Meminta izin lokasi...';
+
+  navigator.geolocation.getCurrentPosition(
+    (_pos) => {
+      // Izin diberikan - simpan koordinat awal lalu tampilkan modal visibilitas
+      if(!myLocation) myLocation = {};
+      myLocation.lat = _pos.coords.latitude;
+      myLocation.lng = _pos.coords.longitude;
+      $('shareLocBtn').disabled = false;
+      $('shareLocBtn').textContent = '\ud83d\udccd Bagikan Lokasi Saya';
+      selectLocOpt('public');
+      $('locVisibilityModal').style.display = 'flex';
+    },
+    (err) => {
+      $('shareLocBtn').disabled = false;
+      $('shareLocBtn').textContent = '\ud83d\udccd Bagikan Lokasi Saya';
+      if(err.code === 1){
+        alert('Izin lokasi ditolak. Silakan izinkan akses lokasi di pengaturan browser, lalu coba lagi.');
+      } else {
+        alert('Gagal mendapatkan lokasi: ' + err.message);
+      }
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+  );
 });
 
 $('locVisibilityConfirmBtn').addEventListener('click', () => {

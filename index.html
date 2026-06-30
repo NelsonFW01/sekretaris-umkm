@@ -2939,7 +2939,15 @@ function splashDone(){
 }
 
 function initAuthGate(){
+  let _lastAuthUid = null;
   window.fbOnAuthStateChanged(window.fbAuth, async (user) => {
+    const newUid = user ? user.uid : null;
+    if(newUid !== _lastAuthUid){
+      _lastAuthUid = newUid;
+      // Beritahu modul lain (mis. Game & Poin) bahwa akun yang login berubah,
+      // supaya data poin/cache milik akun sebelumnya tidak ikut nempel di akun baru.
+      document.dispatchEvent(new CustomEvent('app-account-changed', { detail: { uid: newUid } }));
+    }
     if(user){
       MY_UID = user.uid; // Firebase Auth UID — sama persis di semua device untuk akun yang sama
       currentAuthEmail = user.email || '';
@@ -13213,6 +13221,24 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
       _renderAdminPanel();
     } catch(e){ alert('Gagal update status: ' + e.message); }
   };
+
+  // ── Reset state saat akun login berubah (penting di SPA tanpa reload) ──
+  // Tanpa ini, jika user logout/ganti akun di HP yang sama tanpa refresh
+  // halaman, poin & riwayat akun SEBELUMNYA masih nempel di tampilan karena
+  // _gamePoin dkk disimpan di variabel JS yang tidak otomatis kosong.
+  document.addEventListener('app-account-changed', () => {
+    _gamePoin = 0;
+    _gamePlaysToday = 0;
+    _gameLastPlayDate = '';
+    _gameHistory = [];
+    _gameLoaded = false;
+    REWARD_ITEMS = [];
+    _renderGameUI();
+    const panel = document.getElementById('panel-game');
+    if(panel && panel.classList.contains('active')){
+      _onGameTabOpen();
+    }
+  });
 
   // ── Init saat tab Game dibuka ──────────────────────────────────
   function _onGameTabOpen(){

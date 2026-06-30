@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.sheetjs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://api.groq.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.firebaseio.com https://*.firebasedatabase.app https://*.googleapis.com https://api.groq.com https://nominatim.openstreetmap.org https://router.project-osrm.org; object-src 'none'; base-uri 'self'; frame-ancestors 'self';">
 <meta name="dicoding:email" content="nagoyaflora@gmail.com">
 <title>Sekretaris UMKM — Asisten AI untuk Usaha Kecil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13492,9 +13493,9 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
     for (const pat of quickPatterns) {
       if (pat.test(inputText)) quickRisk += 2.5;
     }
-    if (quickRisk >= 8) {
-      _logThreat(inputText, source, quickRisk, 'Regex match');
-      return { safe: false, reason: 'Terdeteksi pola mencurigakan' };
+    if (quickRisk >= 2.5) {
+      _logThreat(inputText, source, quickRisk, 'Regex match (block langsung)');
+      return { safe: false, reason: 'Terdeteksi pola berbahaya (script/SQL/path traversal)' };
     }
 
     const groqKey = window.activeGroqKey ? window.activeGroqKey() : (window.groqKey || window.ADMIN_GROQ_KEY);
@@ -13534,7 +13535,10 @@ Contoh: "8|Mengandung tag script dan eval"`;
       return { safe: true };
     } catch (e) {
       console.warn('[SecurityAI] Gagal analisis:', e.message);
-      return { safe: true };
+      // FAIL-CLOSED: kalau API AI gagal, jangan otomatis anggap aman.
+      // Pakai hasil regex cepat sebagai fallback.
+      if (quickRisk > 0) _logThreat(inputText, source, quickRisk, 'Fallback regex (AI gagal)');
+      return { safe: quickRisk < RISK_THRESHOLD };
     }
   };
 

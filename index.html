@@ -10468,6 +10468,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       let html = '';
       let lastDate = '';
       msgs.forEach(m=>{
+        if(window._isMsgDeletedForMe && window._isMsgDeletedForMe(activeChatId, m.id)) return;
         const dateStr = fmtMsgDate(m.ts||Date.now());
         if(dateStr !== lastDate){
           html += `<div class="chat-date-divider">${escHtml(dateStr)}</div>`;
@@ -10788,7 +10789,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     } else {
       bubbleContent = `<div class="chat-bubble ${isMine?'mine':'theirs'}">${escHtml(m.text)}</div>`;
     }
-    return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">${bubbleContent}<div class="chat-bubble-meta">${timeStr}${readTick}</div></div>`;
+    return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}" data-msg-id="${m.id||''}" data-chat-id="${typeof activeChatId!=='undefined'?activeChatId:''}" data-mine="${isMine?'1':'0'}">${bubbleContent}<div class="chat-bubble-meta">${timeStr}${readTick}</div></div>`;
   }
 
   // ── Drag / swipe-to-close (bottom sheet style) ────────────────────────────
@@ -11917,7 +11918,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const url = m.mediaUrl||'';
       const titleSafe = typeof escHtml==='function'?escHtml(title):title;
       const urlSafe = typeof escHtml==='function'?escHtml(url):url;
-      return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}">
+      return `<div class="chat-bubble-wrap ${isMine?'mine':'theirs'}" data-msg-id="${m.id||''}" data-chat-id="${typeof activeChatId!=='undefined'?activeChatId:''}" data-mine="${isMine?'1':'0'}">
         <div class="chat-bubble ${isMine?'mine':'theirs'}" style="padding:9px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;min-width:160px;" onclick="window._setBgMusic('${urlSafe}','${titleSafe}')">
           <span style="font-size:16px;">🎵</span>
           <span style="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${titleSafe}</span>
@@ -11927,6 +11928,141 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       </div>`;
     };
   }, 600);
+
+  /* ── 7b. TEKAN-LAMA PESAN → HAPUS UNTUK SAYA / HAPUS UNTUK SEMUA (mirip WA) ── */
+  const DELETED_FOR_ME_KEY = 'chatDeletedForMe';
+
+  function _getDeletedForMeMap(){
+    try{ return JSON.parse(localStorage.getItem(DELETED_FOR_ME_KEY) || '{}'); }
+    catch(e){ return {}; }
+  }
+  function _saveDeletedForMeMap(map){
+    try{ localStorage.setItem(DELETED_FOR_ME_KEY, JSON.stringify(map)); }
+    catch(e){}
+  }
+  window._isMsgDeletedForMe = function(chatId, msgId){
+    if(!chatId || !msgId) return false;
+    const map = _getDeletedForMeMap();
+    return !!(map[chatId] && map[chatId][msgId]);
+  };
+  function _markMsgDeletedForMe(chatId, msgId){
+    if(!chatId || !msgId) return;
+    const map = _getDeletedForMeMap();
+    if(!map[chatId]) map[chatId] = {};
+    map[chatId][msgId] = true;
+    _saveDeletedForMeMap(map);
+  }
+
+  // ── Menu konteks (popup kecil) ───────────────────────────────────────────
+  let _msgCtxMenuEl = null;
+  function _closeMsgCtxMenu(){
+    if(_msgCtxMenuEl){ _msgCtxMenuEl.remove(); _msgCtxMenuEl = null; }
+    document.removeEventListener('click', _closeMsgCtxMenu, true);
+    document.removeEventListener('touchstart', _closeMsgCtxMenu, true);
+  }
+
+  function _openMsgCtxMenu(wrapEl, x, y){
+    _closeMsgCtxMenu();
+    const chatId = wrapEl.dataset.chatId;
+    const msgId  = wrapEl.dataset.msgId;
+    const isMine = wrapEl.dataset.mine === '1';
+    if(!chatId || !msgId) return;
+
+    const menu = document.createElement('div');
+    menu.style.cssText = 'position:fixed;z-index:9999;background:#fff;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,0.25);overflow:hidden;min-width:190px;font-family:Plus Jakarta Sans,sans-serif;';
+    const itemStyle = 'display:block;width:100%;text-align:left;padding:12px 16px;border:none;background:none;font-size:13.5px;font-weight:600;color:#2A2622;cursor:pointer;';
+
+    const btnDeleteMe = document.createElement('button');
+    btnDeleteMe.style.cssText = itemStyle;
+    btnDeleteMe.textContent = '🗑️ Hapus untuk saya';
+    btnDeleteMe.onclick = () => {
+      _markMsgDeletedForMe(chatId, msgId);
+      wrapEl.remove();
+      _closeMsgCtxMenu();
+    };
+    menu.appendChild(btnDeleteMe);
+
+    if(isMine){
+      const btnDeleteAll = document.createElement('button');
+      btnDeleteAll.style.cssText = itemStyle + 'border-top:1px solid #eee;color:var(--bad,#D14B4B);';
+      btnDeleteAll.textContent = '🗑️ Hapus untuk semua';
+      btnDeleteAll.onclick = async () => {
+        _closeMsgCtxMenu();
+        if(!confirm('Hapus pesan ini untuk semua orang? Tindakan tidak bisa dibatalkan.')) return;
+        try{
+          await window.rtdbRemove(window.rtdbRef(window.firebaseDb, `chats/${chatId}/messages/${msgId}`));
+        } catch(e){ alert('Gagal menghapus pesan: ' + e.message); }
+      };
+      menu.appendChild(btnDeleteAll);
+    }
+
+    document.body.appendChild(menu);
+    // Posisikan menu, jaga supaya tidak keluar viewport
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    let left = Math.min(x, window.innerWidth - mw - 10);
+    let top  = Math.min(y, window.innerHeight - mh - 10);
+    menu.style.left = Math.max(10, left) + 'px';
+    menu.style.top  = Math.max(10, top) + 'px';
+    _msgCtxMenuEl = menu;
+
+    setTimeout(() => {
+      document.addEventListener('click', _closeMsgCtxMenu, true);
+      document.addEventListener('touchstart', _closeMsgCtxMenu, true);
+    }, 50);
+  }
+
+  // ── Deteksi tekan-lama (long-press) pada bubble pesan ────────────────────
+  (function initLongPressDelete(){
+    let pressTimer = null;
+    let pressTarget = null;
+    let startX = 0, startY = 0;
+    const LONG_PRESS_MS = 500;
+    const MOVE_TOLERANCE = 10;
+
+    function cancelPress(){
+      clearTimeout(pressTimer);
+      pressTimer = null;
+      pressTarget = null;
+    }
+
+    function onPointerDown(e){
+      const wrap = e.target.closest && e.target.closest('.chat-bubble-wrap');
+      if(!wrap) return;
+      const point = e.touches ? e.touches[0] : e;
+      startX = point.clientX; startY = point.clientY;
+      pressTarget = wrap;
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        if(pressTarget){
+          if(navigator.vibrate) navigator.vibrate(15);
+          _openMsgCtxMenu(pressTarget, startX, startY);
+        }
+        cancelPress();
+      }, LONG_PRESS_MS);
+    }
+    function onPointerMove(e){
+      if(!pressTimer) return;
+      const point = e.touches ? e.touches[0] : e;
+      if(Math.abs(point.clientX - startX) > MOVE_TOLERANCE || Math.abs(point.clientY - startY) > MOVE_TOLERANCE){
+        cancelPress();
+      }
+    }
+    function onPointerUp(){ cancelPress(); }
+
+    const container = document.getElementById('chatMessages');
+    if(container){
+      container.addEventListener('touchstart', onPointerDown, { passive: true });
+      container.addEventListener('touchmove', onPointerMove, { passive: true });
+      container.addEventListener('touchend', onPointerUp, { passive: true });
+      container.addEventListener('touchcancel', onPointerUp, { passive: true });
+      container.addEventListener('mousedown', onPointerDown);
+      container.addEventListener('mousemove', onPointerMove);
+      container.addEventListener('mouseup', onPointerUp);
+      container.addEventListener('mouseleave', onPointerUp);
+      // Matikan menu konteks browser bawaan (klik kanan / tekan lama) di area chat
+      container.addEventListener('contextmenu', (e) => { e.preventDefault(); });
+    }
+  })();
 
   /* ── 7. UNDO KIRIM PESAN ───────────────────────────────────────────────── */
   let _lastSentMsgRef = null;

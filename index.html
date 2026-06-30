@@ -8429,6 +8429,15 @@ function startSessionListListener(){
     if($('viewerScreenWrap').style.display==='block') return;
     if(!val){ list.innerHTML='<div class="empty-state">Belum ada yang live sekarang. Coba lagi nanti!</div>'; return; }
     const active=Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s.active && s.hostUid!==MY_UID);
+    // Notifikasi "{nama} sedang live" untuk sesi yang baru aktif (belum pernah dinotif sebelumnya)
+    window._liveNotifSeen = window._liveNotifSeen || new Set();
+    active.forEach(s=>{
+      if(window._liveNotifSeen.has(s.id)) return;
+      window._liveNotifSeen.add(s.id);
+      const hostName = s.hostName || 'UMKM';
+      if(typeof addNotif === 'function') addNotif('🔴 ' + hostName + ' sedang live: ' + (s.sessionName||'Live Stream'), '🔴');
+      document.getElementById('notifDot')?.classList.add('show');
+    });
     if(active.length===0){ list.innerHTML='<div class="empty-state">Belum ada yang live sekarang. Coba lagi nanti!</div>'; return; }
     list.innerHTML=active.map(s=>{
       const vc=s.viewers?Object.keys(s.viewers).length:0;

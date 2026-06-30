@@ -8159,7 +8159,6 @@ $('stopLiveBtn').addEventListener('click', async () => {
   if(window.firebaseReady && liveSessionId){
     setStopProgress(78, '☁️ Menghapus data sesi dari server...');
     try{
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});
       await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId));
     } catch(e){}
   }
@@ -13536,9 +13535,9 @@ ${memoryBlock ? '\n'+memoryBlock : ''}`;
     for (const pat of quickPatterns) {
       if (pat.test(inputText)) quickRisk += 2.5;
     }
-    if (quickRisk >= 8) {
-      _logThreat(inputText, source, quickRisk, 'Regex match');
-      return { safe: false, reason: 'Terdeteksi pola mencurigakan' };
+    if (quickRisk >= 2.5) {
+      _logThreat(inputText, source, quickRisk, 'Regex match (block langsung)');
+      return { safe: false, reason: 'Terdeteksi pola berbahaya (script/SQL/path traversal)' };
     }
 
     const groqKey = window.activeGroqKey ? window.activeGroqKey() : (window.groqKey || window.ADMIN_GROQ_KEY);
@@ -13578,7 +13577,10 @@ Contoh: "8|Mengandung tag script dan eval"`;
       return { safe: true };
     } catch (e) {
       console.warn('[SecurityAI] Gagal analisis:', e.message);
-      return { safe: true };
+      // FAIL-CLOSED: kalau API AI gagal, jangan otomatis anggap aman.
+      // Pakai hasil regex cepat sebagai fallback.
+      if (quickRisk > 0) _logThreat(inputText, source, quickRisk, 'Fallback regex (AI gagal)');
+      return { safe: quickRisk < RISK_THRESHOLD };
     }
   };
 

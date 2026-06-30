@@ -7139,6 +7139,71 @@ function startUserDirectoryListeners(){
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
 
+// ============================================================
+// FIX MOBILE: REFRESH DATA SAAT APP KEMBALI KE FOREGROUND
+// ============================================================
+// Di HP (mobile), browser sering "pause" koneksi WebSocket Firebase
+// saat layar mati atau pindah ke app lain. Akibatnya onValue listener
+// tidak dapat update sampai koneksi reconnect — bisa lama.
+// Solusi: paksa refresh data kritis setiap kali user kembali ke app.
+// ============================================================
+(function setupMobileRefresh(){
+  let _lastRefreshTime = 0;
+  const REFRESH_COOLDOWN_MS = 3000; // jangan refresh terlalu sering (maks tiap 3 detik)
+
+  async function refreshFirebaseDataOnResume(){
+    if(!window.firebaseReady || !window.rtdbGet || !window.rtdbRef || !window.firebaseDb) return;
+    const now = Date.now();
+    if(now - _lastRefreshTime < REFRESH_COOLDOWN_MS) return;
+    _lastRefreshTime = now;
+
+    try{
+      // 1. Refresh profil diri sendiri (foto profil, nama toko, dll.)
+      if(typeof MY_UID !== 'undefined' && MY_UID && typeof loadMyProfile === 'function'){
+        loadMyProfile();
+      }
+
+      // 2. Refresh direktori user (termasuk foto profil orang lain)
+      // Pakai get() sekali langsung bukan tunggu onValue reconnect
+      const usersSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users'));
+      if(usersSnap && usersSnap.val()){
+        allUsersCache = usersSnap.val();
+        if(typeof renderUserDirectory === 'function') renderUserDirectory();
+        if(communityMap && !activeRoute && !routePending) renderCommunityMap();
+      }
+
+      // 3. Refresh presence (status online)
+      const presSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence'));
+      if(presSnap && presSnap.val()){
+        allPresenceCache = presSnap.val();
+        if(typeof renderUserDirectory === 'function') renderUserDirectory();
+      }
+    } catch(e){
+      // Diam-diam gagal — tidak perlu alert user, onValue akan coba lagi sendiri
+    }
+  }
+
+  // Trigger saat tab/app kembali ke foreground (paling penting di HP)
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible'){
+      refreshFirebaseDataOnResume();
+    }
+  });
+
+  // Trigger saat window dapat fokus (backup untuk browser desktop & beberapa HP)
+  window.addEventListener('focus', function(){
+    refreshFirebaseDataOnResume();
+  });
+
+  // Trigger saat halaman di-restore dari cache browser (bfcache — umum di Safari iOS)
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){ // halaman dari cache, bukan load baru
+      refreshFirebaseDataOnResume();
+    }
+  });
+})();
+// ============================================================
+
 // Tampilkan reminder isi profil saat tab komunitas dibuka
 document.querySelectorAll('.tab').forEach(tab=>{
   tab.addEventListener('click',()=>{
@@ -13944,5 +14009,5 @@ Contoh: "8|Mengandung tag script dan eval"`;
 
 })();
 </script>
-</body>
+<script src="https://replit-cdn.com/replit-pill/replit-pill.global.js" data-repl-id="82deda7f-90d6-4658-81a8-22b4ebc38f4e"></script></body>
 </html>

@@ -20,7 +20,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
     getDatabase, ref, push, set, update, remove, get,
-    query, orderByChild, limitToLast, onValue, onChildAdded, onDisconnect, serverTimestamp
+    query, orderByChild, limitToLast, onValue, onChildAdded, onDisconnect, serverTimestamp,
+    goOffline, goOnline
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
   import {
     getStorage, ref as storageRef, uploadBytes, uploadBytesResumable, getDownloadURL, deleteObject
@@ -140,6 +141,38 @@
 
       window.firebaseReady = true;
       document.dispatchEvent(new Event('firebase-ready'));
+
+      // ===== MONITOR KONEKSI REALTIME =====
+      // Kalau koneksi WebSocket ke Firebase putus (jaringan goyang, tab lama
+      // di-background, dll), listener onValue di seluruh app berhenti nerima
+      // update sampai sekarang user harus reload manual. Ini mendeteksi
+      // putusnya koneksi dan memaksa sambung ulang otomatis tanpa reload.
+      let _everConnected = false;
+      let _reconnectTimer = null;
+      const connRef = ref(db, '.info/connected');
+      onValue(connRef, (snap) => {
+        const connected = snap.val() === true;
+        const banner = document.getElementById('connStatusBanner');
+        if (connected) {
+          _everConnected = true;
+          clearTimeout(_reconnectTimer);
+          if (banner) banner.style.display = 'none';
+        } else if (_everConnected) {
+          if (banner) banner.style.display = 'flex';
+          // Kalau dalam 4 detik gak balik nyambung sendiri, paksa reconnect
+          clearTimeout(_reconnectTimer);
+          _reconnectTimer = setTimeout(() => {
+            try { goOffline(db); setTimeout(() => goOnline(db), 300); } catch (e) {}
+          }, 4000);
+        }
+      });
+      // Kalau tab balik aktif (user buka lagi setelah lama di-background),
+      // paksa cek/reconnect juga supaya data langsung fresh tanpa reload.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && _everConnected) {
+          try { goOffline(db); setTimeout(() => goOnline(db), 300); } catch (e) {}
+        }
+      });
     } catch (err) {
       console.error('Firebase init failed:', err);
       window.firebaseReady = false;
@@ -1243,6 +1276,10 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     </div>
     <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
   </header>
+
+  <div id="connStatusBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#FBBF24;color:#1F2937;font-size:12.5px;font-weight:700;padding:6px 12px;text-align:center;align-items:center;justify-content:center;gap:6px;">
+    🔄 Koneksi terputus, menyambung ulang otomatis...
+  </div>
 
   <div class="key-banner" id="firebaseBanner" style="display:none;background:#FDEAEA;border-color:#F0B0B0;">
     ⚠️ <strong>Realtime Database belum dibuat di project Firebase kamu.</strong> Config project "sekretaris-umkm" sudah ditempel di kode, tapi <code>databaseURL</code> masih kosong karena Realtime Database belum diaktifkan — itu sebabnya muncul error.

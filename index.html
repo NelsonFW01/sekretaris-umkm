@@ -4356,16 +4356,29 @@ function stopNavigation(){
 //   - routeTraveledLine (abu-abu putus-putus): dari start s.d. posisi user
 //   - routeRemainingLine (hijau tebal): dari posisi user s.d. tujuan — INI
 //     yang selalu dijaga supaya tetap terlihat & tidak hilang.
+//
+// FIX OFF-ROUTE: nearestIdx hanya boleh MAJU ke depan, tidak mundur.
+// Kalau user salah jalur (menyimpang), titik potong tetap di depan user
+// sehingga rute hijau menunjukkan jalan ke depan, bukan memanjang ke belakang.
+let _lastNearestRouteIdx = 0; // simpan indeks terakhir agar tidak mundur
 function updateRouteProgress(lat, lng){
   if(!communityMap || !activeRouteCoords || activeRouteCoords.length < 2) return;
   const userPt = L.latLng(lat, lng);
 
-  // Cari index titik rute terdekat dengan posisi user saat ini
-  let nearestIdx = 0, nearestDist = Infinity;
-  for(let i=0;i<activeRouteCoords.length;i++){
+  // Cari index titik rute terdekat dengan posisi user saat ini,
+  // NAMUN hanya cari dari _lastNearestRouteIdx ke depan (tidak bisa mundur).
+  // Ini mencegah garis hijau "memanjang ke belakang" saat user salah jalur.
+  // Rentang pencarian: mulai dari max(0, lastIdx-5) agar bisa koreksi sedikit
+  // ke belakang (toleransi GPS jitter), tapi tidak jauh ke belakang.
+  const searchStart = Math.max(0, _lastNearestRouteIdx - 5);
+  let nearestIdx = _lastNearestRouteIdx, nearestDist = Infinity;
+  for(let i = searchStart; i < activeRouteCoords.length; i++){
     const d = userPt.distanceTo(activeRouteCoords[i]);
     if(d < nearestDist){ nearestDist = d; nearestIdx = i; }
   }
+  // Jaga agar tidak mundur lebih dari toleransi kecil
+  if(nearestIdx < _lastNearestRouteIdx - 5) nearestIdx = _lastNearestRouteIdx;
+  _lastNearestRouteIdx = nearestIdx;
 
   const traveledCoords  = activeRouteCoords.slice(0, nearestIdx+1).concat([userPt]);
   const remainingCoords = [userPt].concat(activeRouteCoords.slice(nearestIdx+1));
@@ -4398,6 +4411,7 @@ function startNavigation(){
   mapUserInteracting=false;
   _mapManualControl=false;
   _navCardMinimized=false; // reset ukuran card tiap mulai navigasi baru
+  _lastNearestRouteIdx=0;  // FIX: reset indeks rute agar mulai dari awal tiap navigasi baru
   // _navUserZoom: pertahankan kalau user sudah pernah pilih zoom, reset ke null hanya saat pertama kali
   if(_navUserZoom === null) _navUserZoom = null; // akan di-set oleh snapCameraNow → default 17
   followCameraMode=true;
@@ -4742,6 +4756,7 @@ function startNavigation(){
               const _dst = activeDestName, _dlat = activeDestLat, _dlng = activeDestLng;
               stopNavigation();
               clearActiveRoute();
+              _lastNearestRouteIdx = 0; // FIX: reset indeks sebelum rute baru dimulai
               // Mulai rute ulang + navigasi otomatis
               setTimeout(()=>{
                 routeToCoords(_dlat, _dlng, _dst);

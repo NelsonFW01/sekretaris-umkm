@@ -12076,6 +12076,10 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     function onPointerDown(e){
       const wrap = e.target.closest && e.target.closest('.chat-bubble-wrap');
       if(!wrap) return;
+      // Jangan preventDefault kalau target-nya elemen interaktif (kartu musik,
+      // tombol, link, audio/video controls) — supaya event click-nya tetap
+      // ter-trigger normal di HP (preventDefault di touchstart menekan click).
+      if(e.target.closest('.js-music-card,button,a,audio,video,textarea,input')) return;
       // Cegah menu "Salin/Bagikan" bawaan browser & seleksi teks yang sering
       // membatalkan long-press kita di tengah jalan (Android/iOS Safari/Chrome).
       if(e.cancelable) e.preventDefault();

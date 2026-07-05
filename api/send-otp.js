@@ -10,8 +10,11 @@ export default async function handler(req, res) {
   const { email, name, otp_code } = req.body;
   if (!email || !otp_code) return res.status(400).json({ error: 'Missing fields' });
 
-  const MAILJET_API_KEY    = 'eb60367e11fb4747bba4ce8563a96c17';
-  const MAILJET_SECRET_KEY = '06034d39afdd96a88a84049818963bfa';
+  const MAILJET_API_KEY    = process.env.MAILJET_API_KEY;
+  const MAILJET_SECRET_KEY = process.env.MAILJET_SECRET_KEY;
+  if (!MAILJET_API_KEY || !MAILJET_SECRET_KEY) {
+    return res.status(500).json({ error: 'MAILJET_API_KEY / MAILJET_SECRET_KEY belum diset di Vercel Environment Variables' });
+  }
   const credentials = Buffer.from(`${MAILJET_API_KEY}:${MAILJET_SECRET_KEY}`).toString('base64');
 
   try {

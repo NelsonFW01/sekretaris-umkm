@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Vercel
+.vercel
+
+# Environment variables — JANGAN PERNAH commit file .env asli
+.env
+.env.local
+.env*.local
+
+# OS/editor
+.DS_Store
+*.log

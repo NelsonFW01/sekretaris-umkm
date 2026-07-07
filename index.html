@@ -2729,7 +2729,22 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <label>Link / QR Pembayaran (opsional)</label>
           <input type="url" id="profPaymentLink" placeholder="contoh: https://qris.id/...">
         </div>
-        <button class="generate-btn" id="saveProfileBtn" style="margin-bottom:0;">💾 Simpan Profil</button>
+
+        <!-- Ringkasan Harian Otomatis -->
+        <div style="margin-top:12px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
+          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:9px;">📊 Ringkasan Harian Otomatis <span style="font-size:10.5px;font-weight:500;color:var(--ink-soft);">(opsional)</span></div>
+          <div class="field-group" style="margin-bottom:8px;">
+            <label style="font-size:12px;">No. WhatsApp Kamu</label>
+            <input type="tel" id="profRecapWa" placeholder="contoh: 6281234567890">
+          </div>
+          <div class="field-group" style="margin-bottom:0;">
+            <label style="font-size:12px;">Jam Tutup Toko</label>
+            <select id="profRecapHour" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;background:var(--bg-card);"></select>
+          </div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:6px;">Setiap jam tutup, kamu akan dapat notifikasi ringkasan omzet/pengeluaran hari itu + tombol kirim ke WhatsApp.</div>
+        </div>
+
+        <button class="generate-btn" id="saveProfileBtn" style="margin-top:12px;margin-bottom:0;">💾 Simpan Profil</button>
         <div id="profileSaveStatus" style="font-size:12px;font-weight:600;margin-top:8px;"></div>
 
         <div class="loc-status" id="locStatus">📍 Lokasi belum dibagikan</div>
@@ -2773,6 +2788,19 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
             </div>
           </div>
         </div>
+
+        <!-- Modal Ringkasan Harian Otomatis -->
+        <div id="dailyRecapModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9100;align-items:center;justify-content:center;padding:20px;">
+          <div style="background:var(--bg-card);border-radius:20px;padding:22px 20px;width:100%;max-width:420px;">
+            <div style="font-size:16px;font-weight:800;font-family:'Plus Jakarta Sans',sans-serif;margin-bottom:10px;">📊 Ringkasan Hari Ini</div>
+            <div id="dailyRecapBody" style="font-size:13.5px;line-height:1.7;color:var(--ink);white-space:pre-line;margin-bottom:16px;background:var(--sand);border-radius:12px;padding:12px 14px;"></div>
+            <div style="display:flex;gap:10px;">
+              <button id="dailyRecapCloseBtn" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:transparent;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink-soft);">Tutup</button>
+              <button id="dailyRecapWaBtn" style="flex:2;padding:12px;border-radius:12px;border:none;background:#25D366;color:white;font-size:13.5px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;">💬 Kirim ke WhatsApp</button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- PETA INTERAKTIF SEMUA USER & TOKO -->
@@ -8148,7 +8176,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||'', holoColor:d.holoColor||'0,217,255'};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||'', holoColor:d.holoColor||'0,217,255', recapWa:d.recapWa||'', recapHour:(d.recapHour!==undefined&&d.recapHour!==null)?d.recapHour:21};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -8156,6 +8184,8 @@ async function loadMyProfile(){
       if($('profStore2Address')) $('profStore2Address').value = myProfile.store2Address;
       $('profPaymentId').value = myProfile.paymentId;
       $('profPaymentLink').value = myProfile.paymentLink;
+      if($('profRecapWa')) $('profRecapWa').value = myProfile.recapWa;
+      if($('profRecapHour')) $('profRecapHour').value = String(myProfile.recapHour);
       renderExtraStoreInputs();
       applyTierUI();
       // Sync ke localStorage
@@ -8227,6 +8257,8 @@ $('saveProfileBtn').addEventListener('click', async () => {
     accountTier: _tier,
     paymentId: $('profPaymentId').value.trim(),
     paymentLink: $('profPaymentLink').value.trim(),
+    recapWa: ($('profRecapWa')?.value||'').trim().replace(/\D/g,''),
+    recapHour: $('profRecapHour') ? Number($('profRecapHour').value) : 21,
     email: currentAuthEmail || myProfile.email || '',
     profilePhotoUrl: myProfile.profilePhotoUrl || '',
     storeLogoUrl: myProfile.storeLogoUrl || ''
@@ -16195,6 +16227,98 @@ Contoh: "8|Mengandung tag script dan eval"`;
     }
     setInterval(sync, 1500);
     document.addEventListener('DOMContentLoaded', () => setTimeout(sync, 2000));
+  })();
+  </script>
+
+  <!-- ===== RINGKASAN HARIAN OTOMATIS ===== -->
+  <script>
+  (function dailyRecapEngine(){
+    // Isi pilihan jam 00-23 di dropdown "Jam Tutup Toko"
+    function populateRecapHourSelect(){
+      const sel = document.getElementById('profRecapHour');
+      if(!sel || sel.options.length) return;
+      for(let h=0; h<24; h++){
+        const opt = document.createElement('option');
+        opt.value = String(h);
+        opt.textContent = String(h).padStart(2,'0') + ':00';
+        sel.appendChild(opt);
+      }
+      sel.value = '21';
+    }
+    document.addEventListener('DOMContentLoaded', populateRecapHourSelect);
+    populateRecapHourSelect();
+
+    function todayKeyLocal(){
+      const d = new Date();
+      return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    }
+
+    function buildTodayRecap(){
+      const today = todayKeyLocal();
+      const todays = (typeof transactions !== 'undefined' ? transactions : []).filter(t=>{
+        if(!t.time) return false;
+        const d = new Date(t.time);
+        const k = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        return k === today;
+      });
+      const totalIn = todays.filter(t=>t.type==='in').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const totalOut = todays.filter(t=>t.type==='out').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const net = totalIn - totalOut;
+      const storeName = (typeof myProfile!=='undefined' && myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM Saya';
+      const tanggal = new Date().toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+      const text = `📊 Ringkasan Hari Ini — ${storeName}\n${tanggal}\n\n💰 Pemasukan: Rp ${totalIn.toLocaleString('id-ID')}\n📤 Pengeluaran: Rp ${totalOut.toLocaleString('id-ID')}\n${net>=0?'📈':'📉'} ${net>=0?'Untung':'Rugi'} Bersih: Rp ${Math.abs(net).toLocaleString('id-ID')}\n🔢 Jumlah Transaksi: ${todays.length}`;
+      return { text, totalIn, totalOut, net, count: todays.length };
+    }
+
+    function showRecapModal(recap){
+      const modal = document.getElementById('dailyRecapModal');
+      const body = document.getElementById('dailyRecapBody');
+      if(!modal || !body) return;
+      body.textContent = recap.text;
+      modal.style.display = 'flex';
+
+      const waBtn = document.getElementById('dailyRecapWaBtn');
+      const waNumber = (typeof myProfile!=='undefined' && myProfile && myProfile.recapWa) ? myProfile.recapWa.replace(/\D/g,'') : '';
+      if(waBtn){
+        waBtn.onclick = () => {
+          const link = waNumber
+            ? `https://wa.me/${waNumber}?text=${encodeURIComponent(recap.text)}`
+            : `https://wa.me/?text=${encodeURIComponent(recap.text)}`;
+          window.open(link, '_blank');
+        };
+      }
+      const closeBtn = document.getElementById('dailyRecapCloseBtn');
+      if(closeBtn){ closeBtn.onclick = () => { modal.style.display = 'none'; }; }
+    }
+
+    function maybeShowDailyRecap(){
+      if(typeof MY_UID === 'undefined' || !MY_UID) return;
+      if(typeof myProfile === 'undefined' || !myProfile) return;
+      const closeHour = (myProfile.recapHour !== undefined && myProfile.recapHour !== null) ? Number(myProfile.recapHour) : 21;
+      const now = new Date();
+      if(now.getHours() < closeHour) return;
+
+      const today = todayKeyLocal();
+      const flagKey = 'umkm_recap_sent_' + MY_UID + '_' + today;
+      let already = false;
+      try{ already = localStorage.getItem(flagKey) === '1'; }catch(e){}
+      if(already) return;
+
+      const recap = buildTodayRecap();
+      if(recap.count === 0) return; // Gak ada transaksi hari ini, gak usah kirim ringkasan kosong
+
+      try{ localStorage.setItem(flagKey, '1'); }catch(e){}
+      showRecapModal(recap);
+      if(typeof addNotif === 'function') addNotif('Ringkasan harian sudah siap 📊', '📊');
+      // Push notif server-side (no-op kalau NOTIFY_URL belum diisi)
+      if(typeof sendServerPush === 'function'){
+        sendServerPush(MY_UID, 'Ringkasan Harian Toko', recap.text.replace(/\n/g,' · '), '/');
+      }
+    }
+
+    // Cek tiap 3 menit + sekali saat halaman selesai load (kasih jeda biar profil & transaksi sempat kemuat)
+    setInterval(maybeShowDailyRecap, 3*60*1000);
+    setTimeout(maybeShowDailyRecap, 8000);
   })();
   </script>
 

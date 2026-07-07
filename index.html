@@ -663,7 +663,7 @@
     padding:3px 9px; border-radius:20px; margin-bottom:6px;
   }
   .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(42,38,34,0.55); z-index:50;
+    display:none; position:fixed; inset:0; background:rgba(42,38,34,0.55); z-index:1001;
     align-items:flex-end; justify-content:center;
   }
   .modal-overlay.show{ display:flex; }
@@ -1691,7 +1691,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   /* ===== COMMAND CENTER HERO ===== */
   .command-hero {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 10px;
     padding: 0 0 18px;
     position: relative;
@@ -1745,20 +1745,36 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 
   /* Holographic AI Avatar */
   .holo-avatar-wrap {
+    --holo-rgb: 0,217,255; /* default cyan; diubah per-user lewat JS/inline style */
     position: relative;
     width: 110px;
     flex-shrink: 0;
-    height: 190px;
+    height: auto;
+    min-height: 190px;
+    align-self: stretch;
     display: flex; align-items: flex-start; justify-content: center;
     margin-top: 0;
     overflow: visible;
+    cursor: pointer;
   }
   .holo-body {
     position: relative; z-index: 2;
     width: 96px; height: 158px;
-    filter: drop-shadow(0 0 10px rgba(0,217,255,0.7)) drop-shadow(0 0 20px rgba(0,217,255,0.25));
+    filter: drop-shadow(0 0 10px rgba(var(--holo-rgb),0.7)) drop-shadow(0 0 20px rgba(var(--holo-rgb),0.25));
+    animation: float 4s infinite ease-in-out;
+    flex-shrink: 0;
+  }
+  .holo-photo {
+    position: relative; z-index: 2;
+    width: 90px; height: 90px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid rgba(var(--holo-rgb),0.85);
+    box-shadow: 0 0 10px rgba(var(--holo-rgb),0.7), 0 0 20px rgba(var(--holo-rgb),0.25);
     animation: float 4s infinite ease-in-out;
   }
+  .holo-photo img { width: 100%; height: 100%; object-fit: cover; }
   .holo-scan {
     position: absolute; top:0; left:0; right:0; height:158px; z-index: 3; pointer-events: none;
     overflow: hidden; border-radius: 4px;
@@ -1766,20 +1782,26 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   .holo-scan::after {
     content: '';
     position: absolute; left: 0; right: 0; height: 40px;
-    background: linear-gradient(180deg, transparent 0%, rgba(0,217,255,0.15) 50%, transparent 100%);
+    background: linear-gradient(180deg, transparent 0%, rgba(var(--holo-rgb),0.15) 50%, transparent 100%);
     animation: scan-line 2.5s infinite linear;
   }
   @keyframes scan-line { 0% { top: -40px; } 100% { top: 100%; } }
+  .holo-beam {
+    position: absolute; top: 150px; bottom: 26px; left: 50%;
+    width: 2px; transform: translateX(-50%);
+    background: linear-gradient(to bottom, rgba(var(--holo-rgb),0.45), rgba(var(--holo-rgb),0.04));
+    pointer-events: none; z-index: 1;
+  }
   .holo-avatar-base {
     position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
     width: 64px; height: 12px;
-    background: radial-gradient(ellipse, rgba(0,217,255,0.55) 0%, transparent 70%);
+    background: radial-gradient(ellipse, rgba(var(--holo-rgb),0.55) 0%, transparent 70%);
     border-radius: 50%;
     animation: breathe 2s infinite;
   }
   .holo-ring {
     position: absolute; bottom: -2px; left: 50%;
-    border: 1px solid rgba(0,217,255,0.35);
+    border: 1px solid rgba(var(--holo-rgb),0.35);
     border-radius: 50%;
     transform: translateX(-50%);
     animation: holo-ring-expand 2.5s infinite ease-out;
@@ -1788,6 +1810,26 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   @keyframes holo-ring-expand {
     0%  { width: 26px; height: 8px; opacity: 0.85; }
     100%{ width: 84px; height: 24px; opacity: 0; }
+  }
+
+  /* Popover kustomisasi hologram */
+  .holo-customize-pop {
+    display: none; position: absolute; top: 8px; right: 0; z-index: 40;
+    background: rgba(7,17,30,0.97); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; padding: 12px; width: 190px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .holo-customize-pop.show { display: block; }
+  .holo-customize-pop .hcp-label { font-size: 10.5px; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
+  .holo-swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .holo-swatch {
+    width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+    box-shadow: 0 0 6px rgba(0,0,0,0.3);
+  }
+  .holo-swatch.active { border-color: #fff; }
+  .holo-customize-pop button.hcp-action {
+    width: 100%; padding: 8px; margin-top: 6px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06); color: #fff; font-size: 11.5px; font-weight: 600; cursor: pointer;
   }
 
   /* 3D City Map */
@@ -2036,39 +2078,39 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         </div>
 
         <!-- Holographic AI Avatar -->
-        <div class="holo-avatar-wrap">
-          <div class="holo-body">
+        <div class="holo-avatar-wrap" id="heroHoloWrap" onclick="toggleHoloCustomize(event)" title="Ketuk untuk ganti warna/foto hologram">
+          <div class="holo-body" id="heroHoloBody">
             <svg viewBox="0 0 100 158" xmlns="http://www.w3.org/2000/svg" fill="none">
               <!-- Head -->
-              <ellipse cx="50" cy="26" rx="17" ry="21" fill="rgba(0,217,255,0.12)" stroke="rgba(0,217,255,0.85)" stroke-width="1.2"/>
+              <ellipse cx="50" cy="26" rx="17" ry="21" style="fill:rgba(var(--holo-rgb),0.12);stroke:rgba(var(--holo-rgb),0.85);" stroke-width="1.2"/>
               <!-- Hair top -->
-              <path d="M33 22 Q36 4 50 2 Q64 4 67 22 Q62 13 50 12 Q38 13 33 22" fill="rgba(0,217,255,0.28)"/>
+              <path d="M33 22 Q36 4 50 2 Q64 4 67 22 Q62 13 50 12 Q38 13 33 22" style="fill:rgba(var(--holo-rgb),0.28);"/>
               <!-- Eyes -->
-              <ellipse cx="43" cy="23" rx="2.8" ry="3.2" fill="rgba(0,217,255,0.95)"/>
-              <ellipse cx="57" cy="23" rx="2.8" ry="3.2" fill="rgba(0,217,255,0.95)"/>
-              <ellipse cx="43" cy="23" rx="5" ry="5" stroke="rgba(0,217,255,0.35)" stroke-width="0.8"/>
-              <ellipse cx="57" cy="23" rx="5" ry="5" stroke="rgba(0,217,255,0.35)" stroke-width="0.8"/>
+              <ellipse cx="43" cy="23" rx="2.8" ry="3.2" style="fill:rgba(var(--holo-rgb),0.95);"/>
+              <ellipse cx="57" cy="23" rx="2.8" ry="3.2" style="fill:rgba(var(--holo-rgb),0.95);"/>
+              <ellipse cx="43" cy="23" rx="5" ry="5" style="stroke:rgba(var(--holo-rgb),0.35);" stroke-width="0.8"/>
+              <ellipse cx="57" cy="23" rx="5" ry="5" style="stroke:rgba(var(--holo-rgb),0.35);" stroke-width="0.8"/>
               <!-- Mouth -->
-              <path d="M44 32 Q50 36 56 32" stroke="rgba(0,217,255,0.7)" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M44 32 Q50 36 56 32" style="stroke:rgba(var(--holo-rgb),0.7);" stroke-width="1.2" stroke-linecap="round"/>
               <!-- Neck -->
-              <rect x="45" y="46" width="10" height="11" rx="3" fill="rgba(0,217,255,0.12)" stroke="rgba(0,217,255,0.55)" stroke-width="1"/>
+              <rect x="45" y="46" width="10" height="11" rx="3" style="fill:rgba(var(--holo-rgb),0.12);stroke:rgba(var(--holo-rgb),0.55);" stroke-width="1"/>
               <!-- Shoulders & torso -->
-              <path d="M24 58 Q32 54 50 53 Q68 54 76 58 L79 112 Q70 118 50 119 Q30 118 21 112 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.5)" stroke-width="1.2"/>
+              <path d="M24 58 Q32 54 50 53 Q68 54 76 58 L79 112 Q70 118 50 119 Q30 118 21 112 Z" style="fill:rgba(var(--holo-rgb),0.07);stroke:rgba(var(--holo-rgb),0.5);" stroke-width="1.2"/>
               <!-- Neckline detail -->
-              <path d="M40 57 Q50 66 60 57" stroke="rgba(0,217,255,0.65)" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M40 57 Q50 66 60 57" style="stroke:rgba(var(--holo-rgb),0.65);" stroke-width="1.2" stroke-linecap="round"/>
               <!-- Left arm -->
-              <path d="M24 62 Q10 78 13 103 Q16 112 22 110 Q19 88 28 74 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <path d="M24 62 Q10 78 13 103 Q16 112 22 110 Q19 88 28 74 Z" style="fill:rgba(var(--holo-rgb),0.07);stroke:rgba(var(--holo-rgb),0.38);" stroke-width="1.2"/>
               <!-- Right arm -->
-              <path d="M76 62 Q90 78 87 103 Q84 112 78 110 Q81 88 72 74 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <path d="M76 62 Q90 78 87 103 Q84 112 78 110 Q81 88 72 74 Z" style="fill:rgba(var(--holo-rgb),0.07);stroke:rgba(var(--holo-rgb),0.38);" stroke-width="1.2"/>
               <!-- Legs -->
-              <path d="M30 118 Q28 133 26 158 L40 158 Q41 137 43 118 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
-              <path d="M70 118 Q72 133 74 158 L60 158 Q59 137 57 118 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <path d="M30 118 Q28 133 26 158 L40 158 Q41 137 43 118 Z" style="fill:rgba(var(--holo-rgb),0.07);stroke:rgba(var(--holo-rgb),0.38);" stroke-width="1.2"/>
+              <path d="M70 118 Q72 133 74 158 L60 158 Q59 137 57 118 Z" style="fill:rgba(var(--holo-rgb),0.07);stroke:rgba(var(--holo-rgb),0.38);" stroke-width="1.2"/>
               <!-- Horizontal scan lines on torso -->
-              <line x1="24" y1="72" x2="76" y2="72" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
-              <line x1="22" y1="86" x2="78" y2="86" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
-              <line x1="22" y1="100" x2="78" y2="100" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <line x1="24" y1="72" x2="76" y2="72" style="stroke:rgba(var(--holo-rgb),0.18);" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <line x1="22" y1="86" x2="78" y2="86" style="stroke:rgba(var(--holo-rgb),0.18);" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <line x1="22" y1="100" x2="78" y2="100" style="stroke:rgba(var(--holo-rgb),0.18);" stroke-width="0.6" stroke-dasharray="3,5"/>
               <!-- Chest glow dot -->
-              <circle cx="50" cy="80" r="3" fill="rgba(0,217,255,0.6)" filter="url(#glow)"/>
+              <circle cx="50" cy="80" r="3" style="fill:rgba(var(--holo-rgb),0.6);" filter="url(#glow)"/>
               <defs>
                 <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
                   <feGaussianBlur stdDeviation="3" result="blur"/>
@@ -2077,20 +2119,30 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
               </defs>
             </svg>
           </div>
+          <div class="holo-photo" id="heroHoloPhoto" style="display:none;"><img id="heroHoloPhotoImg" src="" alt="Hologram foto kamu"></div>
           <div class="holo-scan"></div>
+          <div class="holo-beam"></div>
           <div class="holo-avatar-base"></div>
           <div class="holo-ring" style="width:30px;height:9px;"></div>
           <div class="holo-ring" style="width:60px;height:18px;"></div>
+
+          <!-- Popover kustomisasi hologram -->
+          <div class="holo-customize-pop" id="holoCustomizePop" onclick="event.stopPropagation();">
+            <div class="hcp-label">🎨 Warna Hologram</div>
+            <div class="holo-swatches" id="holoSwatches"></div>
+            <button type="button" class="hcp-action" onclick="document.getElementById('profilePhotoInput').click();">📷 Pakai Foto Sendiri</button>
+            <button type="button" class="hcp-action" id="holoRemovePhotoBtn" style="display:none;" onclick="removeHoloPhoto();">↩️ Kembali ke Avatar AI</button>
+          </div>
         </div>
       </div>
       <!-- END COMMAND CENTER HERO -->
 
       <div class="record-zone">
 
-        <div class="prediction-card">
+        <div class="prediction-card" id="predictionCard" title="Dihitung dari rata-rata histori transaksimu">
           <div class="pred-left">
-            <span class="pred-label">Prediksi Hari Ini</span>
-            <span class="pred-val">+12.4% Revenue</span>
+            <span class="pred-label" id="predLabel">Prediksi Hari Ini</span>
+            <span class="pred-val" id="predVal">Menghitung...</span>
           </div>
           <div class="pred-icon">✨</div>
         </div>
@@ -4822,6 +4874,62 @@ function onTransactionsChanged(){
   persistTransactions(); // FIX: simpan ke localStorage tiap kali transaksi berubah
   $('finalizeBtn').style.display = transactions.length > 0 ? 'block' : 'none';
   if(reportFinalized) $('reFinalizeNotice').style.display = 'block';
+  if(typeof renderPredictionCard === 'function') renderPredictionCard();
+}
+
+// ============ PREDIKSI HARI INI: dihitung dari histori transaksi asli, bukan angka template ============
+function computeRevenuePrediction(){
+  // Total pemasukan ('in') per hari kalender, berdasarkan field time transaksi
+  const byDay = {};
+  transactions.forEach(t => {
+    if(t.type !== 'in' || !t.time) return;
+    const d = String(t.time).slice(0, 10); // YYYY-MM-DD
+    byDay[d] = (byDay[d] || 0) + (Number(t.amount) || 0);
+  });
+  const todayStr = new Date().toISOString().slice(0, 10);
+  // Pakai hari-hari SEBELUM hari ini sebagai dasar histori (hari ini belum tentu selesai dicatat)
+  const priorDays = Object.keys(byDay).filter(d => d !== todayStr).sort();
+
+  if(priorDays.length < 4){
+    return {available: false, daysUsed: priorDays.length};
+  }
+
+  const avg = arr => arr.reduce((s, d) => s + byDay[d], 0) / arr.length;
+  const n = priorDays.length;
+  const half = Math.floor(n / 2);
+  const earlierHalf = priorDays.slice(0, n - half); // periode lebih lama
+  const recentHalf  = priorDays.slice(n - half);    // periode lebih baru
+
+  const earlierAvg = avg(earlierHalf);
+  const recentAvg  = avg(recentHalf);
+
+  let pct;
+  if(earlierAvg > 0) pct = ((recentAvg - earlierAvg) / earlierAvg) * 100;
+  else pct = recentAvg > 0 ? 100 : 0;
+
+  return {available: true, pct, recentAvg, earlierAvg, daysUsed: n};
+}
+
+function renderPredictionCard(){
+  const valEl = document.getElementById('predVal');
+  const labelEl = document.getElementById('predLabel');
+  const cardEl = document.getElementById('predictionCard');
+  if(!valEl) return;
+  const r = computeRevenuePrediction();
+  if(!r.available){
+    labelEl.textContent = 'Prediksi Hari Ini';
+    valEl.textContent = 'Butuh data lebih banyak';
+    valEl.style.color = 'var(--ink-soft)';
+    if(cardEl) cardEl.title = `Catat transaksi minimal 4 hari berbeda dulu (baru ${r.daysUsed} hari) supaya AI bisa mulai memprediksi tren berdasarkan histori kamu.`;
+    return;
+  }
+  const sign = r.pct >= 0 ? '+' : '';
+  valEl.textContent = `${sign}${r.pct.toFixed(1)}% Revenue`;
+  valEl.style.color = r.pct >= 0 ? 'var(--good)' : 'var(--bad)';
+  labelEl.textContent = 'Prediksi Hari Ini';
+  if(cardEl){
+    cardEl.title = `Berdasarkan ${r.daysUsed} hari histori transaksimu: rata-rata terbaru Rp${Math.round(r.recentAvg).toLocaleString('id')}/hari vs rata-rata sebelumnya Rp${Math.round(r.earlierAvg).toLocaleString('id')}/hari.`;
+  }
 }
 renderTransactions(); onTransactionsChanged(); // FIX: tampilkan transaksi yang sudah dimuat dari localStorage
 
@@ -5587,9 +5695,97 @@ if(location.hash==='#admin'){
 setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 
 // ============ COMMUNITY: PRESENCE, PROFILE, LOCATION, USER DIRECTORY ============
-let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', extraStores:[], accountTier:'free', email:''};
+let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', extraStores:[], accountTier:'free', email:'', holoColor:'0,217,255'};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
+
+// ============ HOLOGRAM AI: WARNA & FOTO (bisa diganti user, terlihat user lain) ============
+const HOLO_COLOR_PRESETS = [
+  {name:'Cyan',   rgb:'0,217,255'},
+  {name:'Teal',   rgb:'27,157,140'},
+  {name:'Coral',  rgb:'232,99,63'},
+  {name:'Ungu',   rgb:'160,90,255'},
+  {name:'Pink',   rgb:'255,90,170'},
+  {name:'Emas',   rgb:'255,196,0'},
+  {name:'Hijau',  rgb:'60,220,120'},
+  {name:'Biru',   rgb:'70,120,255'}
+];
+
+function toggleHoloCustomize(e){
+  if(e) e.stopPropagation();
+  const pop = document.getElementById('holoCustomizePop');
+  if(!pop) return;
+  const willShow = !pop.classList.contains('show');
+  pop.classList.toggle('show', willShow);
+  if(willShow) renderHoloSwatches();
+}
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('holoCustomizePop');
+  if(pop && pop.classList.contains('show') && !e.target.closest('#heroHoloWrap')){
+    pop.classList.remove('show');
+  }
+});
+
+function renderHoloSwatches(){
+  const box = document.getElementById('holoSwatches');
+  if(!box) return;
+  const cur = (myProfile && myProfile.holoColor) || '0,217,255';
+  box.innerHTML = HOLO_COLOR_PRESETS.map(c => {
+    const active = (c.rgb === cur) ? ' active' : '';
+    return `<div class="holo-swatch${active}" style="background:rgb(${c.rgb});" title="${c.name}" onclick="setHoloColor('${c.rgb}')"></div>`;
+  }).join('');
+}
+
+function applyHeroHolo(){
+  const wrap = document.getElementById('heroHoloWrap');
+  if(!wrap) return;
+  const rgb = (myProfile && myProfile.holoColor) || '0,217,255';
+  wrap.style.setProperty('--holo-rgb', rgb);
+  const photoUrl = myProfile && myProfile.profilePhotoUrl;
+  const bodyEl = document.getElementById('heroHoloBody');
+  const photoEl = document.getElementById('heroHoloPhoto');
+  const photoImg = document.getElementById('heroHoloPhotoImg');
+  const removeBtn = document.getElementById('holoRemovePhotoBtn');
+  if(photoUrl){
+    if(photoImg) photoImg.src = photoUrl;
+    if(bodyEl) bodyEl.style.display = 'none';
+    if(photoEl) photoEl.style.display = '';
+    if(removeBtn) removeBtn.style.display = '';
+  } else {
+    if(bodyEl) bodyEl.style.display = '';
+    if(photoEl) photoEl.style.display = 'none';
+    if(removeBtn) removeBtn.style.display = 'none';
+  }
+}
+
+function setHoloColor(rgb){
+  if(!myProfile) myProfile = {};
+  myProfile.holoColor = rgb;
+  if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+  allUsersCache[MY_UID].holoColor = rgb;
+  applyHeroHolo();
+  renderHoloSwatches();
+  try{ localStorage.setItem('umkm_holo_color', rgb); }catch(e){}
+  if(window.firebaseReady && MY_UID){
+    window.rtdbUpdate(window.rtdbRef(window.firebaseDb, 'users/' + MY_UID), {holoColor: rgb}).catch(()=>{});
+  }
+  if(typeof renderUserDirectory === 'function') renderUserDirectory();
+}
+
+function removeHoloPhoto(){
+  const pop = document.getElementById('holoCustomizePop');
+  if(pop) pop.classList.remove('show');
+  const delBtn = document.getElementById('profilePhotoDeleteBtn');
+  if(delBtn) delBtn.click();
+}
+
+// Fallback cepat dari localStorage sebelum Firebase selesai load (biar warna tidak "kedip" balik ke default)
+try{
+  const savedHolo = localStorage.getItem('umkm_holo_color');
+  if(savedHolo) myProfile.holoColor = savedHolo;
+}catch(e){}
+document.addEventListener('DOMContentLoaded', () => { if(typeof applyHeroHolo === 'function') applyHeroHolo(); });
+if(document.readyState !== 'loading' && typeof applyHeroHolo === 'function') applyHeroHolo();
 
 // ===== TIER / LIMIT TOKO =====
 // free = 1 toko, premium (Rp 50.000) = maks 5 toko, vvip (Rp 200.000) = tak terbatas
@@ -7952,7 +8148,7 @@ async function loadMyProfile(){
     const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
     const d = snap.val();
     if(d){
-      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||''};
+      myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||'', holoColor:d.holoColor||'0,217,255'};
       $('profDisplayName').value = myProfile.displayName;
       $('profStoreName').value = myProfile.storeName;
       $('profAddress').value = myProfile.address;
@@ -7984,8 +8180,12 @@ async function loadMyProfile(){
         const delBtn2 = document.getElementById('storeLogoDeleteBtn');
         if(delBtn2) delBtn2.style.display = '';
       }
+      if(!allUsersCache[MY_UID]) allUsersCache[MY_UID] = {};
+      allUsersCache[MY_UID].holoColor = myProfile.holoColor;
+      allUsersCache[MY_UID].profilePhotoUrl = myProfile.profilePhotoUrl;
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
+  if(typeof applyHeroHolo === 'function') applyHeroHolo();
 }
 // loadMyProfile() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
 
@@ -8192,6 +8392,9 @@ document.getElementById('profilePhotoInput').addEventListener('change', async (e
     statusEl.textContent = '✅ Foto berhasil disimpan!';
     statusEl.style.color = 'var(--good)';
     if(typeof renderUserDirectory === 'function') renderUserDirectory();
+    if(typeof applyHeroHolo === 'function') applyHeroHolo();
+    const pop = document.getElementById('holoCustomizePop');
+    if(pop) pop.classList.remove('show');
     if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
   } catch(err){
     statusEl.textContent = '❌ Gagal: ' + err.message;
@@ -8216,6 +8419,7 @@ document.getElementById('profilePhotoDeleteBtn').addEventListener('click', async
     statusEl.textContent = '✅ Foto dihapus';
     statusEl.style.color = 'var(--good)';
     if(typeof renderUserDirectory === 'function') renderUserDirectory();
+    if(typeof applyHeroHolo === 'function') applyHeroHolo();
     if(communityMap && !activeRoute && !routePending) setTimeout(() => renderCommunityMap(), 300);
   } catch(err){
     statusEl.textContent = '❌ Gagal hapus: ' + err.message;
@@ -8563,11 +8767,12 @@ function renderUserDirectory(){
         ? ' <span style="background:#E8F5E9;color:#2D7A4F;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">⭐ Premium</span>'
         : '';
     const myPhotoUrl = myU.profilePhotoUrl || '';
+    const myHoloRgb = myU.holoColor || '0,217,255';
     const myAvatarHtml = myPhotoUrl
       ? `<img src="${myPhotoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='😊'">`
       : `<span style="font-size:22px;">😊</span>`;
     mySelfDiv.innerHTML = `<div class="user-card" style="border:2px solid var(--teal);background:rgba(27,77,74,0.04);cursor:pointer;" data-self="true" data-uid="${MY_UID}">
-      <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${myAvatarHtml}</div>
+      <div style="width:38px;height:38px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid rgb(${myHoloRgb});box-shadow:0 0 6px rgba(${myHoloRgb},0.6);display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Warna hologram kamu">${myAvatarHtml}</div>
       <div>
         <div class="uc-name">${escapeHtml(myName)}${adminBadge}${myTierBadge} <span style="font-size:11px;color:var(--teal);font-weight:600;">(Saya)</span></div>
         <div class="uc-sub">${myU.storeName?('🏪 '+escapeHtml(myU.storeName)):'UMKM'}</div>
@@ -8593,6 +8798,7 @@ function renderUserDirectory(){
     // Admin hanya bisa hapus user LAIN, tidak bisa hapus dirinya sendiri
     const delBtn = (isAdmin && u.uid !== MY_UID)?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
     const photoUrl = u.profilePhotoUrl || '';
+    const uHoloRgb = u.holoColor || '0,217,255';
     const avatarHtml = photoUrl
       ? `<img src="${photoUrl}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in;" onclick="event.stopPropagation();openImgFullscreen(this.src)" onerror="this.parentElement.innerHTML='👤'">`
       : `<span style="font-size:20px;">👤</span>`;
@@ -8606,7 +8812,7 @@ function renderUserDirectory(){
         ? ' <span style="background:#E8F5E9;color:#2D7A4F;font-size:9px;padding:1px 5px;border-radius:20px;font-weight:700;vertical-align:middle;">⭐ Premium</span>'
         : '';
     return `<div class="user-card" data-uid="${u.uid}">
-      <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${avatarHtml}</div>
+      <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--sand);border:2px solid rgb(${uHoloRgb});box-shadow:0 0 5px rgba(${uHoloRgb},0.5);display:flex;align-items:center;justify-content:center;flex-shrink:0;" title="Warna hologram">${avatarHtml}</div>
       <div style="flex:1;min-width:0;">
         <div class="uc-name" style="${noName?'color:var(--ink-soft);font-style:italic;':''}">${escapeHtml(name)}${uAdminBadge}${uTierBadge}</div>
         <div class="uc-sub">${u.storeName?('🏪 '+escapeHtml(u.storeName)):'UMKM'}</div>

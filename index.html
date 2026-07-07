@@ -1704,27 +1704,15 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     color: var(--ink-soft) !important;
   }
 
-  /* Auth / Splash Overlays */
-  body.dark-mode #splashOverlay, body.dark-mode #splashScreen, body.dark-mode #authOverlay {
+  /* Auth / Splash Overlays — selalu gelap karena kontennya (teks, tombol) berwarna putih */
+  #splashOverlay, #splashScreen, #authOverlay, .splash-overlay {
     background: linear-gradient(160deg, #07111E 0%, #101B2C 100%) !important;
-  }
-  body.dark-mode .splash-overlay {
-    background: linear-gradient(160deg, #07111E 0%, #101B2C 100%) !important;
-  }
-  body:not(.dark-mode) #splashOverlay, body:not(.dark-mode) #splashScreen, body:not(.dark-mode) #authOverlay {
-    background: linear-gradient(160deg, var(--bg) 0%, var(--bg-secondary) 100%) !important;
-  }
-  body:not(.dark-mode) .splash-overlay {
-    background: linear-gradient(160deg, var(--bg) 0%, var(--bg-secondary) 100%) !important;
-  }
-  .splash-hero h1, .splash-hero p {
-    color: var(--ink) !important;
   }
   body.dark-mode .splash-logo {
     box-shadow: 0 0 40px rgba(0, 217, 255, 0.4) !important;
   }
   body:not(.dark-mode) .splash-logo {
-    box-shadow: var(--shadow-teal) !important;
+    box-shadow: 0 0 24px rgba(27,77,74,0.4) !important;
   }
   .auth-overlay-content {
     background: var(--bg-card) !important;

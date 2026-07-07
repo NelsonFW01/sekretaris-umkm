@@ -1294,22 +1294,639 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<style>
+  /* ==========================================================================
+     AI SECRETARY - COMMAND CENTER REDESIGN
+     ========================================================================== */
+  
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg: #07111E !important;
+    --bg-card: rgba(255, 255, 255, 0.06) !important;
+    --bg-secondary: #101B2C !important;
+    --sand: rgba(255, 255, 255, 0.03) !important;
+    --teal: #00D9FF !important;
+    --teal-dark: #008AA3 !important;
+    --coral: #7B61FF !important;
+    --coral-dark: #5842C4 !important;
+    --ink: #FFFFFF !important;
+    --ink-soft: rgba(255, 255, 255, 0.65) !important;
+    --line: rgba(255, 255, 255, 0.10) !important;
+    --good: #00FF99 !important;
+    --bad: #FF5D73 !important;
+    --radius: 20px !important;
+    --shadow: 0 8px 32px rgba(0, 217, 255, 0.1) !important;
+  }
+
+  body.dark-mode {
+    --bg: #07111E !important;
+    --bg-card: rgba(255, 255, 255, 0.06) !important;
+    --sand: rgba(255, 255, 255, 0.03) !important;
+    --bg-secondary: #101B2C !important;
+    --ink: #FFFFFF !important;
+    --ink-soft: rgba(255, 255, 255, 0.65) !important;
+    --line: rgba(255, 255, 255, 0.10) !important;
+  }
+
+  body {
+    background: var(--bg) !important;
+    color: var(--ink) !important;
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+  }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 10% 20%, rgba(0, 217, 255, 0.05), transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(123, 97, 255, 0.05), transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  h1, h2, h3, .display { font-family: 'Space Grotesk', sans-serif !important; }
+
+  /* Animations */
+  @keyframes pulse-glow { 0%,100%{box-shadow:0 0 20px rgba(0,217,255,0.4)} 50%{box-shadow:0 0 40px rgba(0,217,255,0.8)} }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  @keyframes breathe { 0%,100%{transform:scale(1);opacity:0.8} 50%{transform:scale(1.05);opacity:1} }
+  @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  @keyframes orb-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(2);opacity:0} }
+  @keyframes counter-up { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes orbPulse { 0%,100%{box-shadow:0 0 15px rgba(0,217,255,0.5), inset 0 0 15px rgba(0,217,255,0.5)} 50%{box-shadow:0 0 30px rgba(0,217,255,0.9), inset 0 0 30px rgba(0,217,255,0.9)} }
+
+  /* Glass Cards Base */
+  .record-zone, .tx-item, .summary-card, .inv-form, .inv-item, .stat-card, .chart-card, .live-setup, .profile-card, .orders-section, .settings-section {
+    background: var(--bg-card) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid var(--line) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+    border-radius: var(--radius) !important;
+    color: #fff !important;
+  }
+  
+  .record-zone h2, .profile-card h3, .orders-section h3, .settings-section h4 { color: #fff !important; font-family: 'Space Grotesk', sans-serif !important; }
+
+  /* Prediction Card */
+  .prediction-card {
+    background: linear-gradient(135deg, rgba(0,217,255,0.1), rgba(123,97,255,0.1));
+    border: 1px solid rgba(0,217,255,0.2);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .pred-left { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+  .pred-label { font-size: 12px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+  .pred-val { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--teal); }
+  .pred-icon { font-size: 24px; animation: float 3s infinite ease-in-out; }
+
+  /* Mic Button */
+  .mic-btn {
+    width: 80px !important; 
+    height: 80px !important;
+    background: rgba(0, 217, 255, 0.15) !important;
+    border: 2px solid var(--teal) !important;
+    box-shadow: 0 0 20px rgba(0,217,255,0.4) !important;
+    animation: breathe 3s infinite ease-in-out !important;
+    margin: 0 auto 18px !important;
+  }
+  .mic-btn.listening {
+    background: rgba(0, 217, 255, 0.3) !important;
+    animation: pulse-glow 1.5s infinite !important;
+  }
+  .mic-btn svg {
+    stroke: var(--teal) !important;
+  }
+
+  /* Form Inputs */
+  input[type="text"], input[type="number"], input[type="email"], input[type="date"], input[type="url"], input[type="password"], textarea, select {
+    background: rgba(0,0,0,0.3) !important;
+    border: 1px solid var(--line) !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+  }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--teal) !important;
+    box-shadow: 0 0 10px rgba(0,217,255,0.2) !important;
+    outline: none !important;
+  }
+
+  /* Buttons */
+  button.generate-btn, button#submitText, button.save-btn, button.share-on {
+    background: linear-gradient(135deg, var(--teal), #00A3FF) !important;
+    border: none !important;
+    color: #000 !important;
+    font-family: 'Space Grotesk', sans-serif !important;
+    font-weight: 700 !important;
+    text-shadow: none !important;
+  }
+  
+  .ocr-btn {
+    background: rgba(0,217,255,0.1) !important;
+    border: 1px dashed var(--teal) !important;
+    color: var(--teal) !important;
+  }
+
+  /* Secondary Tabs Strip */
+  .tabs {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 10px 20px 20px !important;
+  }
+  .tab {
+    background: rgba(255,255,255,0.05) !important;
+    border: 1px solid var(--line) !important;
+    color: var(--ink-soft) !important;
+    backdrop-filter: blur(10px) !important;
+  }
+  .tab.active {
+    background: rgba(0,217,255,0.15) !important;
+    border-color: var(--teal) !important;
+    color: var(--teal) !important;
+    box-shadow: 0 0 15px rgba(0,217,255,0.2) !important;
+  }
+
+  /* Bottom Navigation */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 80px;
+    background: rgba(7, 17, 30, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 10px 10px;
+    z-index: 1000;
+  }
+  
+  /* App padding bottom so content isn't hidden */
+  main { padding-bottom: 110px !important; }
+
+  .bn-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: rgba(255,255,255,0.5);
+    background: transparent;
+    border: none;
+    width: 60px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .bn-item svg { stroke: currentColor; transition: all 0.3s ease; }
+  .bn-item span { font-size: 10px; font-weight: 600; font-family: 'Plus Jakarta Sans'; transition: all 0.3s ease; }
+  
+  .bn-item.active { color: var(--teal); }
+  .bn-item.active svg { filter: drop-shadow(0 0 8px rgba(0,217,255,0.8)); transform: translateY(-2px); }
+  
+  .bn-ai {
+    position: relative;
+    top: -15px;
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal), var(--coral));
+    display: flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 217, 255, 0.4);
+    animation: orbPulse 3s infinite ease-in-out;
+  }
+  .bn-ai svg { stroke: #fff; width: 28px; height: 28px; }
+
+  /* Hide the old AI button in tabs */
+  .tabs button[onclick*="toggleAiSummaryPanel"] { display: none !important; }
+
+  /* Dashboard Cards 2x2 Grid */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-card {
+    margin: 0 !important;
+    display: flex; flex-direction: column; justify-content: center;
+    text-align: left;
+    padding: 16px !important;
+  }
+  .st-label { color: var(--ink-soft) !important; font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px !important; }
+  .st-value { font-family: 'Space Grotesk', sans-serif !important; font-size: 20px !important; color: #fff !important; }
+  
+  #dbIn { color: var(--good) !important; text-shadow: 0 0 10px rgba(0,255,153,0.3); }
+  #dbOut { color: var(--bad) !important; text-shadow: 0 0 10px rgba(255,93,115,0.3); }
+
+  /* Redesigned Header */
+  header {
+    background: transparent !important;
+    padding: 24px 20px 16px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: relative;
+    z-index: 10;
+  }
+  .brand { margin-bottom: 0 !important; justify-content: space-between; width: 100%; }
+  .brand-mark { display: none !important; } /* Hide old logo */
+  
+  /* New brand name wrapper */
+  .brand-name { display: none !important; }
+  .fh-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+  .fh-ai-dot {
+    width: 10px; height: 10px;
+    background: var(--good);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--good);
+    animation: breathe 2s infinite;
+  }
+  
+  /* Tagline -> Greeting */
+  .tagline { display: none !important; }
+  
+  .fh-greeting {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .fh-greeting h1 {
+    font-size: 24px;
+    margin: 0;
+    line-height: 1.2;
+    background: linear-gradient(90deg, #fff, rgba(255,255,255,0.7));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .fh-greeting p {
+    font-size: 13px;
+    color: var(--teal);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  /* Style existing buttons in header */
+  #notifBtn {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 50% !important;
+    width: 36px !important; height: 36px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    color: #fff !important;
+    font-size: 0 !important; /* Hide old bell text */
+  }
+  #notifBtn::before {
+    content: '';
+    display: block;
+    width: 18px; height: 18px;
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>') no-repeat center;
+  }
+  
+  #darkModeBtn { display: none !important; } /* Hide dark mode btn as we force dark mode */
+
+  /* Fix Notif Dot */
+  #notifDot {
+    top: 0 !important; right: 0 !important;
+    border-color: var(--bg) !important;
+  }
+
+  .fh-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--teal), var(--coral));
+    padding: 2px;
+  }
+  .fh-avatar-inner {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    color: #fff;
+  }
+  
+  .auth-logout-row { color: #fff !important; }
+  .tx-amount.in, .summary-row .value.pos { color: var(--good) !important; text-shadow: 0 0 10px rgba(0,255,153,0.2); }
+  .tx-amount.out, .summary-row .value.neg { color: var(--bad) !important; text-shadow: 0 0 10px rgba(255,93,115,0.2); }
+  
+  /* Map fixes */
+  #communityMapContainer {
+    border-color: var(--teal) !important;
+    box-shadow: 0 0 20px rgba(0,217,255,0.15) !important;
+  }
+  .leaflet-layer {
+    filter: invert(100%) hue-rotate(180deg) brightness(80%) contrast(120%) sepia(30%) hue-rotate(150deg) !important;
+  }
+  .leaflet-container {
+    background: #050b14 !important;
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+  }
+  .leaflet-overlay-pane path {
+    stroke: var(--teal) !important;
+    stroke-width: 5px !important;
+    filter: drop-shadow(0 0 10px var(--teal)) !important;
+    stroke-dasharray: 10 10 !important;
+    animation: dash-move 20s linear infinite !important;
+  }
+  @keyframes dash-move {
+    to { stroke-dashoffset: -1000; }
+  }
+  
+  /* Text fallback */
+  .text-fallback input {
+    background: rgba(0,0,0,0.3) !important;
+    border-color: var(--line) !important;
+    color: #fff !important;
+  }
+
+  /* Chat and Profile adjustments */
+  .conv-list .empty-state, #galleryList .empty-state {
+    color: var(--ink-soft) !important;
+  }
+
+  /* Auth / Splash Overlays */
+  #splashOverlay, #splashScreen, #authOverlay {
+    background: linear-gradient(160deg, #07111E 0%, #101B2C 100%) !important;
+  }
+  .splash-overlay {
+    background: linear-gradient(160deg, #07111E 0%, #101B2C 100%) !important;
+  }
+  .splash-hero h1, .splash-hero p {
+    color: #fff !important;
+  }
+  .splash-logo {
+    box-shadow: 0 0 40px rgba(0, 217, 255, 0.4) !important;
+  }
+  .auth-overlay-content {
+    background: var(--bg-card) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid var(--line) !important;
+  }
+  
+  .auth-input-group input {
+    background: rgba(0,0,0,0.3) !important;
+    border-color: var(--line) !important;
+    color: #fff !important;
+  }
+
+  /* ===== COMMAND CENTER HERO ===== */
+  .command-hero {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 0 18px;
+    position: relative;
+  }
+  .hero-left { flex: 1; min-width: 0; }
+  .hero-subtitle {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0 0 14px;
+    line-height: 1.5;
+  }
+
+  /* Info Widgets */
+  .info-widgets { display: flex; gap: 8px; margin-bottom: 14px; }
+  .info-widget {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 11px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .info-widget-icon { font-size: 17px; }
+  .info-widget-text { display: flex; flex-direction: column; min-width: 0; }
+  .info-widget-label { font-size: 9px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; }
+  .info-widget-value { font-size: 11px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Ringkasan Bisnis */
+  .bisnis-section { margin-bottom: 16px; }
+  .bisnis-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .bisnis-title { font-size: 13px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; color: #fff; }
+  .bisnis-lihat { font-size: 11px; color: var(--teal); font-weight: 600; cursor: pointer; }
+  .bisnis-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+  .bisnis-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 8px;
+    position: relative; overflow: hidden;
+  }
+  .bisnis-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--teal), var(--coral));
+    opacity: 0.5;
+  }
+  .bisnis-icon { font-size: 15px; margin-bottom: 5px; }
+  .bisnis-value { font-size: 10px; font-weight: 700; color: #fff; font-family: 'Space Grotesk', sans-serif; line-height: 1.2; }
+  .bisnis-change { font-size: 8px; color: var(--good); font-weight: 600; margin-top: 1px; }
+  .bisnis-label { font-size: 8px; color: var(--ink-soft); margin-top: 1px; }
+
+  /* Holographic AI Avatar */
+  .holo-avatar-wrap {
+    position: relative;
+    width: 110px;
+    flex-shrink: 0;
+    height: 180px;
+    display: flex; align-items: flex-start; justify-content: center;
+    margin-top: -8px;
+  }
+  .holo-body {
+    position: relative; z-index: 2;
+    width: 100px; height: 164px;
+    filter: drop-shadow(0 0 12px rgba(0,217,255,0.8)) drop-shadow(0 0 24px rgba(0,217,255,0.3));
+    animation: float 4s infinite ease-in-out;
+  }
+  .holo-scan {
+    position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    overflow: hidden; border-radius: 4px;
+    background: repeating-linear-gradient(180deg, transparent 0px, transparent 4px, rgba(0,217,255,0.06) 4px, rgba(0,217,255,0.06) 5px);
+  }
+  .holo-scan::after {
+    content: '';
+    position: absolute; left: 0; right: 0; height: 40px;
+    background: linear-gradient(180deg, transparent 0%, rgba(0,217,255,0.15) 50%, transparent 100%);
+    animation: scan-line 2.5s infinite linear;
+  }
+  @keyframes scan-line { 0% { top: -40px; } 100% { top: 100%; } }
+  .holo-avatar-base {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 70px; height: 14px;
+    background: radial-gradient(ellipse, rgba(0,217,255,0.7) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: breathe 2s infinite;
+  }
+  .holo-ring {
+    position: absolute; bottom: 4px; left: 50%;
+    border: 1px solid rgba(0,217,255,0.4);
+    border-radius: 50%;
+    transform: translateX(-50%);
+    animation: holo-ring-expand 2.5s infinite ease-out;
+  }
+  .holo-ring:nth-child(3) { animation-delay: 0.7s; }
+  .holo-ring:nth-child(4) { animation-delay: 1.4s; }
+  @keyframes holo-ring-expand {
+    0%  { width: 30px; height: 10px; opacity: 0.9; }
+    100%{ width: 100px; height: 32px; opacity: 0; }
+  }
+
+  /* 3D City Map */
+  #city3dCanvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: 5; border-radius: 13px;
+  }
+  .map-3d-toggle {
+    position: absolute; top: 10px; right: 10px; z-index: 20;
+    background: rgba(7,17,30,0.85);
+    border: 1px solid rgba(0,217,255,0.5);
+    color: var(--teal); font-size: 11px; font-weight: 700;
+    padding: 5px 12px; border-radius: 20px; cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif; letter-spacing: 0.05em;
+  }
+  .map-eta-panel {
+    position: absolute; left: 10px; bottom: 10px; z-index: 20;
+    background: rgba(7,17,30,0.9); backdrop-filter: blur(12px);
+    border: 1px solid rgba(0,217,255,0.2); border-radius: 14px;
+    padding: 12px 14px; display: none;
+  }
+  .map-eta-panel.show { display: block; }
+  .eta-row { display: flex; gap: 16px; }
+  .eta-item { display: flex; flex-direction: column; gap: 1px; }
+  .eta-val { font-size: 16px; font-weight: 700; color: #fff; font-family: 'Space Grotesk', sans-serif; }
+  .eta-label { font-size: 9px; color: var(--teal); text-transform: uppercase; font-weight: 600; }
+  .map-ai-hint {
+    position: absolute; bottom: 10px; right: 10px; z-index: 20;
+    background: rgba(7,17,30,0.9); backdrop-filter: blur(12px);
+    border: 1px solid rgba(123,97,255,0.3); border-radius: 12px;
+    padding: 8px 12px; max-width: 150px; display: none;
+  }
+  .map-ai-hint.show { display: block; }
+  .map-ai-hint-title { font-size: 10px; font-weight: 700; color: #7B61FF; margin-bottom: 3px; }
+  .map-ai-hint-text { font-size: 10px; color: var(--ink-soft); line-height: 1.4; }
+
+  /* Finance Panel Hero */
+  .finance-hero-card {
+    background: linear-gradient(135deg, rgba(0,217,255,0.1), rgba(123,97,255,0.1));
+    border: 1px solid rgba(0,217,255,0.2);
+    border-radius: 20px; padding: 20px; margin-bottom: 14px;
+    position: relative; overflow: hidden;
+  }
+  .finance-hero-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--teal), var(--coral));
+  }
+  .fhc-label { font-size: 10px; color: var(--ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .fhc-value { font-size: 26px; font-weight: 800; color: #fff; font-family: 'Space Grotesk', sans-serif; line-height: 1; margin-bottom: 5px; }
+  .fhc-change { font-size: 11px; color: var(--good); font-weight: 600; }
+  .finance-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .finance-duo-card {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 14px 12px;
+  }
+  .fdc-label { font-size: 10px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
+  .fdc-value { font-size: 14px; font-weight: 700; font-family: 'Space Grotesk', sans-serif; color: #fff; margin-bottom: 3px; }
+  .fdc-change-pos { font-size: 10px; color: var(--good); font-weight: 600; }
+  .fdc-change-neg { font-size: 10px; color: var(--bad); font-weight: 600; }
+  .cat-section { margin-bottom: 16px; }
+  .cat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .cat-title { font-size: 13px; font-weight: 700; color: #fff; font-family: 'Space Grotesk', sans-serif; }
+  .cat-item { margin-bottom: 10px; }
+  .cat-item-row { display: flex; align-items: center; gap: 8px; }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { flex: 1; font-size: 12px; color: var(--ink-soft); }
+  .cat-amount { font-size: 12px; font-weight: 600; color: #fff; }
+  .cat-pct { font-size: 10px; color: var(--ink-soft); min-width: 28px; text-align: right; }
+  .cat-bar-bg { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 5px; margin-left: 16px; }
+  .cat-bar-fill { height: 3px; border-radius: 2px; }
+
+  /* Enhanced AI Orb Face */
+  .bn-ai-ring-outer {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(0,217,255,0.35);
+    animation: bn-ring-pulse 2s infinite ease-out;
+    pointer-events: none;
+  }
+  .bn-ai-ring-outer.r1 { width: 76px; height: 76px; top: -6px; left: -6px; }
+  .bn-ai-ring-outer.r2 { width: 88px; height: 88px; top: -12px; left: -12px; animation-delay: 0.6s; }
+  @keyframes bn-ring-pulse {
+    0%   { opacity: 0.8; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.1); }
+  }
+  .bn-ai-face-inner {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    background: linear-gradient(135deg, rgba(0,217,255,0.3), rgba(123,97,255,0.3));
+    border: 2px solid rgba(0,217,255,0.6);
+  }
+  .bn-ai-eye {
+    width: 7px; height: 7px; background: #fff;
+    border-radius: 50%; position: absolute;
+    box-shadow: 0 0 8px rgba(255,255,255,0.9);
+    animation: blink 4s infinite;
+  }
+  .bn-ai-eye.l { left: 16px; top: 20px; }
+  .bn-ai-eye.r { right: 16px; top: 20px; }
+  @keyframes blink {
+    0%,96%,100% { transform: scaleY(1); }
+    98% { transform: scaleY(0.1); }
+  }
+  .bn-ai-mouth {
+    position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+    width: 16px; height: 6px;
+    border: 2px solid rgba(255,255,255,0.6);
+    border-top: none; border-radius: 0 0 10px 10px;
+  }
+</style>
+
 </head>
 <body>
 <div class="app">
 
+  
   <header>
-    <div class="brand">
-      <div class="brand-mark">S</div>
-      <div class="brand-name">Sekretaris UMKM</div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-        <button id="notifBtn" style="position:relative;background:none;border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:15px;" title="Notifikasi">
-          🔔<span class="notif-dot" id="notifDot"></span>
+    <div class="fh-top" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+      <div class="fh-brand">
+        <div class="fh-ai-dot"></div>
+        AI Secretary
+      </div>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <button id="notifBtn" style="position:relative;cursor:pointer;" title="Notifikasi">
+          <span class="notif-dot" id="notifDot"></span>
         </button>
-        <button id="darkModeBtn" style="background:none;border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:15px;" title="Dark/Light Mode">🌙</button>
+        <button id="darkModeBtn" style="display:none;"></button>
+        <div class="fh-avatar">
+          <div class="fh-avatar-inner">D</div>
+        </div>
       </div>
     </div>
-    <div class="tagline">Cukup ngomong atau foto — sisanya biar AI yang urus</div>
+    <div class="fh-greeting">
+      <h1 id="greetingName">Selamat Pagi, Diamond 👋</h1>
+      <p><span style="display:inline-block;width:6px;height:6px;background:#00FF99;border-radius:50%;box-shadow:0 0 5px #00FF99;"></span> AI Online & Ready</p>
+    </div>
   </header>
 
   <div class="key-banner" id="firebaseBanner" style="display:none;background:#FDEAEA;border-color:#F0B0B0;">
@@ -1346,7 +1963,136 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   <main>
     <!-- ===== FINANCE PANEL ===== -->
     <section class="panel active" id="panel-finance">
+
+      <!-- COMMAND CENTER HERO -->
+      <div class="command-hero">
+        <div class="hero-left">
+          <p class="hero-subtitle">AI Secretary siap membantu<br>bisnis Anda hari ini.</p>
+
+          <div class="info-widgets">
+            <div class="info-widget">
+              <div class="info-widget-icon">⛅</div>
+              <div class="info-widget-text">
+                <span class="info-widget-label">Cuaca</span>
+                <span class="info-widget-value" id="weatherWidget">28°C Cerah</span>
+              </div>
+            </div>
+            <div class="info-widget">
+              <div class="info-widget-icon">📍</div>
+              <div class="info-widget-text">
+                <span class="info-widget-label">Lokasi</span>
+                <span class="info-widget-value" id="userCity">Indonesia</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bisnis-section">
+            <div class="bisnis-header">
+              <span class="bisnis-title">Ringkasan Bisnis</span>
+              <span class="bisnis-lihat" onclick="document.querySelector('.tab[data-panel=\'dashboard\']').click()">Lihat Semua →</span>
+            </div>
+            <div class="bisnis-grid">
+              <div class="bisnis-card">
+                <div class="bisnis-icon">💰</div>
+                <div class="bisnis-value" id="homeRevenue">Rp 0</div>
+                <div class="bisnis-change" id="homeRevenueLabel">Pemasukan</div>
+                <div class="bisnis-label">Revenue</div>
+              </div>
+              <div class="bisnis-card">
+                <div class="bisnis-icon">📊</div>
+                <div class="bisnis-value" id="homeOrders">0</div>
+                <div class="bisnis-change">Transaksi</div>
+                <div class="bisnis-label">Orders</div>
+              </div>
+              <div class="bisnis-card">
+                <div class="bisnis-icon">💸</div>
+                <div class="bisnis-value" id="homeExpense">Rp 0</div>
+                <div class="bisnis-change">Pengeluaran</div>
+                <div class="bisnis-label">Expense</div>
+              </div>
+              <div class="bisnis-card">
+                <div class="bisnis-icon">✨</div>
+                <div class="bisnis-value" id="homeProfit">Rp 0</div>
+                <div class="bisnis-change">Bersih</div>
+                <div class="bisnis-label">Profit</div>
+              </div>
+              <div class="bisnis-card">
+                <div class="bisnis-icon">🧾</div>
+                <div class="bisnis-value" id="homeTagihan">0</div>
+                <div class="bisnis-change">Tagihan</div>
+                <div class="bisnis-label">Piutang</div>
+              </div>
+              <div class="bisnis-card">
+                <div class="bisnis-icon">🤝</div>
+                <div class="bisnis-value">Pasar</div>
+                <div class="bisnis-change">Kongsi</div>
+                <div class="bisnis-label">UMKM</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Holographic AI Avatar -->
+        <div class="holo-avatar-wrap">
+          <div class="holo-body">
+            <svg viewBox="0 0 100 164" xmlns="http://www.w3.org/2000/svg" fill="none">
+              <!-- Head -->
+              <ellipse cx="50" cy="26" rx="17" ry="21" fill="rgba(0,217,255,0.12)" stroke="rgba(0,217,255,0.85)" stroke-width="1.2"/>
+              <!-- Hair top -->
+              <path d="M33 22 Q36 4 50 2 Q64 4 67 22 Q62 13 50 12 Q38 13 33 22" fill="rgba(0,217,255,0.28)"/>
+              <!-- Eyes -->
+              <ellipse cx="43" cy="23" rx="2.8" ry="3.2" fill="rgba(0,217,255,0.95)"/>
+              <ellipse cx="57" cy="23" rx="2.8" ry="3.2" fill="rgba(0,217,255,0.95)"/>
+              <ellipse cx="43" cy="23" rx="5" ry="5" stroke="rgba(0,217,255,0.35)" stroke-width="0.8"/>
+              <ellipse cx="57" cy="23" rx="5" ry="5" stroke="rgba(0,217,255,0.35)" stroke-width="0.8"/>
+              <!-- Mouth -->
+              <path d="M44 32 Q50 36 56 32" stroke="rgba(0,217,255,0.7)" stroke-width="1.2" stroke-linecap="round"/>
+              <!-- Neck -->
+              <rect x="45" y="46" width="10" height="11" rx="3" fill="rgba(0,217,255,0.12)" stroke="rgba(0,217,255,0.55)" stroke-width="1"/>
+              <!-- Shoulders & torso -->
+              <path d="M24 58 Q32 54 50 53 Q68 54 76 58 L79 112 Q70 118 50 119 Q30 118 21 112 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.5)" stroke-width="1.2"/>
+              <!-- Neckline detail -->
+              <path d="M40 57 Q50 66 60 57" stroke="rgba(0,217,255,0.65)" stroke-width="1.2" stroke-linecap="round"/>
+              <!-- Left arm -->
+              <path d="M24 62 Q10 78 13 103 Q16 112 22 110 Q19 88 28 74 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <!-- Right arm -->
+              <path d="M76 62 Q90 78 87 103 Q84 112 78 110 Q81 88 72 74 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <!-- Legs -->
+              <path d="M30 118 Q28 133 26 158 L40 158 Q41 137 43 118 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <path d="M70 118 Q72 133 74 158 L60 158 Q59 137 57 118 Z" fill="rgba(0,217,255,0.07)" stroke="rgba(0,217,255,0.38)" stroke-width="1.2"/>
+              <!-- Horizontal scan lines on torso -->
+              <line x1="24" y1="72" x2="76" y2="72" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <line x1="22" y1="86" x2="78" y2="86" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <line x1="22" y1="100" x2="78" y2="100" stroke="rgba(0,217,255,0.18)" stroke-width="0.6" stroke-dasharray="3,5"/>
+              <!-- Chest glow dot -->
+              <circle cx="50" cy="80" r="3" fill="rgba(0,217,255,0.6)" filter="url(#glow)"/>
+              <defs>
+                <filter id="glow" x="-100%" y="-100%" width="300%" height="300%">
+                  <feGaussianBlur stdDeviation="3" result="blur"/>
+                  <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                </filter>
+              </defs>
+            </svg>
+          </div>
+          <div class="holo-scan"></div>
+          <div class="holo-avatar-base"></div>
+          <div class="holo-ring" style="width:34px;height:10px;"></div>
+          <div class="holo-ring" style="width:65px;height:20px;"></div>
+          <div class="holo-ring" style="width:95px;height:28px;"></div>
+        </div>
+      </div>
+      <!-- END COMMAND CENTER HERO -->
+
       <div class="record-zone">
+
+        <div class="prediction-card">
+          <div class="pred-left">
+            <span class="pred-label">Prediksi Hari Ini</span>
+            <span class="pred-val">+12.4% Revenue</span>
+          </div>
+          <div class="pred-icon">✨</div>
+        </div>
+
         <h2>Ceritakan transaksi hari ini</h2>
         <p class="hint">"Hari ini laku 50 kue, untung 200 ribu"</p>
         <button class="mic-btn" id="micBtn">
@@ -1466,6 +2212,63 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 
     <!-- ===== DASHBOARD PANEL ===== -->
     <section class="panel" id="panel-dashboard">
+
+      <!-- Finance Hero Card -->
+      <div class="finance-hero-card">
+        <div class="fhc-label">Total Revenue Bulan Ini</div>
+        <div class="fhc-value" id="dashHeroRevenue">Rp 0</div>
+        <div class="fhc-change" id="dashHeroChange">+0% dari kemarin</div>
+      </div>
+
+      <!-- Expense & Profit -->
+      <div class="finance-duo">
+        <div class="finance-duo-card">
+          <div class="fdc-label">Expense</div>
+          <div class="fdc-value" id="dashExpense">Rp 0</div>
+          <div class="fdc-change-neg" id="dashExpenseLabel">Pengeluaran</div>
+        </div>
+        <div class="finance-duo-card">
+          <div class="fdc-label">Profit</div>
+          <div class="fdc-value" id="dashProfit">Rp 0</div>
+          <div class="fdc-change-pos" id="dashProfitLabel">Untung Bersih</div>
+        </div>
+      </div>
+
+      <!-- Category Breakdown -->
+      <div class="cat-section">
+        <div class="cat-header">
+          <span class="cat-title">Kategori Pengeluaran</span>
+          <span class="bisnis-lihat">Lihat Semua</span>
+        </div>
+        <div class="cat-item">
+          <div class="cat-item-row">
+            <div class="cat-dot" style="background:#00D9FF;"></div>
+            <div class="cat-name">Bahan Baku</div>
+            <div class="cat-amount" id="catBahanBaku">Rp 0</div>
+            <div class="cat-pct" id="catBahanBakuPct">—</div>
+          </div>
+          <div class="cat-bar-bg"><div class="cat-bar-fill" id="catBahanBakuBar" style="background:#00D9FF;width:50%;"></div></div>
+        </div>
+        <div class="cat-item">
+          <div class="cat-item-row">
+            <div class="cat-dot" style="background:#7B61FF;"></div>
+            <div class="cat-name">Operasional</div>
+            <div class="cat-amount" id="catOperasional">Rp 0</div>
+            <div class="cat-pct" id="catOperasionalPct">—</div>
+          </div>
+          <div class="cat-bar-bg"><div class="cat-bar-fill" id="catOperasionalBar" style="background:#7B61FF;width:30%;"></div></div>
+        </div>
+        <div class="cat-item">
+          <div class="cat-item-row">
+            <div class="cat-dot" style="background:#00FF99;"></div>
+            <div class="cat-name">Lainnya</div>
+            <div class="cat-amount" id="catLainnya">Rp 0</div>
+            <div class="cat-pct" id="catLainnyaPct">—</div>
+          </div>
+          <div class="cat-bar-bg"><div class="cat-bar-fill" id="catLainnyaBar" style="background:#00FF99;width:20%;"></div></div>
+        </div>
+      </div>
+
       <div class="stat-grid">
         <div class="stat-card">
           <div class="st-label">Total Pemasukan</div>
@@ -1935,6 +2738,21 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
                Clipping dilakukan oleh #communityMapContainer di atas. -->
           <div id="mapClipWrapper" style="position:absolute;inset:0;border-radius:13px;overflow:visible;z-index:0;">
             <!-- leafletMap akan di-inject di sini oleh initCommunityMap -->
+          </div>
+          <!-- 3D Toggle & Canvas -->
+          <button class="map-3d-toggle" id="toggle3DBtn" onclick="toggle3DCity()">⬡ 3D</button>
+          <canvas id="city3dCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;z-index:5;border-radius:13px;"></canvas>
+          <!-- ETA Panel -->
+          <div class="map-eta-panel" id="mapEtaPanel">
+            <div class="eta-row">
+              <div class="eta-item"><span class="eta-val" id="etaTime">—</span><span class="eta-label">ETA</span></div>
+              <div class="eta-item"><span class="eta-val" id="etaDist">—</span><span class="eta-label">Jarak</span></div>
+              <div class="eta-item"><span class="eta-val" id="etaSpeed">—</span><span class="eta-label">km/h</span></div>
+            </div>
+          </div>
+          <div class="map-ai-hint" id="mapAiHint">
+            <div class="map-ai-hint-title">🤖 AI Assistant</div>
+            <div class="map-ai-hint-text">Rute aktif. Ikuti jalur hijau menuju tujuan.</div>
           </div>
           <!-- Overlay mencegah klik user saat sedang proses GPS / routing -->
           <div id="mapBusyOverlay">
@@ -14460,5 +15278,235 @@ Contoh: "8|Mengandung tag script dan eval"`;
 
 })();
 </script>
-<script src="https://replit-cdn.com/replit-pill/replit-pill.global.js" data-repl-id="82deda7f-90d6-4658-81a8-22b4ebc38f4e"></script></body>
+<script src="https://replit-cdn.com/replit-pill/replit-pill.global.js" data-repl-id="82deda7f-90d6-4658-81a8-22b4ebc38f4e"></script>
+  <nav class="bottom-nav">
+    <button class="bn-item active" onclick="document.querySelector('.tab[data-panel=\'finance\']').click(); document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+      <span>Home</span>
+    </button>
+    <button class="bn-item" onclick="document.querySelector('.tab[data-panel=\'dashboard\']').click(); document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+      <span>Finance</span>
+    </button>
+    
+    <button class="bn-ai" onclick="if(typeof toggleAiSummaryPanel === 'function') toggleAiSummaryPanel();" title="AI Assistant" style="position:relative;">
+      <div class="bn-ai-ring-outer r1"></div>
+      <div class="bn-ai-ring-outer r2"></div>
+      <div class="bn-ai-face-inner">
+        <div class="bn-ai-eye l"></div>
+        <div class="bn-ai-eye r"></div>
+        <div class="bn-ai-mouth"></div>
+      </div>
+    </button>
+
+    <button class="bn-item" onclick="document.querySelector('.tab[data-panel=\'community\']').click(); document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+      <span>Map</span>
+    </button>
+    <button class="bn-item" onclick="document.querySelector('.tab[data-panel=\'settings\']').click(); document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      <span>Profile</span>
+    </button>
+  </nav>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const updateName = () => {
+        const name = localStorage.getItem('umkm_display_name');
+        const el = document.getElementById('greetingName');
+        if(el) {
+          const hour = new Date().getHours();
+          let greet = 'Selamat Pagi';
+          if(hour >= 12 && hour < 15) greet = 'Selamat Siang';
+          else if(hour >= 15 && hour < 18) greet = 'Selamat Sore';
+          else if(hour >= 18) greet = 'Selamat Malam';
+          
+          el.textContent = greet + ', ' + (name || 'Diamond') + ' 👋';
+        }
+        
+        const avatarInner = document.querySelector('.fh-avatar-inner');
+        if (avatarInner) {
+           avatarInner.textContent = (name || 'D').charAt(0).toUpperCase();
+        }
+      };
+      updateName();
+      setInterval(updateName, 5000);
+      
+      // Auto dark mode trigger on the body if needed
+      document.body.classList.add('dark-mode');
+    });
+  </script>
+
+  <!-- ===== 3D CITY MAP (Three.js) ===== -->
+  <script>
+  let _city3dInit = false, _city3dRenderer, _city3dScene, _city3dCam, _city3dId;
+
+  function init3DCity() {
+    const canvas = document.getElementById('city3dCanvas');
+    if (!canvas || !window.THREE || _city3dInit) return;
+    _city3dInit = true;
+
+    const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 420;
+    _city3dRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    _city3dRenderer.setSize(W, H);
+    _city3dRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    _city3dRenderer.setClearColor(0x07111E, 1);
+
+    _city3dScene = new THREE.Scene();
+    _city3dScene.fog = new THREE.FogExp2(0x07111E, 0.025);
+
+    _city3dCam = new THREE.PerspectiveCamera(50, W / H, 0.1, 300);
+    _city3dCam.position.set(0, 28, 38);
+    _city3dCam.lookAt(0, 0, 0);
+
+    _city3dScene.add(new THREE.AmbientLight(0x00D9FF, 0.4));
+    const dirL = new THREE.DirectionalLight(0x7B61FF, 1.2);
+    dirL.position.set(10, 20, 10);
+    _city3dScene.add(dirL);
+
+    // Ground grid
+    _city3dScene.add(new THREE.GridHelper(80, 24, 0x00D9FF, 0x0D2137));
+
+    // Buildings
+    const bMat = new THREE.MeshLambertMaterial({ color: 0x0A1F35, transparent: true, opacity: 0.92 });
+    const eMat = new THREE.LineBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.55 });
+    const buildings = [
+      [-15,7,-16],[-9,9,-13],[-4,5,-15],[3,12,-14],[9,8,-16],
+      [15,6,-13],[17,10,-8],[16,7,-2],[15,5,4],[13,9,9],
+      [-17,8,-4],[-15,6,3],[-16,10,9],[-11,7,13],
+      [4,6,13],[9,8,14],[-2,5,-4],[6,7,-2],[0,4,2],
+      [-8,6,-8],[8,5,-7],[-6,4,7],[5,4,8],
+    ];
+    buildings.forEach(([x,h,z]) => {
+      const g = new THREE.BoxGeometry(3.5, h, 3.5);
+      const m = new THREE.Mesh(g, bMat.clone());
+      m.position.set(x, h/2, z);
+      _city3dScene.add(m);
+      const line = new THREE.LineSegments(new THREE.EdgesGeometry(g), eMat.clone());
+      line.position.set(x, h/2, z);
+      _city3dScene.add(line);
+    });
+
+    // Glowing neon route
+    const pts = [
+      new THREE.Vector3(-13, 0.3, 13),
+      new THREE.Vector3(-7, 0.3, 7),
+      new THREE.Vector3(-2, 0.3, 3),
+      new THREE.Vector3(2, 0.3, -1),
+      new THREE.Vector3(6, 0.3, -5),
+      new THREE.Vector3(10, 0.3, -10),
+      new THREE.Vector3(13, 0.3, -14),
+    ];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tubeGeo = new THREE.TubeGeometry(curve, 60, 0.25, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({ color: 0x00FF99, transparent: true, opacity: 0.95 });
+    _city3dScene.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    // Holographic figure at route start
+    const figGeo = new THREE.CylinderGeometry(0.4, 0.9, 4.5, 8, 1, true);
+    const figMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.45, wireframe: true, side: THREE.DoubleSide });
+    const figHead = new THREE.SphereGeometry(0.9, 8, 8);
+    const figHeadMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.4, wireframe: true });
+    const figMesh = new THREE.Mesh(figGeo, figMat);
+    figMesh.position.set(-13, 2.25, 13);
+    _city3dScene.add(figMesh);
+    const figHeadMesh = new THREE.Mesh(figHead, figHeadMat);
+    figHeadMesh.position.set(-13, 5.5, 13);
+    _city3dScene.add(figHeadMesh);
+
+    // Base glow ring under figure
+    const ringGeo = new THREE.RingGeometry(1.2, 2.5, 32);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(-13, 0.1, 13);
+    _city3dScene.add(ring);
+
+    let frame = 0;
+    function animate() {
+      _city3dId = requestAnimationFrame(animate);
+      frame++;
+      const t = frame * 0.004;
+      _city3dCam.position.x = Math.sin(t) * 42;
+      _city3dCam.position.z = Math.cos(t) * 42;
+      _city3dCam.lookAt(0, 0, 0);
+
+      figMesh.rotation.y += 0.025;
+      figHeadMesh.rotation.y -= 0.015;
+      const pulse = 0.3 + Math.sin(frame * 0.06) * 0.15;
+      figMat.opacity = pulse;
+      figHeadMat.opacity = pulse + 0.05;
+      ringMat.opacity = 0.3 + Math.sin(frame * 0.05) * 0.2;
+      ring.scale.setScalar(1 + Math.sin(frame * 0.04) * 0.1);
+
+      _city3dRenderer.render(_city3dScene, _city3dCam);
+    }
+    animate();
+  }
+
+  function toggle3DCity() {
+    const canvas = document.getElementById('city3dCanvas');
+    const btn = document.getElementById('toggle3DBtn');
+    if (!canvas) return;
+    const showing = canvas.style.display !== 'none';
+    canvas.style.display = showing ? 'none' : 'block';
+    document.getElementById('mapEtaPanel')?.classList.toggle('show', !showing);
+    document.getElementById('mapAiHint')?.classList.toggle('show', !showing);
+    if (btn) {
+      btn.style.background = showing ? 'rgba(7,17,30,0.85)' : 'rgba(0,217,255,0.2)';
+    }
+    if (!showing && !_city3dInit) { setTimeout(init3DCity, 80); }
+    if (!showing && _city3dInit && _city3dRenderer) {
+      const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 420;
+      _city3dRenderer.setSize(W, H);
+    }
+  }
+  </script>
+
+  <!-- ===== HOME STATS SYNC ===== -->
+  <script>
+  (function syncHomePanel() {
+    function fmt(el) { return el ? el.textContent : 'Rp 0'; }
+    function sync() {
+      const get = id => document.getElementById(id);
+      // Revenue / Expense / Profit from dashboard
+      const inEl = get('dbIn'), outEl = get('dbOut'), netEl = get('dbNet'), cntEl = get('dbCount');
+      if (inEl) {
+        if (get('homeRevenue')) get('homeRevenue').textContent = inEl.textContent;
+        if (get('dashHeroRevenue')) get('dashHeroRevenue').textContent = inEl.textContent;
+      }
+      if (outEl) {
+        if (get('homeExpense')) get('homeExpense').textContent = outEl.textContent;
+        if (get('dashExpense')) get('dashExpense').textContent = outEl.textContent;
+      }
+      if (netEl) {
+        if (get('homeProfit')) get('homeProfit').textContent = netEl.textContent;
+        if (get('dashProfit')) get('dashProfit').textContent = netEl.textContent;
+      }
+      if (cntEl && get('homeOrders')) get('homeOrders').textContent = cntEl.textContent;
+
+      // Tagihan
+      const tagEl = get('invSumTotal');
+      if (tagEl && get('homeTagihan')) get('homeTagihan').textContent = tagEl.textContent;
+
+      // Location from geolocation (show city name)
+      if (navigator.geolocation && !window._cityFetched) {
+        window._cityFetched = true;
+        navigator.geolocation.getCurrentPosition(pos => {
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
+            .then(r => r.json())
+            .then(d => {
+              const city = d.address?.city || d.address?.town || d.address?.county || 'Indonesia';
+              const el = document.getElementById('userCity');
+              if (el) el.textContent = city;
+            }).catch(() => {});
+        }, () => {});
+      }
+    }
+    setInterval(sync, 1500);
+    document.addEventListener('DOMContentLoaded', () => setTimeout(sync, 2000));
+  })();
+  </script>
+
+</body>
 </html>

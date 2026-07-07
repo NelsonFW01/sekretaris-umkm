@@ -6234,6 +6234,16 @@ function initAuthGate(){
       }
 
       $a('authOverlay').classList.add('hidden');
+      // Auto-close splash saat user sudah login (tidak perlu klik manual)
+      if(typeof window._closeSplash === 'function'){
+        window._closeSplash();
+      } else {
+        const _sp = document.getElementById('splashOverlay');
+        if(_sp && _sp.style.display !== 'none'){
+          _sp.style.transition='opacity .35s ease'; _sp.style.opacity='0';
+          setTimeout(()=>{ _sp.style.display='none'; }, 350);
+        }
+      }
       if(typeof speakWelcomeGreeting === 'function') speakWelcomeGreeting();
       $a('authUserEmail').textContent = currentAuthEmail + (isAdmin ? ' · 👑 Admin' : '');
       try{
@@ -12844,6 +12854,8 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     unlockBodyScroll();
     splashDone();
   }
+  // Expose globally so auth handler can auto-close when user is already logged in
+  window._closeSplash = closeSplash;
 
   document.getElementById('splashNextBtn').addEventListener('click',()=>{
     if(currentSlide < totalSlides){ goToSlide(currentSlide+1); }

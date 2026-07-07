@@ -1600,8 +1600,6 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23ffffff" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>') no-repeat center;
   }
   
-  #darkModeBtn { display: none !important; } /* Hide dark mode btn as we force dark mode */
-
   /* Fix Notif Dot */
   #notifDot {
     top: 0 !important; right: 0 !important;
@@ -1942,6 +1940,173 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     border: 2px solid rgba(255,255,255,0.6);
     border-top: none; border-radius: 0 0 10px 10px;
   }
+
+  /* ===== AI COMMAND CENTER WIDGETS ===== */
+  .acc-wrap { margin: 4px 0 20px; }
+  .acc-top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .acc-status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0, 217, 255, 0.08);
+    border: 1px solid rgba(0, 217, 255, 0.28);
+    padding: 6px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; color: #cdefff;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .acc-status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #24e08a; box-shadow: 0 0 8px #24e08a;
+    animation: acc-pulse 2s infinite;
+  }
+  @keyframes acc-pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.75); }
+  }
+  .acc-refresh-tag { font-size: 10px; color: var(--ink-soft); font-weight: 500; }
+
+  .acc-section-title {
+    font-size: 13px; font-weight: 700; color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    display: flex; align-items: center; gap: 6px;
+    margin: 18px 0 10px;
+  }
+  .acc-section-title .acc-line { flex: 1; height: 1px; background: rgba(255,255,255,0.08); }
+
+  .acc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .acc-grid.acc-grid-1 { grid-template-columns: 1fr; }
+  .acc-grid.acc-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .acc-card {
+    position: relative;
+    background: linear-gradient(155deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 16px;
+    padding: 13px 14px;
+    overflow: hidden;
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    cursor: default;
+  }
+  .acc-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,217,255,0.6), transparent);
+    opacity: 0.6;
+  }
+  .acc-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 217, 255, 0.35);
+    box-shadow: 0 10px 28px -10px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,217,255,0.06) inset;
+  }
+  .acc-card.acc-expandable { cursor: pointer; }
+  .acc-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .acc-card-icon {
+    width: 28px; height: 28px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    background: rgba(0,217,255,0.1);
+    border: 1px solid rgba(0,217,255,0.18);
+    flex-shrink: 0;
+  }
+  .acc-card-label { font-size: 10px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.3px; }
+  .acc-card-value {
+    font-size: 19px; font-weight: 800; color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1.15; margin-top: 2px;
+  }
+  .acc-card-sub { font-size: 10.5px; color: var(--ink-soft); margin-top: 3px; }
+  .acc-card-sub.good { color: #24e08a; }
+  .acc-card-sub.bad { color: #ff6b6b; }
+  .acc-chevron { font-size: 10px; color: var(--ink-soft); transition: transform 0.2s ease; }
+  .acc-card.open .acc-chevron { transform: rotate(180deg); }
+  .acc-card-detail {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.3s ease, margin-top 0.3s ease;
+    font-size: 11px; color: var(--ink-soft); line-height: 1.6;
+  }
+  .acc-card.open .acc-card-detail { max-height: 260px; opacity: 1; margin-top: 10px; }
+
+  /* Skeleton loading */
+  .acc-skel { position: relative; overflow: hidden; background: rgba(255,255,255,0.06); border-radius: 6px; }
+  .acc-skel::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+    animation: acc-shimmer 1.4s infinite;
+  }
+  @keyframes acc-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .acc-skel-value { width: 70%; height: 18px; margin-top: 4px; }
+  .acc-skel-sub { width: 50%; height: 10px; margin-top: 6px; }
+
+  /* Health score ring */
+  .acc-ring-card { display: flex; align-items: center; gap: 14px; }
+  .acc-ring-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+  .acc-ring-wrap svg { transform: rotate(-90deg); }
+  .acc-ring-bg { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 6; }
+  .acc-ring-fg { fill: none; stroke: url(#accRingGrad); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1); }
+  .acc-ring-num {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #fff; font-family: 'Space Grotesk', sans-serif;
+  }
+  .acc-ring-info { flex: 1; min-width: 0; }
+  .acc-ring-title { font-size: 12px; font-weight: 700; color: #fff; }
+  .acc-ring-desc { font-size: 10.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+
+  /* Sparkline */
+  .acc-spark-wrap { width: 100%; height: 40px; margin-top: 4px; }
+  .acc-spark-wrap svg { width: 100%; height: 100%; overflow: visible; }
+
+  /* Timeline */
+  .acc-timeline-item { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px dashed rgba(255,255,255,0.07); }
+  .acc-timeline-item:last-child { border-bottom: none; }
+  .acc-timeline-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--teal); }
+  .acc-timeline-dot.out { background: var(--coral); }
+  .acc-timeline-text { flex: 1; min-width: 0; }
+  .acc-timeline-title { font-size: 11.5px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acc-timeline-meta { font-size: 10px; color: var(--ink-soft); margin-top: 1px; }
+  .acc-timeline-amount { font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .acc-timeline-amount.in { color: #24e08a; }
+  .acc-timeline-amount.out { color: #ff6b6b; }
+
+  /* AI insight / recommendation panel */
+  .acc-insight-card {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, rgba(0,217,255,0.09), rgba(255,111,97,0.06));
+    border: 1px solid rgba(0,217,255,0.22);
+  }
+  .acc-insight-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .acc-insight-item { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: #eaf6ff; line-height: 1.5; }
+  .acc-insight-item .ico { font-size: 13px; flex-shrink: 0; }
+
+  /* Quick actions */
+  .acc-qa-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .acc-qa-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 13px; padding: 10px 4px;
+    font-size: 9.5px; font-weight: 700; color: var(--ink-soft);
+    text-transform: uppercase; letter-spacing: 0.2px;
+    cursor: pointer; transition: all 0.2s ease;
+  }
+  .acc-qa-btn:hover { background: rgba(0,217,255,0.1); border-color: rgba(0,217,255,0.3); color: #fff; transform: translateY(-2px); }
+  .acc-qa-icon { font-size: 18px; }
+
+  /* KPI strip */
+  .acc-kpi-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .acc-kpi-card { text-align: center; padding: 11px 6px; }
+  .acc-kpi-icon { font-size: 16px; margin-bottom: 4px; }
+  .acc-kpi-val { font-size: 14px; font-weight: 800; color: #fff; font-family: 'Space Grotesk', sans-serif; }
+  .acc-kpi-lbl { font-size: 9px; color: var(--ink-soft); margin-top: 2px; text-transform: uppercase; }
+
+  /* Notif mini list */
+  .acc-notif-mini { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 11px; color: #eaeaea; }
+  .acc-notif-mini .t { font-size: 9.5px; color: var(--ink-soft); margin-left: auto; flex-shrink: 0; }
+
+  @media (max-width: 380px) {
+    .acc-grid { grid-template-columns: 1fr; }
+    .acc-grid.acc-grid-3 { grid-template-columns: 1fr 1fr; }
+    .acc-qa-grid { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>
 
 </head>
@@ -1959,7 +2124,6 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         <button id="notifBtn" style="position:relative;cursor:pointer;" title="Notifikasi">
           <span class="notif-dot" id="notifDot"></span>
         </button>
-        <button id="darkModeBtn" style="display:none;"></button>
         <input type="file" id="fhAvatarInput" accept="image/*" style="display:none;">
         <div class="fh-avatar" id="fhAvatarBtn" title="Ganti foto profil / logo UMKM" style="cursor:pointer;position:relative;overflow:hidden;" onclick="document.getElementById('fhAvatarInput').click();">
           <div class="fh-avatar-inner">D</div>
@@ -2136,6 +2300,157 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
         </div>
       </div>
       <!-- END COMMAND CENTER HERO -->
+
+      <!-- ===== AI COMMAND CENTER WIDGETS ===== -->
+      <div class="acc-wrap" id="accWrap">
+        <div class="acc-top-row">
+          <span class="acc-status-pill"><span class="acc-status-dot"></span> AI Sistem Aktif</span>
+          <span class="acc-refresh-tag" id="accRefreshTag">Diperbarui baru saja</span>
+        </div>
+
+        <!-- Health Score + Prediction -->
+        <div class="acc-grid acc-grid-1">
+          <div class="acc-card acc-ring-card acc-expandable" id="accHealthCard" onclick="accToggle('accHealthCard')">
+            <div class="acc-ring-wrap">
+              <svg viewBox="0 0 64 64">
+                <defs>
+                  <linearGradient id="accRingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#00D9FF"/>
+                    <stop offset="100%" stop-color="#FF6F61"/>
+                  </linearGradient>
+                </defs>
+                <circle class="acc-ring-bg" cx="32" cy="32" r="27"></circle>
+                <circle class="acc-ring-fg" id="accHealthRing" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"></circle>
+              </svg>
+              <div class="acc-ring-num" id="accHealthNum">--</div>
+            </div>
+            <div class="acc-ring-info">
+              <div class="acc-ring-title">🩺 Skor Kesehatan Bisnis</div>
+              <div class="acc-ring-desc" id="accHealthDesc">Menghitung dari margin profit, tren, dan tagihan...</div>
+            </div>
+            <span class="acc-chevron">▾</span>
+          </div>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="acc-kpi-strip" style="margin-top:10px;">
+          <div class="acc-card acc-kpi-card">
+            <div class="acc-kpi-icon">🌅</div>
+            <div class="acc-kpi-val" id="accTodayRevenue">Rp 0</div>
+            <div class="acc-kpi-lbl">Revenue Hari Ini</div>
+          </div>
+          <div class="acc-card acc-kpi-card">
+            <div class="acc-kpi-icon">📈</div>
+            <div class="acc-kpi-val" id="accWeeklyGrowth">0%</div>
+            <div class="acc-kpi-lbl">Growth Mingguan</div>
+          </div>
+          <div class="acc-card acc-kpi-card">
+            <div class="acc-kpi-icon">🔮</div>
+            <div class="acc-kpi-val" id="accPrediction">--</div>
+            <div class="acc-kpi-lbl">Prediksi AI</div>
+          </div>
+        </div>
+
+        <!-- Trend + Pending -->
+        <div class="acc-grid" style="margin-top:10px;">
+          <div class="acc-card acc-expandable" id="accTrendCard" onclick="accToggle('accTrendCard')">
+            <div class="acc-card-head">
+              <div class="acc-card-icon">📊</div>
+              <span class="acc-chevron">▾</span>
+            </div>
+            <div class="acc-card-label">Tren Revenue 14 Hari</div>
+            <div class="acc-spark-wrap" id="accSparkWrap"><svg viewBox="0 0 200 40" preserveAspectRatio="none" id="accSparkSvg"></svg></div>
+            <div class="acc-card-detail" id="accTrendDetail"></div>
+          </div>
+
+          <div class="acc-card acc-expandable" id="accTasksCard" onclick="accToggle('accTasksCard')">
+            <div class="acc-card-head">
+              <div class="acc-card-icon">✅</div>
+              <span class="acc-chevron">▾</span>
+            </div>
+            <div class="acc-card-label">Tugas Tertunda</div>
+            <div class="acc-card-value" id="accPendingTasks">0</div>
+            <div class="acc-card-sub" id="accPendingTasksSub">tagihan belum lunas</div>
+            <div class="acc-card-detail" id="accTasksDetail"></div>
+          </div>
+        </div>
+
+        <!-- Top categories + Customer insight -->
+        <div class="acc-grid" style="margin-top:10px;">
+          <div class="acc-card acc-expandable" id="accTopCatCard" onclick="accToggle('accTopCatCard')">
+            <div class="acc-card-head">
+              <div class="acc-card-icon">🏆</div>
+              <span class="acc-chevron">▾</span>
+            </div>
+            <div class="acc-card-label">Kategori Terlaris</div>
+            <div class="acc-card-value" id="accTopCat" style="font-size:14px;">--</div>
+            <div class="acc-card-sub" id="accTopCatSub">Bulan ini</div>
+            <div class="acc-card-detail" id="accTopCatDetail"></div>
+          </div>
+
+          <div class="acc-card acc-expandable" id="accCustCard" onclick="accToggle('accCustCard')">
+            <div class="acc-card-head">
+              <div class="acc-card-icon">🧑‍🤝‍🧑</div>
+              <span class="acc-chevron">▾</span>
+            </div>
+            <div class="acc-card-label">Insight Pelanggan</div>
+            <div class="acc-card-value" id="accCustCount">0</div>
+            <div class="acc-card-sub" id="accCustSub">pelanggan tercatat</div>
+            <div class="acc-card-detail" id="accCustDetail"></div>
+          </div>
+        </div>
+
+        <!-- AI Insight / Recommendations -->
+        <div class="acc-grid" style="margin-top:10px;">
+          <div class="acc-card acc-insight-card">
+            <div class="acc-card-head">
+              <div class="acc-card-icon">💡</div>
+              <span class="acc-card-label">AI Insight & Rekomendasi</span>
+            </div>
+            <div class="acc-insight-list" id="accInsightList"></div>
+          </div>
+        </div>
+
+        <!-- Timeline + Reminders -->
+        <div class="acc-section-title"><span>🕒 Aktivitas Terbaru</span><span class="acc-line"></span></div>
+        <div class="acc-card" id="accTimelineCard">
+          <div id="accTimelineList"></div>
+        </div>
+
+        <div class="acc-section-title"><span>⏰ Pengingat Mendatang</span><span class="acc-line"></span></div>
+        <div class="acc-card" id="accReminderCard">
+          <div id="accReminderList"></div>
+        </div>
+
+        <div class="acc-section-title"><span>🔔 Notifikasi Terbaru</span><span class="acc-line"></span></div>
+        <div class="acc-card" id="accNotifCard">
+          <div id="accNotifList"></div>
+        </div>
+
+        <!-- Daily summary -->
+        <div class="acc-section-title"><span>📋 Ringkasan Harian</span><span class="acc-line"></span></div>
+        <div class="acc-card">
+          <div class="acc-card-sub" id="accDailySummary" style="white-space:pre-line; font-size:11.5px; color:#eaeaea;">Menghitung ringkasan hari ini...</div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="acc-section-title"><span>⚡ Aksi Cepat</span><span class="acc-line"></span></div>
+        <div class="acc-qa-grid">
+          <div class="acc-qa-btn" onclick="document.querySelector('.tab[data-panel=\'finance\']').click(); document.getElementById('textInput')?.focus();">
+            <span class="acc-qa-icon">🎙️</span>Catat
+          </div>
+          <div class="acc-qa-btn" onclick="document.querySelector('.tab[data-panel=\'tagihan\']')?.click();">
+            <span class="acc-qa-icon">🧾</span>Tagihan
+          </div>
+          <div class="acc-qa-btn" onclick="document.querySelector('.tab[data-panel=\'dashboard\']')?.click();">
+            <span class="acc-qa-icon">📊</span>Dashboard
+          </div>
+          <div class="acc-qa-btn" onclick="document.getElementById('notifBtn')?.click();">
+            <span class="acc-qa-icon">🔔</span>Notifikasi
+          </div>
+        </div>
+      </div>
+      <!-- END AI COMMAND CENTER WIDGETS -->
 
       <div class="record-zone">
 
@@ -3002,20 +3317,6 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     <!-- ===== SETTINGS PANEL ===== -->
     <section class="panel" id="panel-settings">
       <h2 style="font-size:18px;margin-bottom:16px;">⚙️ Pengaturan</h2>
-
-      <div class="settings-section">
-        <h4>Tampilan</h4>
-        <div class="setting-row">
-          <div>
-            <div class="sr-label">Mode Gelap (Dark Mode)</div>
-            <div class="sr-sub">Lebih nyaman di kondisi cahaya redup</div>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="settingDarkMode">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
 
       <div class="settings-section">
         <h4>Bahasa & Terjemahan</h4>
@@ -6271,8 +6572,8 @@ function startNavigation(){
 
     if(activeRouteCoords && activeRouteCoords.length > 1){
       // Gunakan near+far blend yang sama seperti camera follow
-      const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
-      const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+      const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40, _lastNearestRouteIdx);
+      const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180, _lastNearestRouteIdx);
       const bNear  = computeBearing(lat, lng, laNear.lat, laNear.lng);
       const bFar   = computeBearing(lat, lng, laFar.lat,  laFar.lng);
       let delta = bNear - bFar;
@@ -6355,10 +6656,13 @@ function startNavigation(){
         // Blend: 60% dari near look-ahead (40m, deteksi belok) +
         //        40% dari far  look-ahead (180m, stabilitas lurus)
         // Hasil di-smooth lagi oleh _smoothBearing() di setMapHeadingRotation.
-        let bearing = 0;
+        let bearing = _smoothedBearing !== null ? _smoothedBearing : 0;
         if(activeRouteCoords && activeRouteCoords.length > 1){
-          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
-          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+          // FIX: pakai _lastNearestRouteIdx sebagai bias supaya pencarian titik
+          // acuan selalu maju di sepanjang rute yang sama, tidak scan ulang dari
+          // awal (yang bisa "nyantol" ke titik rute lain yang kebetulan dekat).
+          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40, _lastNearestRouteIdx);
+          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180, _lastNearestRouteIdx);
           const bNear = computeBearing(lat, lng, laNear.lat, laNear.lng);
           const bFar  = computeBearing(lat, lng, laFar.lat,  laFar.lng);
           // Blend — perlu shortest-path delta agar 350°→10° tidak wrap salah
@@ -6368,6 +6672,14 @@ function startNavigation(){
           bearing = (bFar + delta * 0.6 + 360) % 360;
         }
 
+        // --- Smooth SEKALI di sini, dipakai bareng untuk ikon panah & rotasi peta ---
+        // FIX: sebelumnya ikon panah dibangun dari bearing MENTAH (tidak pernah
+        // di-smooth), sementara rotasi peta (mode heading-up) di-smooth terpisah
+        // di dalam setMapHeadingRotation. Akibatnya panah terlihat gemetar/jitter
+        // dan seolah "mikir ulang" tiap fix GPS baru masuk, walau peta sendiri
+        // sudah halus. Sekarang keduanya pakai satu nilai smoothed yang sama.
+        const smoothedBearing = _smoothBearing(bearing);
+
         // --- Update ikon panah user (zoom-aware, arah benar) ---
         try {
           const _ph = (typeof myProfile!=='undefined'&&myProfile)?myProfile.profilePhotoUrl||null:null;
@@ -6375,7 +6687,7 @@ function startNavigation(){
           const _half = Math.round(_sz / 2);
           const arrowIcon = L.divIcon({
             className:'',
-            html: buildNavMarkerHtml(_sz, bearing, _ph),
+            html: buildNavMarkerHtml(_sz, smoothedBearing, _ph),
             iconSize:[_sz,_sz], iconAnchor:[_half,_half], popupAnchor:[0,-_half]
           });
           if(myMarkerLive) myMarkerLive.setIcon(arrowIcon);
@@ -6385,7 +6697,10 @@ function startNavigation(){
           // === HEADING-UP ===
           // FIX KAKU: rotasi peta tetap update (agar marker arah user benar),
           // tapi setView (paksa scroll posisi) diblok saat user sedang eksplorasi bebas.
-          setMapHeadingRotation(bearing);
+          // Bearing sudah di-smooth di atas, jadi di sini langsung terapkan
+          // rotasinya tanpa smoothing kedua kali (yang tadinya menyebabkan
+          // dua "lapis" filter berbeda antara panah dan rotasi peta).
+          applyMapRotation(smoothedBearing);
           if(!_mapManualControl){
             const mapCenter = communityMap.getCenter();
             const distFromCenter = haversineM(lat, lng, mapCenter.lat, mapCenter.lng);
@@ -6400,7 +6715,7 @@ function startNavigation(){
           if(!_mapManualControl){
             let camLat = lat, camLng = lng;
             if(activeRouteCoords && activeRouteCoords.length > 1){
-              const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200);
+              const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200, _lastNearestRouteIdx);
               camLat = lat + (la.lat - lat) * 0.40;
               camLng = lng + (la.lng - lng) * 0.40;
             }
@@ -6565,12 +6880,27 @@ function computeBearing(lat1, lng1, lat2, lng2){
 }
 
 // ── Look-ahead camera helper ──────────────────────────────────────────────────
-function findLookAheadPoint(userLatLng, routeCoords, aheadMeters){
+// FIX STABILITAS: parameter opsional `biasIdx` membuat pencarian titik terdekat
+// hanya menyisir maju dari indeks terakhir yang sudah diketahui (mis. dari
+// _lastNearestRouteIdx), bukan scan ulang seluruh rute dari awal setiap kali.
+// Ini mencegah bearing "lompat" ke titik rute lain yang kebetulan berdekatan
+// (jalan sejajar/persimpangan) saat sinyal GPS sedikit meleset — sumber utama
+// panah yang terkesan "mikir ulang" arahnya.
+function findLookAheadPoint(userLatLng, routeCoords, aheadMeters, biasIdx){
   if(!userLatLng||!routeCoords||routeCoords.length<2) return userLatLng||L.latLng(0,0);
   let minDist=Infinity,minIdx=0;
-  for(let i=0;i<routeCoords.length;i++){
-    const d=userLatLng.distanceTo(routeCoords[i]);
-    if(d<minDist){minDist=d;minIdx=i;}
+  if(typeof biasIdx === 'number' && biasIdx >= 0 && biasIdx < routeCoords.length){
+    // Cari hanya di sekitar & ke depan biasIdx (jendela kecil ke belakang untuk toleransi jitter)
+    const searchStart = Math.max(0, biasIdx - 5);
+    for(let i=searchStart;i<routeCoords.length;i++){
+      const d=userLatLng.distanceTo(routeCoords[i]);
+      if(d<minDist){minDist=d;minIdx=i;}
+    }
+  } else {
+    for(let i=0;i<routeCoords.length;i++){
+      const d=userLatLng.distanceTo(routeCoords[i]);
+      if(d<minDist){minDist=d;minIdx=i;}
+    }
   }
   let dist=0;
   for(let i=minIdx;i<routeCoords.length-1;i++){
@@ -6881,6 +7211,7 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   // Gambar polyline rute nyata
   const coords=route.geometry.coordinates.map(c=>L.latLng(c[1],c[0]));
   activeRouteCoords=coords;
+  _lastNearestRouteIdx=0; // FIX: rute baru → reset indeks progres supaya garis tidak salah potong
 
   // Kumpulkan steps turn-by-turn dari semua legs
   activeRouteSteps=[];
@@ -6955,6 +7286,12 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
           // dan myMarkerLive dibuat locWatchId. Kalau keduanya null, _doRoute
           // akan buat route_user saat rute berikutnya diminta.
         }
+        // FIX: potong juga garis rute (traveled vs remaining) di mode live-tracking
+        // ringan ini — sebelumnya garis rute penuh dibiarkan statis sampai user
+        // menekan "▶ Mulai Navigasi", jadi bagian yang sudah dilewati tidak hilang.
+        if(activeRouteCoords && activeRouteCoords.length > 1){
+          updateRouteProgress(lat, lng);
+        }
       },
       (err) => { console.warn('[routeWatch] GPS error:', err.code, err.message); },
       {enableHighAccuracy: true, timeout: 15000, maximumAge: 3000}
@@ -6994,6 +7331,10 @@ function initCommunityMap(centerLat, centerLng){
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 20
   }).addTo(communityMap);
+
+  // Terapkan tema cerah/gelap otomatis sesuai jam Indonesia (WIB) begitu tile
+  // pane sudah ada di DOM. Sedikit delay agar .leaflet-tile-pane sudah dirender.
+  setTimeout(applyMapTimeTheme, 50);
 
   // Tombol kontrol — di communityMapContainer (bukan leafletMap) agar tidak ikut rotate
   const controlDiv = document.createElement('div');
@@ -7111,8 +7452,8 @@ function initCommunityMap(centerLat, centerLng){
         // Gunakan zoom pilihan user, bukan hardcode
         communityMap.setView([lat,lng], _navUserZoom || communityMap.getZoom(), {animate:false, noMoveStart:true});
         if(activeRouteCoords && activeRouteCoords.length > 1){
-          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40);
-          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180);
+          const laNear = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 40, _lastNearestRouteIdx);
+          const laFar  = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 180, _lastNearestRouteIdx);
           const bNear  = computeBearing(lat, lng, laNear.lat, laNear.lng);
           const bFar   = computeBearing(lat, lng, laFar.lat,  laFar.lng);
           let delta = bNear - bFar;
@@ -7150,12 +7491,13 @@ function _smoothBearing(newBearing){
   return _smoothedBearing;
 }
 
-function setMapHeadingRotation(rawDeg){
+// Terapkan rotasi visual peta LANGSUNG dari sebuah derajat yang sudah di-smooth
+// sebelumnya (tidak melakukan smoothing lagi di sini). Dipakai saat caller
+// (mis. handleNavFix) sudah punya nilai smoothedBearing yang sama dengan yang
+// dipakai untuk ikon panah, supaya arah panah & rotasi peta selalu selaras.
+function applyMapRotation(deg){
   const el = document.getElementById('mapClipWrapper');
   if(!el) return;
-
-  // Smooth bearing supaya pandangan ikut belok tapi tidak jitter
-  const deg = _smoothBearing(rawDeg);
 
   // Wrap diff agar animasi tidak muter jauh
   let d = deg;
@@ -7185,6 +7527,73 @@ function setMapHeadingRotation(rawDeg){
   el.style.transform  = d ? `rotate(${(-d).toFixed(2)}deg) scale(1.8)` : '';
   // transition cepat (0.3s) agar belok terasa langsung
   el.style.transition = 'transform 0.3s ease-out';
+}
+
+// Wrapper lama: smoothing lalu langsung terapkan rotasi. Tetap dipakai oleh
+// caller yang belum punya nilai smoothed sendiri (mis. snapCameraNow saat
+// baru mulai navigasi, atau reset ke North-Up saat stopNavigation/toggle).
+function setMapHeadingRotation(rawDeg){
+  const deg = _smoothBearing(rawDeg);
+  applyMapRotation(deg);
+}
+
+// ── Tema terang/gelap peta berdasarkan jam Indonesia (WIB) ───────────────────
+// Pagi (05:00–10:59): peta dibuat sedikit lebih cerah & hangat.
+// Siang (11:00–14:59): tampilan normal.
+// Sore (15:00–17:59): mulai meredup, nuansa hangat transisi.
+// Malam (18:00–04:59): peta digelapkan dengan nuansa kebiruan ala mode malam.
+// Selalu pakai timezone Asia/Jakarta apa pun timezone perangkat pengguna,
+// karena target penggunanya UMKM di Indonesia.
+function getJakartaHour(){
+  try{
+    return parseInt(new Intl.DateTimeFormat('en-GB',{hour:'2-digit',hour12:false,timeZone:'Asia/Jakarta'}).format(new Date()),10);
+  }catch(e){
+    return new Date().getHours();
+  }
+}
+
+function applyMapTimeTheme(){
+  const wrapper = document.getElementById('mapClipWrapper');
+  if(!wrapper) return;
+  const hour = getJakartaHour();
+  let filter, vignette;
+  if(hour>=5 && hour<11){
+    // Pagi — cerah & hangat
+    filter   = 'brightness(1.1) saturate(1.1) contrast(1.02)';
+    vignette = 'radial-gradient(circle at 50% 42%, rgba(255,238,200,0.16), rgba(255,238,200,0) 62%)';
+  } else if(hour>=11 && hour<15){
+    // Siang — normal
+    filter   = 'none';
+    vignette = 'none';
+  } else if(hour>=15 && hour<18){
+    // Sore — mulai redup, hangat
+    filter   = 'brightness(0.9) saturate(1.05) sepia(0.08)';
+    vignette = 'radial-gradient(circle at 50% 55%, rgba(255,150,80,0.08), rgba(20,20,40,0.14) 100%)';
+  } else {
+    // Malam — gelap, kebiruan
+    filter   = 'brightness(0.55) contrast(1.12) saturate(0.75)';
+    vignette = 'radial-gradient(circle at 50% 50%, rgba(10,15,35,0.05), rgba(5,10,25,0.38) 100%)';
+  }
+
+  const tilePane = wrapper.querySelector('.leaflet-tile-pane');
+  if(tilePane) tilePane.style.filter = filter;
+
+  let overlay = document.getElementById('mapTimeOverlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'mapTimeOverlay';
+    overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:390;transition:background 1.5s ease;';
+    wrapper.appendChild(overlay);
+  }
+  overlay.style.background = vignette;
+}
+
+// Refresh tema tiap 5 menit supaya transisi pagi→siang→sore→malam otomatis
+// berjalan selama peta terbuka, tanpa perlu reload halaman.
+if(!window._mapTimeThemeInterval){
+  window._mapTimeThemeInterval = setInterval(() => {
+    if(document.getElementById('mapClipWrapper')) applyMapTimeTheme();
+  }, 5*60*1000);
 }
 
 function makeUserIcon(isMe, photoUrl){
@@ -10631,25 +11040,6 @@ function closeImgFullscreen(){
   document.getElementById('imgFullscreenImg').src = '';
 }
 document.addEventListener('keydown', (e) => { if(e.key==='Escape') closeImgFullscreen(); });
-
-// ============ DARK MODE ============
-function applyDarkMode(on){
-  document.body.classList.toggle('dark-mode', on);
-  $('darkModeBtn').textContent = on ? '☀️' : '🌙';
-  const chk = document.getElementById('settingDarkMode');
-  if(chk) chk.checked = on;
-  try{ localStorage.setItem('umkm_dark_mode', on?'1':'0'); }catch(e){}
-}
-document.getElementById('darkModeBtn').addEventListener('click', () => {
-  applyDarkMode(!document.body.classList.contains('dark-mode'));
-});
-document.getElementById('settingDarkMode').addEventListener('change', (e) => {
-  applyDarkMode(e.target.checked);
-});
-// Load saved dark mode
-try{
-  if(localStorage.getItem('umkm_dark_mode')==='1') applyDarkMode(true);
-}catch(e){}
 
 // ============ NOTIFICATIONS ============
 let notifications = [];
@@ -15824,8 +16214,6 @@ Contoh: "8|Mengandung tag script dan eval"`;
       updateName();
       setInterval(updateName, 5000);
       
-      // Auto dark mode trigger on the body if needed
-      document.body.classList.add('dark-mode');
     });
   </script>
 
@@ -16319,6 +16707,299 @@ Contoh: "8|Mengandung tag script dan eval"`;
     // Cek tiap 3 menit + sekali saat halaman selesai load (kasih jeda biar profil & transaksi sempat kemuat)
     setInterval(maybeShowDailyRecap, 3*60*1000);
     setTimeout(maybeShowDailyRecap, 8000);
+  })();
+  </script>
+
+  <!-- ===== AI COMMAND CENTER ENGINE ===== -->
+  <script>
+  (function aiCommandCenter(){
+    function $(id){ return document.getElementById(id); }
+    function fmtRp(n){ return 'Rp ' + Math.round(Number(n)||0).toLocaleString('id-ID'); }
+    function dayKey(iso){ return String(iso||'').slice(0,10); }
+    function escapeHtmlLocal(s){
+      return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Animated counter for numeric text (keeps prefix/suffix like "Rp " or "%")
+    function animateValue(el, endText){
+      if(!el) return;
+      const match = String(endText).match(/^([^\d\-]*)(-?[\d.,]+)(.*)$/);
+      if(!match){ el.textContent = endText; return; }
+      const prefix = match[1], suffix = match[3];
+      const endNum = parseFloat(match[2].replace(/\./g,'').replace(',','.')) || 0;
+      const startNum = parseFloat(el.dataset.accNum || '0') || 0;
+      const dur = 600; const t0 = performance.now();
+      function step(t){
+        const p = Math.min(1, (t - t0) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        const cur = startNum + (endNum - startNum) * eased;
+        el.textContent = prefix + Math.round(cur).toLocaleString('id-ID') + suffix;
+        if(p < 1) requestAnimationFrame(step);
+        else { el.dataset.accNum = endNum; el.textContent = endText; }
+      }
+      requestAnimationFrame(step);
+    }
+
+    window.accToggle = function(id){
+      const card = $(id);
+      if(card) card.classList.toggle('open');
+    };
+
+    function computeHealthScore(tx, inv){
+      const totalIn = tx.filter(t=>t.type==='in').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const totalOut = tx.filter(t=>t.type==='out').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const margin = totalIn > 0 ? (totalIn - totalOut) / totalIn : 0;
+      let marginScore = Math.max(0, Math.min(40, (margin) * 60 + 20)); // -33%..+100% margin -> 0..40ish, floor at 0
+
+      const pred = (typeof computeRevenuePrediction === 'function') ? computeRevenuePrediction() : {available:false};
+      let trendScore = 20; // neutral default
+      if(pred.available) trendScore = Math.max(0, Math.min(30, 15 + (pred.pct/4)));
+
+      const unpaid = inv.filter(i => i.status !== 'lunas');
+      const overdue = unpaid.filter(i => {
+        const d = new Date(i.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
+        return d < today;
+      });
+      let invoiceScore = 20;
+      if(unpaid.length > 0) invoiceScore = Math.max(0, 20 - (overdue.length / unpaid.length) * 20);
+
+      // Activity consistency: days with at least 1 transaction in last 14 days
+      const days14 = new Set();
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-14);
+      tx.forEach(t=>{ if(t.time && new Date(t.time) >= cutoff) days14.add(dayKey(t.time)); });
+      let activityScore = Math.min(10, days14.size * (10/10));
+
+      const score = Math.round(Math.max(0, Math.min(100, marginScore + trendScore + invoiceScore + activityScore)));
+      return { score, margin, unpaidCount: unpaid.length, overdueCount: overdue.length, activeDays: days14.size };
+    }
+
+    function renderHealth(tx, inv){
+      const h = computeHealthScore(tx, inv);
+      const ring = $('accHealthRing');
+      const circumference = 169.6;
+      const offset = circumference - (h.score/100) * circumference;
+      if(ring) ring.style.strokeDashoffset = offset;
+      if($('accHealthNum')) $('accHealthNum').textContent = h.score;
+      let verdict = h.score >= 75 ? 'Sangat sehat 🚀' : h.score >= 50 ? 'Cukup sehat 👍' : h.score >= 25 ? 'Perlu perhatian ⚠️' : 'Kritis, cek cashflow 🔴';
+      if($('accHealthDesc')) $('accHealthDesc').textContent = `${verdict} — margin profit ${(h.margin*100).toFixed(1)}%, ${h.overdueCount} tagihan telat dari ${h.unpaidCount} belum lunas.`;
+      return h;
+    }
+
+    function renderKpis(tx){
+      const todayStr = new Date().toISOString().slice(0,10);
+      const todayIn = tx.filter(t=>t.type==='in' && dayKey(t.time)===todayStr).reduce((s,t)=>s+(Number(t.amount)||0),0);
+      animateValue($('accTodayRevenue'), fmtRp(todayIn));
+
+      // Weekly growth: this 7 days vs previous 7 days
+      const now = new Date();
+      const d7 = new Date(now); d7.setDate(d7.getDate()-7);
+      const d14 = new Date(now); d14.setDate(d14.getDate()-14);
+      const thisWeek = tx.filter(t=>t.type==='in' && t.time && new Date(t.time) >= d7).reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const lastWeek = tx.filter(t=>t.type==='in' && t.time && new Date(t.time) >= d14 && new Date(t.time) < d7).reduce((s,t)=>s+(Number(t.amount)||0),0);
+      let growth = lastWeek > 0 ? ((thisWeek - lastWeek)/lastWeek*100) : (thisWeek > 0 ? 100 : 0);
+      const gEl = $('accWeeklyGrowth');
+      if(gEl){
+        gEl.textContent = (growth>=0?'+':'') + growth.toFixed(1) + '%';
+        gEl.style.color = growth >= 0 ? '#24e08a' : '#ff6b6b';
+      }
+
+      const pred = (typeof computeRevenuePrediction === 'function') ? computeRevenuePrediction() : {available:false};
+      const pEl = $('accPrediction');
+      if(pEl){
+        if(pred.available){
+          pEl.textContent = (pred.pct>=0?'+':'') + pred.pct.toFixed(1) + '%';
+          pEl.style.color = pred.pct >= 0 ? '#24e08a' : '#ff6b6b';
+        } else {
+          pEl.textContent = 'Data kurang';
+          pEl.style.color = '';
+        }
+      }
+    }
+
+    function renderSparkline(tx){
+      const byDay = {};
+      const days = [];
+      for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); days.push(k); byDay[k]=0; }
+      tx.forEach(t=>{ if(t.type==='in'){ const k=dayKey(t.time); if(byDay[k]!==undefined) byDay[k]+=(Number(t.amount)||0); } });
+      const vals = days.map(k=>byDay[k]);
+      const max = Math.max(...vals, 1);
+      const min = Math.min(...vals, 0);
+      const range = (max-min) || 1;
+      const w=200, h=40, step = w/(vals.length-1);
+      const pts = vals.map((v,i)=> `${(i*step).toFixed(1)},${(h - ((v-min)/range)*h*0.85 - 3).toFixed(1)}`);
+      const line = 'M' + pts.join(' L');
+      const area = line + ` L${w},${h} L0,${h} Z`;
+      const svg = $('accSparkSvg');
+      if(svg){
+        svg.innerHTML = `
+          <defs>
+            <linearGradient id="accSparkFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00D9FF" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#00D9FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="${area}" fill="url(#accSparkFill)" stroke="none"/>
+          <path d="${line}" fill="none" stroke="#00D9FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        `;
+      }
+      const total14 = vals.reduce((s,v)=>s+v,0);
+      const detail = $('accTrendDetail');
+      if(detail) detail.textContent = `Total 14 hari terakhir: ${fmtRp(total14)}. Rata-rata harian: ${fmtRp(total14/14)}.`;
+    }
+
+    function renderTasks(inv){
+      const unpaid = inv.filter(i=>i.status!=='lunas');
+      const overdue = unpaid.filter(i=>{
+        const d = new Date(i.dueDate+'T00:00:00'); const today=new Date(); today.setHours(0,0,0,0);
+        return d < today;
+      });
+      if($('accPendingTasks')) $('accPendingTasks').textContent = unpaid.length;
+      if($('accPendingTasksSub')) $('accPendingTasksSub').textContent = `${overdue.length} telat bayar`;
+      const detail = $('accTasksDetail');
+      if(detail){
+        if(unpaid.length===0){ detail.textContent = 'Semua tagihan lunas. Kerja bagus! ✅'; }
+        else {
+          const totalUnpaid = unpaid.reduce((s,i)=>s+(Number(i.amount)||0),0);
+          detail.textContent = `Total belum tertagih: ${fmtRp(totalUnpaid)} dari ${unpaid.length} pelanggan.`;
+        }
+      }
+    }
+
+    function renderTopCategory(tx){
+      const now = new Date();
+      const monthTx = tx.filter(t=>t.type==='in' && t.time && new Date(t.time).getMonth()===now.getMonth() && new Date(t.time).getFullYear()===now.getFullYear());
+      const catMap = {};
+      monthTx.forEach(t=>{ const c = t.category || 'Lainnya'; catMap[c] = (catMap[c]||0) + (Number(t.amount)||0); });
+      const sorted = Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+      if(sorted.length===0){
+        if($('accTopCat')) $('accTopCat').textContent = 'Belum ada data';
+        if($('accTopCatSub')) $('accTopCatSub').textContent = 'Catat transaksi dulu';
+        return;
+      }
+      if($('accTopCat')) $('accTopCat').textContent = sorted[0][0];
+      if($('accTopCatSub')) $('accTopCatSub').textContent = fmtRp(sorted[0][1]) + ' bulan ini';
+      const detail = $('accTopCatDetail');
+      if(detail){
+        detail.innerHTML = sorted.slice(0,5).map((c,i)=>`${i+1}. ${escapeHtmlLocal(c[0])} — ${fmtRp(c[1])}`).join('<br>');
+      }
+    }
+
+    function renderCustomerInsight(inv){
+      const names = [...new Set(inv.map(i=>i.customerName).filter(Boolean))];
+      if($('accCustCount')) $('accCustCount').textContent = names.length;
+      if(names.length===0){
+        if($('accCustSub')) $('accCustSub').textContent = 'Belum ada data pelanggan';
+        if($('accCustDetail')) $('accCustDetail').textContent = 'Tambah tagihan untuk mulai lacak pelanggan.';
+        return;
+      }
+      const byCust = {};
+      inv.forEach(i=>{ if(i.customerName) byCust[i.customerName] = (byCust[i.customerName]||0) + (Number(i.amount)||0); });
+      const topCust = Object.entries(byCust).sort((a,b)=>b[1]-a[1])[0];
+      if($('accCustSub')) $('accCustSub').textContent = 'pelanggan tercatat';
+      const detail = $('accCustDetail');
+      if(detail && topCust) detail.textContent = `Pelanggan teratas: ${topCust[0]} (${fmtRp(topCust[1])} total tagihan).`;
+    }
+
+    function renderInsights(tx, inv, health){
+      const list = $('accInsightList');
+      if(!list) return;
+      const tips = [];
+      if(health.overdueCount > 0) tips.push({ico:'🔴', text:`Ada ${health.overdueCount} tagihan telat bayar — kirim reminder WA sekarang di tab Tagihan.`});
+      if(health.margin < 0.15) tips.push({ico:'⚠️', text:`Margin profit ${( health.margin*100).toFixed(1)}% cukup tipis. Coba tinjau kembali harga jual atau biaya bahan.`});
+      if(health.activeDays < 7) tips.push({ico:'📆', text:`Kamu baru catat transaksi ${health.activeDays} hari dari 14 hari terakhir. Catat tiap hari biar AI makin akurat memprediksi.`});
+      const now = new Date();
+      const hour = now.getHours();
+      if(hour >= 18) tips.push({ico:'🌙', text:'Sudah malam — jangan lupa cek Ringkasan Harian sebelum tutup toko.'});
+      if(tips.length === 0) tips.push({ico:'✨', text:'Semua metrik terlihat sehat. Pertahankan konsistensi pencatatan transaksi harianmu!'});
+      tips.push({ico:'🤖', text:'AI Secretary siap bantu buat caption produk, scan struk belanja, dan rekap laporan otomatis — coba fitur di tab lain.'});
+      list.innerHTML = tips.slice(0,4).map(t=>`<div class="acc-insight-item"><span class="ico">${t.ico}</span><span>${escapeHtmlLocal(t.text)}</span></div>`).join('');
+    }
+
+    function renderTimeline(tx){
+      const list = $('accTimelineList');
+      if(!list) return;
+      const recent = [...tx].filter(t=>t.time).sort((a,b)=> new Date(b.time)-new Date(a.time)).slice(0,6);
+      if(recent.length===0){ list.innerHTML = '<div class="empty-state">Belum ada transaksi tercatat.</div>'; return; }
+      list.innerHTML = recent.map(t=>{
+        const d = new Date(t.time);
+        const timeStr = d.toLocaleDateString('id-ID', {day:'numeric', month:'short'}) + ' · ' + d.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+        return `
+        <div class="acc-timeline-item">
+          <span class="acc-timeline-dot ${t.type==='out'?'out':''}"></span>
+          <div class="acc-timeline-text">
+            <div class="acc-timeline-title">${escapeHtmlLocal(t.desc || t.category || 'Transaksi')}</div>
+            <div class="acc-timeline-meta">${escapeHtmlLocal(t.category||'')} · ${timeStr}</div>
+          </div>
+          <div class="acc-timeline-amount ${t.type==='out'?'out':'in'}">${t.type==='out'?'-':'+'}${fmtRp(t.amount)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderReminders(inv){
+      const list = $('accReminderList');
+      if(!list) return;
+      const upcoming = inv.filter(i=>i.status!=='lunas' && i.dueDate).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,5);
+      if(upcoming.length===0){ list.innerHTML = '<div class="empty-state">Tidak ada tagihan yang jatuh tempo.</div>'; return; }
+      list.innerHTML = upcoming.map(i=>{
+        const d = new Date(i.dueDate+'T00:00:00'); const today=new Date(); today.setHours(0,0,0,0);
+        const diff = Math.round((d-today)/86400000);
+        const status = diff < 0 ? `🔴 Telat ${Math.abs(diff)} hari` : diff===0 ? '🟠 Jatuh tempo hari ini' : `🟢 ${diff} hari lagi`;
+        return `
+        <div class="acc-timeline-item">
+          <span class="acc-timeline-dot"></span>
+          <div class="acc-timeline-text">
+            <div class="acc-timeline-title">${escapeHtmlLocal(i.customerName||'-')}</div>
+            <div class="acc-timeline-meta">${status}</div>
+          </div>
+          <div class="acc-timeline-amount in">${fmtRp(i.amount)}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderNotifMini(){
+      const list = $('accNotifList');
+      if(!list) return;
+      const notifs = (typeof notifications !== 'undefined') ? notifications.slice(0,4) : [];
+      if(notifs.length===0){ list.innerHTML = '<div class="empty-state">Tidak ada notifikasi baru.</div>'; return; }
+      list.innerHTML = notifs.map(n=>`
+        <div class="acc-notif-mini"><span>${n.icon||'🔔'}</span><span>${escapeHtmlLocal(n.msg)}</span><span class="t">${escapeHtmlLocal(n.time||'')}</span></div>
+      `).join('');
+    }
+
+    function renderDailySummary(){
+      const el = $('accDailySummary');
+      if(!el) return;
+      if(typeof transactions === 'undefined'){ el.textContent = 'Belum ada data.'; return; }
+      const todayStr = new Date().toISOString().slice(0,10);
+      const todays = transactions.filter(t=>dayKey(t.time)===todayStr);
+      const totalIn = todays.filter(t=>t.type==='in').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const totalOut = todays.filter(t=>t.type==='out').reduce((s,t)=>s+(Number(t.amount)||0),0);
+      const net = totalIn - totalOut;
+      if(todays.length===0){ el.textContent = 'Belum ada transaksi hari ini. Yuk mulai catat! 🎙️'; return; }
+      el.textContent = `💰 Pemasukan: ${fmtRp(totalIn)}\n📤 Pengeluaran: ${fmtRp(totalOut)}\n${net>=0?'📈 Untung':'📉 Rugi'} Bersih: ${fmtRp(Math.abs(net))}\n🔢 ${todays.length} transaksi tercatat hari ini`;
+    }
+
+    function refresh(){
+      const tx = (typeof transactions !== 'undefined') ? transactions : [];
+      const inv = (typeof invoices !== 'undefined') ? invoices : [];
+      if(!$('accWrap')) return;
+      const health = renderHealth(tx, inv);
+      renderKpis(tx);
+      renderSparkline(tx);
+      renderTasks(inv);
+      renderTopCategory(tx);
+      renderCustomerInsight(inv);
+      renderInsights(tx, inv, health);
+      renderTimeline(tx);
+      renderReminders(inv);
+      renderNotifMini();
+      renderDailySummary();
+      const tag = $('accRefreshTag');
+      if(tag) tag.textContent = 'Diperbarui ' + new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+    }
+
+    document.addEventListener('DOMContentLoaded', () => setTimeout(refresh, 2200));
+    setInterval(refresh, 15000);
   })();
   </script>
 

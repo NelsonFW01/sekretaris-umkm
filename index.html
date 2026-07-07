@@ -531,7 +531,7 @@
   .review-card .rv-field{ flex:1; display:flex; flex-direction:column; gap:4px; }
   .review-card .rv-field-label{ font-size:10.5px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.03em; }
   .review-card select, .review-card input{
-    flex:1; padding:9px 10px; border-radius:9px; border:1.5px solid var(--line); font-size:13px; font-family:inherit; background:white;
+    flex:1; min-width:0; width:100%; padding:9px 10px; border-radius:9px; border:1.5px solid var(--line); font-size:13px; font-family:inherit; background:white;
   }
   .review-card .rv-actions{ display:flex; gap:8px; margin-top:8px; }
   .review-card .rv-actions button{
@@ -669,7 +669,7 @@
   .modal-overlay.show{ display:flex; }
   .modal-box{
     background:var(--bg-card); width:100%; max-width:560px; border-radius:20px 20px 0 0;
-    padding:24px 20px 28px; max-height:88vh; overflow-y:auto; animation: fadeUp .25s ease;
+    padding:24px 20px calc(28px + env(safe-area-inset-bottom, 0px)); max-height:88vh; overflow-y:auto; animation: fadeUp .25s ease;
   }
   .modal-box h3{ font-size:17px; margin-bottom:6px; }
   .modal-box .modal-sub{ color:var(--ink-soft); font-size:13px; margin-bottom:16px; }
@@ -3054,6 +3054,14 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       color:rgba(255,255,255,0.5); font-size:13px; touch-action:none;
     }
     #aiSummaryResizeHandle:hover { color:rgba(255,255,255,0.9); }
+    /* Handle tambahan di sisi kanan, bawah, & pojok kanan-bawah, supaya kotak chat
+       bisa diperkecil/diperbesar dari sisi manapun, bukan cuma dari pojok kiri-atas. */
+    #aiSummaryResizeRight, #aiSummaryResizeBottom, #aiSummaryResizeBR {
+      position:absolute; z-index:10; touch-action:none;
+    }
+    #aiSummaryResizeRight { top:22px; right:0; bottom:22px; width:10px; cursor:ew-resize; }
+    #aiSummaryResizeBottom { left:22px; right:22px; bottom:0; height:10px; cursor:ns-resize; }
+    #aiSummaryResizeBR { right:0; bottom:0; width:22px; height:22px; cursor:nwse-resize; }
   </style>
   <div id="aiSummaryFloatBtn" title="Ringkasan Aktivitas AI (tahan &amp; geser untuk pindahkan)" onclick="if(!window._aiFloatWasDragged)toggleAiSummaryPanel();" style="
     position:fixed;bottom:110px;right:20px;z-index:3000;
@@ -3079,6 +3087,9 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     transition:border-radius .25s ease;
   ">
     <div id="aiSummaryResizeHandle" title="Tahan &amp; geser untuk perbesar/perkecil kotak chat">⤡</div>
+    <div id="aiSummaryResizeRight" title="Tahan &amp; geser untuk ubah lebar kotak chat"></div>
+    <div id="aiSummaryResizeBottom" title="Tahan &amp; geser untuk ubah tinggi kotak chat"></div>
+    <div id="aiSummaryResizeBR" title="Tahan &amp; geser untuk perbesar/perkecil kotak chat"></div>
     <!-- Header (klik header juga toggle minimize; drag handle utk pindahkan kotak chat) -->
     <div id="aiSummaryHeader" onclick="if(event.target.closest('button'))return;if(!window._aiPanelWasDragged)toggleAiSummaryMinimize();" style="flex:0 0 auto;cursor:grab;touch-action:none;user-select:none;background:linear-gradient(135deg,#1B4D4A,#103230);color:white;padding:14px 16px 14px 30px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:9px;">
@@ -3219,8 +3230,9 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     makeDraggable(document.getElementById('aiSummaryPanel'), document.getElementById('aiSummaryHeader'), 'umkm_aiPanelPos', '_aiPanelWasDragged');
   });
 
-  // ── Membuat kotak chat bisa diperbesar / diperkecil (resize) lewat pojok kiri-atas ──
-  function makeResizable(el, handleEl, storageKey){
+  // ── Membuat kotak chat bisa diperbesar / diperkecil (resize) dari sisi manapun ──
+  // dir: 'nw' = pojok kiri-atas, 'e' = sisi kanan, 's' = sisi bawah, 'se' = pojok kanan-bawah
+  function makeResizable(el, handleEl, storageKey, dir){
     if(!el || !handleEl) return;
     let startX, startY, startW, startH, resizing=false;
     const minW = 260, minH = 280;
@@ -3246,10 +3258,21 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     }
     function onMove(clientX, clientY){
       if(!resizing) return;
-      // Handle ada di pojok kiri-atas: geser ke kiri/atas artinya memperbesar
-      const dx = startX - clientX;
-      const dy = startY - clientY;
-      applySize(startW + dx, startH + dy);
+      let dw = 0, dh = 0;
+      if(dir === 'nw'){
+        // Handle di pojok kiri-atas: geser ke kiri/atas artinya memperbesar
+        dw = startX - clientX; dh = startY - clientY;
+      } else if(dir === 'e'){
+        // Handle di sisi kanan: geser ke kanan memperbesar lebar
+        dw = clientX - startX;
+      } else if(dir === 's'){
+        // Handle di sisi bawah: geser ke bawah memperbesar tinggi
+        dh = clientY - startY;
+      } else if(dir === 'se'){
+        // Handle di pojok kanan-bawah: geser kanan/bawah memperbesar keduanya
+        dw = clientX - startX; dh = clientY - startY;
+      }
+      applySize(startW + dw, startH + dh);
     }
     function onUp(){
       if(!resizing) return;
@@ -3266,16 +3289,22 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     window.addEventListener('touchmove', (e)=>{ if(!resizing) return; const t=e.touches[0]; onMove(t.clientX, t.clientY); }, {passive:true});
     window.addEventListener('touchend', onUp);
 
-    window.restoreAiPanelSize = function(){
-      try{
-        const saved = JSON.parse(localStorage.getItem(storageKey)||'null');
-        if(saved && saved.w && saved.h) applySize(saved.w, saved.h);
-      }catch(e){}
-    };
+    if(!window.restoreAiPanelSize){
+      window.restoreAiPanelSize = function(){
+        try{
+          const saved = JSON.parse(localStorage.getItem(storageKey)||'null');
+          if(saved && saved.w && saved.h) applySize(saved.w, saved.h);
+        }catch(e){}
+      };
+    }
   }
 
   document.addEventListener('DOMContentLoaded', function(){
-    makeResizable(document.getElementById('aiSummaryPanel'), document.getElementById('aiSummaryResizeHandle'), 'umkm_aiPanelSize');
+    const _aiPanel = document.getElementById('aiSummaryPanel');
+    makeResizable(_aiPanel, document.getElementById('aiSummaryResizeHandle'), 'umkm_aiPanelSize', 'nw');
+    makeResizable(_aiPanel, document.getElementById('aiSummaryResizeRight'), 'umkm_aiPanelSize', 'e');
+    makeResizable(_aiPanel, document.getElementById('aiSummaryResizeBottom'), 'umkm_aiPanelSize', 's');
+    makeResizable(_aiPanel, document.getElementById('aiSummaryResizeBR'), 'umkm_aiPanelSize', 'se');
     if(typeof window.restoreAiPanelSize === 'function') window.restoreAiPanelSize();
   });
 })();
@@ -5901,6 +5930,15 @@ function updateRouteProgress(lat, lng){
 function startNavigation(){
   if(!activeRouteCoords||!activeRouteCoords.length){
     alert('Rute belum tersedia. Pilih tujuan dulu.'); return;
+  }
+  // FIX: kalau mode 3D kota lagi aktif, matikan dulu saat navigasi dimulai.
+  // Canvas 3D menutupi peta 2D dan menangkap semua sentuhan, jadi peta jadi
+  // tidak bisa digeser selama navigasi. Supaya perilakunya sama persis dengan
+  // saat tombol 3D tidak dipencet (peta tetap bisa digeser bebas), kita
+  // paksa nonaktifkan tampilan 3D di sini.
+  const _city3dCanvas = document.getElementById('city3dCanvas');
+  if(_city3dCanvas && _city3dCanvas.style.display !== 'none' && typeof toggle3DCity === 'function'){
+    toggle3DCity();
   }
   navMode=true;
   lastSpokenStep=-1;

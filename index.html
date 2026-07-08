@@ -16291,15 +16291,15 @@ Contoh: "8|Mengandung tag script dan eval"`;
       }
     });
 
-    let _welcomeSpokenThisPageLoad = false; // reset otomatis tiap kali halaman dibuka/refresh
+    // idle -> attempting -> spoken. Reset otomatis tiap kali halaman dibuka/refresh
+    // (dulu pakai sessionStorage yang nempel sepanjang umur tab, baru reset kalau
+    // tab ditutup -- makanya kesannya "suaranya hilang" pas cuma di-refresh).
+    let _welcomeGreetingState = 'idle';
+
     window.speakWelcomeGreeting = function(){
       try{
-        // Cukup sekali per pemuatan halaman (bukan tiap kali onAuthStateChanged terpanggil ulang,
-        // mis. saat refresh token) -- tapi TETAP bunyi lagi tiap kali halaman dibuka/refresh,
-        // karena dulu ini pakai sessionStorage yang nempel sepanjang umur tab (baru reset kalau
-        // tab ditutup), jadi kesannya "suaranya hilang" padahal cuma nge-mute diri sendiri.
-        if(_welcomeSpokenThisPageLoad) return;
-        _welcomeSpokenThisPageLoad = true;
+        if(_welcomeGreetingState !== 'idle') return;
+        _welcomeGreetingState = 'attempting';
         if(!('speechSynthesis' in window)) return;
 
         const nat = localStorage.getItem(NAT_KEY) || 'id';
@@ -16307,12 +16307,33 @@ Contoh: "8|Mengandung tag script dan eval"`;
         const text = (GREET_TEXT[nat] || GREET_TEXT.id)(name);
         const lang = GREET_TTS_LANG[nat] || 'id-ID';
 
-        const utter = new SpeechSynthesisUtterance(text);
-        utter.lang = lang;
-        utter.rate = 1;
-        utter.pitch = 1;
-        // Beri jeda kecil supaya tidak tabrakan dengan suara UI lain saat pindah layar
-        setTimeout(() => window.speechSynthesis.speak(utter), 600);
+        const doSpeak = () => {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.lang = lang;
+          utter.rate = 1;
+          utter.pitch = 1;
+          // onstart baru bener-bener konfirmasi suaranya kedengeran (bukan diblokir browser)
+          utter.onstart = () => { _welcomeGreetingState = 'spoken'; cleanupGestureListeners(); };
+          utter.onerror = (e) => { console.warn('Sambutan suara gagal diputar:', e.error); };
+          window.speechSynthesis.speak(utter);
+        };
+
+        // Coba langsung dulu.
+        doSpeak();
+
+        // Kalau diblokir browser (autoplay policy -- speechSynthesis butuh interaksi
+        // user dulu, dan login otomatis via sesi tersimpan itu bukan "interaksi"),
+        // coba lagi otomatis begitu ada klik/tap/ketik pertama di halaman.
+        const retryOnGesture = () => { if(_welcomeGreetingState !== 'spoken') doSpeak(); };
+        function cleanupGestureListeners(){
+          document.removeEventListener('click', retryOnGesture);
+          document.removeEventListener('touchstart', retryOnGesture);
+          document.removeEventListener('keydown', retryOnGesture);
+        }
+        document.addEventListener('click', retryOnGesture, { once:true });
+        document.addEventListener('touchstart', retryOnGesture, { once:true });
+        document.addEventListener('keydown', retryOnGesture, { once:true });
       }catch(e){ console.warn('Gagal memutar sambutan suara:', e); }
     };
   })();

@@ -6602,12 +6602,28 @@ function startNavigation(){
     if(!navMode) return;
     navFixCount++;
 
+    // Simpan posisi SEBELUM di-overwrite -- dipakai nanti untuk bearing berbasis
+    // gerak GPS asli saat user jauh dari rute (lihat blok "Camera Follow" di bawah).
+    const _prevFixLat = lastNavLat, _prevFixLng = lastNavLng;
+
     // Akumulasi jarak ditempuh — abaikan jitter < 3 m supaya tidak menggelembung saat diam
     if(lastNavLat!=null && lastNavLng!=null){
       const _d = haversineM(lastNavLat,lastNavLng,lat,lng);
       if(_d >= 3 && _d < 200) navDistanceTraveled += _d;
     }
     lastNavLat=lat; lastNavLng=lng;
+
+    // Hitung sekali di sini seberapa jauh posisi user dari rute aktif -- dipakai
+    // dua kali di bawah: (1) pilih sumber arah panah/kamera, (2) deteksi off-route.
+    let _distToRouteNow = null;
+    if(activeRouteCoords && activeRouteCoords.length > 1){
+      _distToRouteNow = Infinity;
+      const _userPtNow = L.latLng(lat, lng);
+      for(const pt of activeRouteCoords){
+        const d = _userPtNow.distanceTo(pt);
+        if(d < _distToRouteNow) _distToRouteNow = d;
+      }
+    }
 
     // Update myLocation
     if(!myLocation) myLocation={};
@@ -6656,8 +6672,19 @@ function startNavigation(){
         // Blend: 60% dari near look-ahead (40m, deteksi belok) +
         //        40% dari far  look-ahead (180m, stabilitas lurus)
         // Hasil di-smooth lagi oleh _smoothBearing() di setMapHeadingRotation.
+        //
+        // FIX "SURUH MUTER BALIK": kalau user sudah cukup jauh dari rute (belok ke
+        // jalan lain), look-ahead ke titik-titik activeRouteCoords bisa mengarah
+        // BALIK ke rute lama yang sudah ditinggalkan -- bikin panah kelihatan nyuruh
+        // putar balik padahal user cuma lewat jalan berbeda. Begitu jauh dari rute,
+        // pakai arah gerak GPS asli (dari fix sebelumnya ke fix sekarang) dulu,
+        // sampai reroute otomatis selesai menghitung jalan baru dari posisi ini.
+        const OFF_ROUTE_BEARING_THRESHOLD = 60; // meter — lebih ketat dari ambang reroute (150m)
+        const _farFromRoute = _distToRouteNow !== null && _distToRouteNow > OFF_ROUTE_BEARING_THRESHOLD;
         let bearing = _smoothedBearing !== null ? _smoothedBearing : 0;
-        if(activeRouteCoords && activeRouteCoords.length > 1){
+        if(_farFromRoute && _prevFixLat != null && _prevFixLng != null && haversineM(_prevFixLat,_prevFixLng,lat,lng) >= 3){
+          bearing = computeBearing(_prevFixLat, _prevFixLng, lat, lng);
+        } else if(activeRouteCoords && activeRouteCoords.length > 1){
           // FIX: pakai _lastNearestRouteIdx sebagai bias supaya pencarian titik
           // acuan selalu maju di sepanjang rute yang sama, tidak scan ulang dari
           // awal (yang bisa "nyantol" ke titik rute lain yang kebetulan dekat).
@@ -6714,7 +6741,9 @@ function startNavigation(){
           // === NORTH-UP ===
           if(!_mapManualControl){
             let camLat = lat, camLng = lng;
-            if(activeRouteCoords && activeRouteCoords.length > 1){
+            // Sama seperti bearing di atas: kalau jauh dari rute, jangan tarik kamera
+            // ke arah rute lama yang sudah ditinggalkan -- cukup ikuti posisi GPS user.
+            if(!_farFromRoute && activeRouteCoords && activeRouteCoords.length > 1){
               const la = findLookAheadPoint(L.latLng(lat,lng), activeRouteCoords, 200, _lastNearestRouteIdx);
               camLat = lat + (la.lat - lat) * 0.40;
               camLng = lng + (la.lng - lng) * 0.40;
@@ -6792,13 +6821,9 @@ function startNavigation(){
     // === Deteksi salah jalur (off-route) ===
     // Cek jarak user ke titik rute terdekat — kalau > 150m berarti sudah keluar jalur
     // FIX: dinaikkan dari 80m → 150m agar tidak false-positive saat GPS jitter atau user belok sebentar
+    // (pakai _distToRouteNow yang sudah dihitung di awal fungsi, tidak perlu loop lagi)
     if(activeRouteCoords && activeRouteCoords.length > 1){
-      const userPt = L.latLng(lat, lng);
-      let nearestDistToRoute = Infinity;
-      for(const pt of activeRouteCoords){
-        const d = userPt.distanceTo(pt);
-        if(d < nearestDistToRoute) nearestDistToRoute = d;
-      }
+      const nearestDistToRoute = _distToRouteNow !== null ? _distToRouteNow : Infinity;
       const OFF_ROUTE_THRESHOLD = 150; // meter — dinaikkan supaya tidak sering false-positive
       if(nearestDistToRoute > OFF_ROUTE_THRESHOLD){
         // FIX: hitung berapa kali berturut-turut off-route sebelum berani reroute

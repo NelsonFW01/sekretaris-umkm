@@ -16291,11 +16291,15 @@ Contoh: "8|Mengandung tag script dan eval"`;
       }
     });
 
+    let _welcomeSpokenThisPageLoad = false; // reset otomatis tiap kali halaman dibuka/refresh
     window.speakWelcomeGreeting = function(){
       try{
-        // Cukup sekali per sesi (bukan tiap kali onAuthStateChanged terpanggil ulang, mis. saat refresh token)
-        if(sessionStorage.getItem('umkm_welcome_spoken')) return;
-        sessionStorage.setItem('umkm_welcome_spoken','1');
+        // Cukup sekali per pemuatan halaman (bukan tiap kali onAuthStateChanged terpanggil ulang,
+        // mis. saat refresh token) -- tapi TETAP bunyi lagi tiap kali halaman dibuka/refresh,
+        // karena dulu ini pakai sessionStorage yang nempel sepanjang umur tab (baru reset kalau
+        // tab ditutup), jadi kesannya "suaranya hilang" padahal cuma nge-mute diri sendiri.
+        if(_welcomeSpokenThisPageLoad) return;
+        _welcomeSpokenThisPageLoad = true;
         if(!('speechSynthesis' in window)) return;
 
         const nat = localStorage.getItem(NAT_KEY) || 'id';

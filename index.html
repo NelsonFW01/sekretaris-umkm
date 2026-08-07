@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="dicoding:email" content="nagoyaflora@gmail.com">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.sheetjs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://api.groq.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://res.cloudinary.com https://api.cloudinary.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://api.groq.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.cloudinary.com https://res.cloudinary.com https://*.workers.dev wss://*.workers.dev https://api.openrouteservice.org https://graphhopper.com https://routing.openstreetmap.de https://valhalla1.openstreetmap.de https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.sheetjs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://api.groq.com https://app.sandbox.midtrans.com https://app.midtrans.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://res.cloudinary.com https://api.cloudinary.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://api.groq.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.cloudinary.com https://res.cloudinary.com https://*.workers.dev wss://*.workers.dev https://api.openrouteservice.org https://graphhopper.com https://routing.openstreetmap.de https://valhalla1.openstreetmap.de https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://app.sandbox.midtrans.com https://app.midtrans.com https://api.sandbox.midtrans.com https://api.midtrans.com; frame-src 'self' https://app.sandbox.midtrans.com https://app.midtrans.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self';">
 <title>Sekretaris UMKM — Asisten AI untuk Usaha Kecil</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +16,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
+<!-- MapLibre GL — peta 3D interaktif asli untuk Peta Komunitas (menggantikan Three.js grid statis) -->
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" />
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
@@ -3045,6 +3048,26 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <input type="url" id="profPaymentLink" placeholder="contoh: https://qris.id/...">
         </div>
 
+        <!-- Midtrans Milik Sendiri — supaya pembayaran dari fitur AI Nego LANGSUNG masuk ke akunmu, bukan akun pusat -->
+        <div style="margin-top:12px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
+          <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:6px;">💳 Terima Pembayaran Otomatis (Midtrans Milikmu Sendiri)</div>
+          <div style="font-size:11px;color:var(--ink-soft);margin-bottom:9px;line-height:1.5;">
+            Isi ini biar tombol "Bayar Sekarang" di fitur Nego AI langsung masuk ke akun Midtrans kamu sendiri — bukan lewat pihak manapun.
+            Ambil dari <a href="https://dashboard.midtrans.com" target="_blank" style="color:var(--teal);font-weight:600;">dashboard.midtrans.com</a> → Settings → Access Keys (sandbox boleh dulu buat coba-coba).
+          </div>
+          <div id="midtransConfiguredBadge" style="display:none;font-size:11.5px;font-weight:700;color:var(--good);margin-bottom:8px;">✅ Midtrans sudah diatur di akun ini</div>
+          <div class="field-group" style="margin-bottom:8px;">
+            <label style="font-size:12px;">Server Key (rahasia, disimpan aman, tidak pernah ditampilkan lagi)</label>
+            <input type="password" id="profMidtransServerKey" placeholder="SB-Mid-server-xxxxxxxxxxxx" autocomplete="off">
+          </div>
+          <div class="field-group" style="margin-bottom:8px;">
+            <label style="font-size:12px;">Client Key</label>
+            <input type="text" id="profMidtransClientKey" placeholder="SB-Mid-client-xxxxxxxxxxxx" autocomplete="off">
+          </div>
+          <button type="button" id="saveMidtransBtn" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--teal);color:white;font-weight:700;font-size:12.5px;cursor:pointer;">💾 Simpan Midtrans</button>
+          <div id="midtransSaveStatus" style="font-size:11.5px;font-weight:600;margin-top:6px;"></div>
+        </div>
+
         <!-- Ringkasan Harian Otomatis -->
         <div style="margin-top:12px;background:var(--sand);border-radius:12px;padding:12px 13px;border:1.5px solid var(--line);">
           <div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:9px;">📊 Ringkasan Harian Otomatis <span style="font-size:10.5px;font-weight:500;color:var(--ink-soft);">(opsional)</span></div>
@@ -3138,7 +3161,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           </div>
           <!-- 3D Toggle & Canvas -->
           <button class="map-3d-toggle" id="toggle3DBtn" onclick="toggle3DCity()">⬡ 3D</button>
-          <canvas id="city3dCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;z-index:5;border-radius:13px;"></canvas>
+          <div id="city3dCanvas" style="display:none;position:absolute;inset:0;width:100%;height:100%;z-index:5;border-radius:13px;"></div>
           <!-- ETA Panel -->
           <div class="map-eta-panel" id="mapEtaPanel">
             <div class="eta-row">
@@ -8650,8 +8673,53 @@ async function loadMyProfile(){
     }
   } catch(e){ console.error('Gagal memuat profil:', e); }
   if(typeof applyHeroHolo === 'function') applyHeroHolo();
+  loadMyMidtransBadge();
 }
 // loadMyProfile() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
+
+// ===== Midtrans milik sendiri (independen dari save profile utama, biar aman) =====
+async function loadMyMidtransBadge(){
+  if(!window.firebaseReady || !MY_UID) return;
+  try{
+    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'users/'+MY_UID+'/midtransConfigured'));
+    const configured = snap && snap.exists() && snap.val() === true;
+    $('midtransConfiguredBadge').style.display = configured ? 'block' : 'none';
+  }catch(e){}
+}
+$('saveMidtransBtn')?.addEventListener('click', async () => {
+  const statusEl = $('midtransSaveStatus');
+  if(!window.firebaseReady || !MY_UID){
+    statusEl.textContent = 'Firebase belum siap / kamu belum login.';
+    statusEl.style.color = 'var(--bad)';
+    return;
+  }
+  const serverKey = $('profMidtransServerKey').value.trim();
+  const clientKey = $('profMidtransClientKey').value.trim();
+  if(!serverKey || !clientKey){
+    statusEl.textContent = 'Server Key dan Client Key wajib diisi keduanya.';
+    statusEl.style.color = 'var(--bad)';
+    return;
+  }
+  statusEl.textContent = 'Menyimpan...';
+  statusEl.style.color = 'var(--ink-soft)';
+  try{
+    // Server Key & Client Key disimpan di path PRIVAT (sellerMidtransKeys/{uid}) yang tidak
+    // bisa dibaca client manapun lewat Firebase SDK — hanya bisa dibaca server (api/create-transaction.js)
+    // lewat Service Account. Pastikan rule Firebase-mu sudah sesuai (lihat komentar di
+    // api/create-transaction.js).
+    await window.rtdbSet(window.rtdbRef(window.firebaseDb, 'sellerMidtransKeys/'+MY_UID), { serverKey, clientKey });
+    // Flag publik non-rahasia, cuma buat nampilin badge "sudah diatur"
+    await window.rtdbSet(window.rtdbRef(window.firebaseDb, 'users/'+MY_UID+'/midtransConfigured'), true);
+    statusEl.textContent = '✅ Tersimpan! Pembayaran nego AI sekarang langsung masuk ke akun Midtrans-mu.';
+    statusEl.style.color = 'var(--good)';
+    $('profMidtransServerKey').value = '';
+    $('profMidtransClientKey').value = '';
+    $('midtransConfiguredBadge').style.display = 'block';
+  }catch(e){
+    statusEl.textContent = '❌ Gagal menyimpan: ' + e.message;
+    statusEl.style.color = 'var(--bad)';
+  }
+});
 
 $('saveProfileBtn').addEventListener('click', async () => {
   if(!window.firebaseReady){
@@ -11444,6 +11512,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             ${!isMyKurir && it.mode==='kurir' ? `<button class="kc-order-toggle-btn" data-id="${it.id}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:#E8633F;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">📦 Pesan Kurir Ini</button>`:''}
             ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Kurir')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> ${it.mode==='kurir'?'Chat Kurir':'Chat Penjual'}</button>`:''}
+            ${!isMine && it.mode==='stok' ? `<button class="kc-nego-btn" data-item-id="${it.id}" data-title="${escapeHtml(it.title)}" data-desc="${escapeHtml(it.desc||'')}" data-price="${Number(it.price)||0}" data-wa="${wa||''}" data-owner-uid="${it.ownerUid||''}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:linear-gradient(135deg,#7B61FF,#00D9FF);color:white;font-weight:700;font-size:12.5px;cursor:pointer;">🤖 Nego AI</button>` : ''}
             ${wa?`<a class="kc-wa" data-item-id="${it.id}" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
           </div>
         </div>
@@ -11771,6 +11840,22 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   const listMapModes = {}; // id -> current mode
 
   $$('kgList').addEventListener('click', async e=>{
+    // Tombol "🤖 Nego AI" — buka modal nego harga dengan AI (pakai Groq yang sudah terpasang di app)
+    const negoBtn = e.target.closest('.kc-nego-btn');
+    if(negoBtn){
+      if(typeof window.mulaiNegoAI === 'function'){
+        window.mulaiNegoAI({
+          itemId: negoBtn.dataset.itemId,
+          title: negoBtn.dataset.title,
+          desc: negoBtn.dataset.desc,
+          price: Number(negoBtn.dataset.price)||0,
+          wa: negoBtn.dataset.wa||'',
+          ownerUid: negoBtn.dataset.ownerUid||''
+        });
+      }
+      return;
+    }
+
     // Tombol "Bagikan GPS ke Pembeli" — hanya untuk kurir (pembuat tawaran)
     // Fungsi: broadcast posisi GPS kurir ke Firebase agar pembeli bisa melacak live
     const shareGpsBtn = e.target.closest('.kc-share-gps-btn');
@@ -16364,6 +16449,297 @@ Contoh: "8|Mengandung tag script dan eval"`;
   })();
   </script>
 
+  <!-- ===== AI NEGO (Tawar-Menawar dengan AI di Pasar Kongsi) ===== -->
+  <div class="modal-overlay" id="negoModal">
+    <div class="modal-box" style="display:flex; flex-direction:column; height:78vh; max-height:78vh;">
+      <button class="modal-close" onclick="closeNegoAI()">✕</button>
+      <h3 id="negoTitle">🤖 Nego Harga dengan AI</h3>
+      <p class="modal-sub" id="negoSub">Penjual mengaktifkan asisten AI. Silakan tawar harganya!</p>
+
+      <div id="negoChatArea" style="flex:1; overflow-y:auto; background:var(--sand); border-radius:12px; padding:14px; margin-bottom:12px; display:flex; flex-direction:column; gap:10px;"></div>
+
+      <div id="negoTypingRow" style="display:none;margin-bottom:8px;">
+        <div class="typing-indicator" style="background:var(--bg-card);border-radius:14px;display:inline-flex;"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <input type="number" id="negoInput" placeholder="Tawar berapa? (Rp)" style="flex:1; padding:12px; border-radius:12px; border:1px solid var(--line); font-family:inherit;background:var(--bg-card);color:var(--ink);" onkeydown="if(event.key==='Enter')kirimTawaranNego()">
+        <button onclick="kirimTawaranNego()" id="negoSendBtn" style="padding:12px 18px; border-radius:12px; border:none; background:var(--teal); color:white; font-weight:bold; cursor:pointer;">Kirim</button>
+      </div>
+      <div id="negoActionArea" style="margin-top:10px; display:none;">
+        <button id="negoPayBtn" onclick="prosesPembayaranMidtrans()" style="display:block;width:100%; padding:14px; border-radius:12px; border:none; background:linear-gradient(135deg,#00D9FF,#7B61FF); color:white; font-weight:bold; font-size:15px; cursor:pointer; margin-bottom:8px;">💳 Bayar Sekarang (QRIS/VA/E-wallet)</button>
+        <a id="negoWaBtn" href="#" target="_blank" rel="noopener" style="display:block;text-align:center;width:100%; padding:12px; border-radius:12px; border:1.5px solid #25D366; background:transparent; color:#25D366; font-weight:bold; font-size:13.5px; cursor:pointer; text-decoration:none;">💬 Chat WA Penjual (tanpa bayar dulu)</a>
+        <div id="negoPayStatus" style="font-size:12px;font-weight:600;text-align:center;margin-top:8px;min-height:16px;"></div>
+        <div style="font-size:11px;color:var(--ink-soft);text-align:center;margin-top:6px;">Pembayaran diproses Midtrans. Setelah bayar, tekan "Chat WA Penjual" untuk kirim bukti/order ID ke penjual.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ===== Midtrans Snap: load client key dari server (bukan hardcode) & siapkan snap.js =====
+  (function(){
+    // Snap.js sekarang dimuat DINAMIS per-transaksi memakai Client Key milik penjual
+    // yang bersangkutan (bukan satu key global) — lihat loadSnapForSeller() di bawah,
+    // dipanggil dari prosesPembayaranMidtrans() setelah tahu penjualnya siapa.
+    let _currentSnapClientKey = null;
+    let _snapLoadingPromise = null;
+
+    window.loadSnapForSeller = function(clientKey, isProduction){
+      if(!clientKey) return Promise.reject(new Error('Client Key penjual tidak tersedia.'));
+      if(_currentSnapClientKey === clientKey && window.snap){
+        return Promise.resolve(true); // sudah dimuat dengan key yang sama, tidak perlu reload
+      }
+      // Buang script Snap lama (kalau ada) sebelum load ulang dengan key penjual berbeda
+      const old = document.getElementById('midtransSnapScript');
+      if(old) old.remove();
+      if(window.snap) { try{ delete window.snap; }catch(e){ window.snap = undefined; } }
+
+      _snapLoadingPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.id = 'midtransSnapScript';
+        s.src = isProduction
+          ? 'https://app.midtrans.com/snap/snap.js'
+          : 'https://app.sandbox.midtrans.com/snap/snap.js';
+        s.setAttribute('data-client-key', clientKey);
+        s.onload = () => { _currentSnapClientKey = clientKey; resolve(true); };
+        s.onerror = () => reject(new Error('Gagal memuat script pembayaran Midtrans.'));
+        document.head.appendChild(s);
+      });
+      return _snapLoadingPromise;
+    };
+  })();
+  </script>
+
+  <script>
+  (function(){
+    let negoState = { itemId:null, title:'', desc:'', price:0, hargaBawah:0, wa:'', ownerUid:'', dealPrice:0, history:[] };
+
+    window.mulaiNegoAI = function(item){
+      if(!item || !item.title){ return; }
+      const price = Number(item.price)||0;
+      // Kalau penjual pasang 0 / "Nego", pakai estimasi longgar supaya AI tetap punya batas bawah wajar
+      const hargaTampil = price > 0 ? price : 0;
+      const hargaBawah = price > 0 ? Math.round(price * 0.8) : 0;
+      negoState = { itemId:item.itemId, title:item.title, desc:item.desc||'', price:hargaTampil, hargaBawah, wa:item.wa||'', ownerUid:item.ownerUid||'', dealPrice:0, history:[] };
+
+      document.getElementById('negoTitle').textContent = `🤖 Nego: ${item.title}`;
+      document.getElementById('negoSub').textContent = hargaTampil>0
+        ? `Harga tampil: Rp ${hargaTampil.toLocaleString('id-ID')} — coba tawar!`
+        : `Penjual pasang harga "Nego" — sebutkan tawaranmu.`;
+      const chatArea = document.getElementById('negoChatArea');
+      chatArea.innerHTML = `<div style="background:var(--teal); color:white; padding:10px 13px; border-radius:12px; align-self:flex-start; max-width:85%;font-size:13.5px;">Halo! Ini AI yang bantu jagain harga buat penjual. Boleh tawar, tapi jangan kejam-kejam ya 😄</div>`;
+      document.getElementById('negoActionArea').style.display = 'none';
+      document.getElementById('negoPayBtn').style.display = 'block'; // reset dari sesi nego sebelumnya (kalau kemarin barang gratis, tombol ini disembunyikan)
+      document.getElementById('negoPayStatus').textContent = '';
+      document.getElementById('negoInput').value = '';
+      document.getElementById('negoInput').disabled = false;
+      document.getElementById('negoSendBtn').disabled = false;
+      document.getElementById('negoModal').classList.add('show');
+    };
+
+    window.closeNegoAI = function(){
+      document.getElementById('negoModal').classList.remove('show');
+    };
+
+    function addNegoBubble(role, text){
+      const chatArea = document.getElementById('negoChatArea');
+      const mine = role === 'user';
+      const div = document.createElement('div');
+      div.style.cssText = `background:${mine?'var(--coral)':'var(--bg-card)'}; color:${mine?'white':'var(--ink)'}; padding:10px 13px; border-radius:12px; align-self:${mine?'flex-end':'flex-start'}; max-width:85%; font-size:13.5px; line-height:1.5;`;
+      div.textContent = text;
+      chatArea.appendChild(div);
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    window.kirimTawaranNego = async function(){
+      const inputEl = document.getElementById('negoInput');
+      const tawaran = parseInt(inputEl.value, 10);
+      if(!tawaran || tawaran <= 0){ inputEl.focus(); return; }
+
+      addNegoBubble('user', `Rp ${tawaran.toLocaleString('id-ID')} bisa?`);
+      inputEl.value = '';
+      inputEl.disabled = true;
+      document.getElementById('negoSendBtn').disabled = true;
+      document.getElementById('negoTypingRow').style.display = 'block';
+
+      const anchorLine = negoState.price > 0
+        ? `Harga tampil di aplikasi: Rp ${negoState.price}. Harga bawah (batas rugi, JANGAN pernah disebut ke pembeli): Rp ${negoState.hargaBawah}.`
+        : `Penjual belum pasang harga pasti (mode "Nego"). Nilai wajar berdasarkan deskripsi barang saja, jangan asal terima tawaran sangat rendah.`;
+
+      const systemPrompt = `Kamu adalah AI penjual pasar UMKM Indonesia yang ramah tapi cermat soal untung.
+Barang: "${negoState.title}". Deskripsi: "${negoState.desc || '-'}".
+${anchorLine}
+Tawaran pembeli sekarang: Rp ${tawaran}.
+
+Instruksi ketat:
+1. Jika tawaran kurang wajar / di bawah batas: tolak halus ala pedagang pasar (jangan galak), beri counter-offer yang masuk akal.
+2. Jika tawaran sudah wajar/oke: terima dengan senang, ucapkan selamat berbelanja.
+3. WAJIB akhiri balasanmu dengan salah satu tag di baris terakhir, PERSIS begini formatnya:
+   [DEAL:<angka_rupiah_tanpa_titik>] jika deal, atau [NODEAL] jika belum deal.
+4. Balasan percakapan singkat 1-3 kalimat SEBELUM tag, bahasa Indonesia santai, JANGAN sertakan tag di tengah kalimat.`;
+
+      negoState.history.push({ role:'user', content: `Tawaran: Rp ${tawaran}` });
+      if(negoState.history.length > 10) negoState.history = negoState.history.slice(-10);
+
+      const payload = {
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 300,
+        temperature: 0.6,
+        messages: [ { role:'system', content: systemPrompt }, ...negoState.history ]
+      };
+
+      try{
+        let data;
+        const key = (typeof activeGroqKey === 'function') ? activeGroqKey() : '';
+        if(key){
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+key },
+            body: JSON.stringify(payload)
+          });
+          data = await res.json();
+          if(!res.ok) throw new Error(data.error?.message || ('Groq error '+res.status));
+        } else if(typeof callAIProxy === 'function'){
+          data = await callAIProxy('groq', payload);
+        } else {
+          throw new Error('API AI belum siap.');
+        }
+
+        let reply = data.choices?.[0]?.message?.content || 'Maaf, aku belum bisa jawab.';
+        negoState.history.push({ role:'assistant', content: reply });
+
+        let isDeal = false;
+        const dealMatch = reply.match(/\[DEAL:\s*(\d+)\]/i);
+        if(dealMatch){
+          isDeal = true;
+          negoState.dealPrice = parseInt(dealMatch[1], 10);
+          reply = reply.replace(/\[DEAL:\s*\d+\]/i, '').trim();
+        } else {
+          reply = reply.replace(/\[NODEAL\]/i, '').trim();
+        }
+
+        document.getElementById('negoTypingRow').style.display = 'none';
+        addNegoBubble('ai', reply);
+
+        if(isDeal){
+          const waBtn = document.getElementById('negoWaBtn');
+          const payBtn = document.getElementById('negoPayBtn');
+          const waNum = negoState.wa || '';
+          const isFree = negoState.dealPrice <= 0;
+
+          const msg = isFree
+            ? `Halo, saya deal ambil "${negoState.title}" (gratis) lewat nego AI. Boleh saya ambil/atur pengirimannya?`
+            : `Halo, saya sudah deal nego AI untuk "${negoState.title}" seharga Rp ${negoState.dealPrice.toLocaleString('id-ID')}. Boleh lanjut pengiriman?`;
+          waBtn.href = waNum ? `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}` : '#';
+          waBtn.textContent = waNum ? '💬 Chat WA Penjual (tanpa bayar dulu)' : '⚠️ Penjual belum cantumkan WA — hubungi lewat tombol 💬 WA di kartu';
+          waBtn.style.background = waNum ? 'transparent' : 'var(--ink-soft)';
+          waBtn.style.color = waNum ? '#25D366' : 'white';
+
+          if(isFree){
+            // Barang gratis (deal Rp0) — Midtrans tidak bisa proses pembayaran Rp0,
+            // jadi cukup arahkan langsung ke WA buat atur pengambilan/pengiriman.
+            payBtn.style.display = 'none';
+            document.getElementById('negoPayStatus').textContent = '🎁 Deal gratis! Tinggal koordinasi pengambilan lewat WA di bawah.';
+            document.getElementById('negoPayStatus').style.color = 'var(--good)';
+          } else {
+            payBtn.style.display = 'block';
+            payBtn.disabled = false;
+            payBtn.textContent = '💳 Bayar Sekarang (QRIS/VA/E-wallet)';
+            document.getElementById('negoPayStatus').textContent = '';
+          }
+          document.getElementById('negoActionArea').style.display = 'block';
+        }
+      }catch(err){
+        document.getElementById('negoTypingRow').style.display = 'none';
+        addNegoBubble('ai', '❌ Gagal memproses nego: ' + err.message);
+      }finally{
+        inputEl.disabled = false;
+        document.getElementById('negoSendBtn').disabled = false;
+        inputEl.focus();
+      }
+    };
+
+    window.prosesPembayaranMidtrans = async function(){
+      if(!negoState.dealPrice || negoState.dealPrice <= 0) return;
+      const payBtn = document.getElementById('negoPayBtn');
+      const statusEl = document.getElementById('negoPayStatus');
+      payBtn.disabled = true;
+      payBtn.textContent = '⏳ Menyiapkan pembayaran...';
+      statusEl.style.color = 'var(--ink-soft)';
+      statusEl.textContent = '';
+
+      if(!negoState.ownerUid){
+        statusEl.style.color = 'var(--bad)';
+        statusEl.textContent = '❌ Tawaran ini tidak punya data penjual yang valid, coba pakai tombol Chat WA saja.';
+        payBtn.disabled = false;
+        payBtn.textContent = '💳 Bayar Sekarang (QRIS/VA/E-wallet)';
+        return;
+      }
+
+      try{
+        const buyerName = (typeof myProfile !== 'undefined' && myProfile.displayName) ? myProfile.displayName : 'Pembeli UMKM';
+        const res = await fetch('/api/create-transaction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sellerUid: negoState.ownerUid,
+            itemId: negoState.itemId,
+            itemName: negoState.title,
+            amount: negoState.dealPrice,
+            customerName: buyerName,
+            customerPhone: ''
+          })
+        });
+        const data = await res.json();
+        if(!res.ok || !data.token){
+          // Kasus paling umum: penjual belum isi Midtrans sendiri di profilnya
+          throw new Error(data.error || 'Gagal membuat transaksi.');
+        }
+
+        await window.loadSnapForSeller(data.clientKey, data.isProduction);
+        if(typeof window.snap === 'undefined'){
+          throw new Error('Modul pembayaran belum siap, coba lagi sebentar.');
+        }
+
+        payBtn.textContent = '💳 Bayar Sekarang (QRIS/VA/E-wallet)';
+        payBtn.disabled = false;
+
+        window.snap.pay(data.token, {
+          onSuccess: function(result){
+            statusEl.style.color = 'var(--good)';
+            statusEl.textContent = '✅ Pembayaran berhasil, LANGSUNG masuk ke akun Midtrans penjual! Order ID: ' + data.orderId;
+            const waBtn = document.getElementById('negoWaBtn');
+            const paidMsg = `Halo, saya SUDAH BAYAR via Midtrans untuk "${negoState.title}" seharga Rp ${negoState.dealPrice.toLocaleString('id-ID')}. Order ID: ${data.orderId}. Mohon segera diproses ya 🙏`;
+            waBtn.href = negoState.wa ? `https://wa.me/${negoState.wa}?text=${encodeURIComponent(paidMsg)}` : '#';
+            waBtn.textContent = '💬 Kirim Bukti Bayar ke Penjual (WA)';
+            waBtn.style.background = '#25D366';
+            waBtn.style.color = 'white';
+          },
+          onPending: function(result){
+            statusEl.style.color = '#D9A441';
+            statusEl.textContent = '⏳ Menunggu pembayaran selesai (misal transfer VA belum masuk). Order ID: ' + data.orderId;
+          },
+          onError: function(result){
+            statusEl.style.color = 'var(--bad)';
+            statusEl.textContent = '❌ Pembayaran gagal. Silakan coba lagi.';
+          },
+          onClose: function(){
+            if(!statusEl.textContent){
+              statusEl.style.color = 'var(--ink-soft)';
+              statusEl.textContent = 'Ditutup sebelum bayar. Tekan tombol lagi kalau mau lanjut.';
+            }
+          }
+        });
+      }catch(err){
+        statusEl.style.color = 'var(--bad)';
+        statusEl.textContent = '❌ ' + err.message;
+        payBtn.disabled = false;
+        payBtn.textContent = '💳 Bayar Sekarang (QRIS/VA/E-wallet)';
+      }
+    };
+  })();
+  </script>
+
   <!-- ===== NGOBROL SUARA DENGAN AI (Voice Chat) ===== -->
   <div id="voiceChatOverlay" style="display:none;position:fixed;inset:0;z-index:4000;background:rgba(4,10,18,0.92);backdrop-filter:blur(6px);align-items:center;justify-content:center;flex-direction:column;color:#fff;text-align:center;padding:24px;">
     <button onclick="closeVoiceChat()" style="position:absolute;top:20px;right:20px;width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.12);color:#fff;font-size:16px;cursor:pointer;">✕</button>
@@ -16390,6 +16766,9 @@ Contoh: "8|Mengandung tag script dan eval"`;
     const LANG_MAP = { id:'id-ID', en:'en-US', ms:'ms-MY', sg:'en-SG' };
     let recognition = null;
     let listening = false;
+    let starting = false;           // guard: mencegah start() dobel sebelum session lama benar2 selesai
+    let safetyTimer = null;         // jaring pengaman kalau onend tidak pernah terpanggil (bug di sebagian WebView Android)
+    let micPermissionAsked = false;
 
     function currentLang(){
       const nat = localStorage.getItem('umkm_nationality') || 'id';
@@ -16409,7 +16788,13 @@ Contoh: "8|Mengandung tag script dan eval"`;
       const overlay = document.getElementById('voiceChatOverlay');
       if(!overlay) return;
       overlay.style.display = 'flex';
-      setStatus('Tekan mik untuk mulai bicara');
+      // Peringatkan lebih awal kalau konteksnya tidak aman (Web Speech API butuh HTTPS/localhost)
+      const secure = window.isSecureContext !== false;
+      if(!secure){
+        setStatus('⚠️ Fitur suara butuh koneksi HTTPS. Buka lewat link https:// ya.');
+      } else {
+        setStatus('Tekan mik untuk mulai bicara');
+      }
       setTranscript('');
     };
     window.closeVoiceChat = function(){
@@ -16419,28 +16804,67 @@ Contoh: "8|Mengandung tag script dan eval"`;
       if(window.speechSynthesis) window.speechSynthesis.cancel();
     };
 
-    function stopListening(){
-      listening = false;
-      const btn = document.getElementById('voiceChatMicBtn');
-      if(btn) btn.classList.remove('listening');
-      if(recognition){ try{ recognition.stop(); }catch(e){} }
+    function clearSafetyTimer(){
+      if(safetyTimer){ clearTimeout(safetyTimer); safetyTimer = null; }
     }
 
-    window.toggleVoiceListening = function(){
+    function stopListening(){
+      listening = false;
+      starting = false;
+      clearSafetyTimer();
+      const btn = document.getElementById('voiceChatMicBtn');
+      if(btn) btn.classList.remove('listening');
+      if(recognition){ try{ recognition.stop(); }catch(e){} try{ recognition.abort(); }catch(e){} }
+    }
+
+    // Minta izin mikrofon secara eksplisit dulu lewat getUserMedia.
+    // Banyak browser mobile diam-diam menolak SpeechRecognition kalau izin
+    // mic belum pernah di-approve lewat prompt native — ini memaksa promptnya muncul.
+    async function ensureMicPermission(){
+      if(micPermissionAsked) return true;
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true; // browser lama, lewati saja
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        stream.getTracks().forEach(t => t.stop()); // langsung lepas, cuma butuh izinnya
+        micPermissionAsked = true;
+        return true;
+      }catch(err){
+        if(err && err.name === 'NotAllowedError'){
+          setStatus('🚫 Izin mikrofon ditolak. Buka setelan browser → Izin situs → aktifkan Mikrofon.');
+        } else if(err && err.name === 'NotFoundError'){
+          setStatus('⚠️ Mikrofon tidak ditemukan di perangkat ini.');
+        } else {
+          setStatus('⚠️ Tidak bisa mengakses mikrofon: ' + (err && err.message ? err.message : err));
+        }
+        return false;
+      }
+    }
+
+    window.toggleVoiceListening = async function(){
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if(!SR){
-        setStatus('⚠️ Browser ini belum mendukung pengenalan suara. Coba pakai Chrome.');
+        setStatus('⚠️ Browser ini belum mendukung pengenalan suara. Coba pakai Chrome/Edge terbaru.');
         return;
       }
-      if(listening){ stopListening(); setStatus('Dihentikan. Tekan mik untuk bicara lagi.'); return; }
+      if(listening || starting){ stopListening(); setStatus('Dihentikan. Tekan mik untuk bicara lagi.'); return; }
+
+      starting = true;
+      setStatus('🎙️ Meminta izin mikrofon...');
+      const granted = await ensureMicPermission();
+      if(!granted){ starting = false; return; }
+
+      // Pastikan tidak ada sesi lama yang masih menggantung sebelum bikin instance baru
+      if(recognition){ try{ recognition.onend = null; recognition.abort(); }catch(e){} }
 
       recognition = new SR();
       recognition.lang = currentLang();
       recognition.interimResults = true;
+      recognition.continuous = false;
       recognition.maxAlternatives = 1;
 
       const btn = document.getElementById('voiceChatMicBtn');
       listening = true;
+      starting = false;
       if(btn) btn.classList.add('listening');
       setStatus('Mendengarkan... silakan bicara 🎙️');
       setTranscript('');
@@ -16451,16 +16875,41 @@ Contoh: "8|Mengandung tag script dan eval"`;
         setTranscript(text);
       };
       recognition.onerror = (e) => {
-        setStatus('⚠️ Gagal mendengar (' + e.error + '). Coba lagi.');
+        const msgs = {
+          'not-allowed': '🚫 Izin mikrofon ditolak browser.',
+          'no-speech': 'Tidak terdengar suara. Tekan mik untuk coba lagi.',
+          'audio-capture': '⚠️ Mikrofon tidak terdeteksi.',
+          'network': '⚠️ Masalah jaringan saat memproses suara. Cek koneksi internet.',
+          'aborted': 'Dihentikan.'
+        };
+        setStatus(msgs[e.error] || ('⚠️ Gagal mendengar (' + e.error + '). Coba lagi.'));
         stopListening();
       };
       recognition.onend = async () => {
+        clearSafetyTimer();
+        const wasListening = listening;
         stopListening();
-        const finalText = document.getElementById('voiceChatTranscript').textContent.trim();
+        if(!wasListening) return; // sudah dihentikan manual / oleh error handler
+        const finalText = (document.getElementById('voiceChatTranscript').textContent || '').trim();
         if(!finalText){ setStatus('Tidak terdengar apa-apa. Tekan mik untuk coba lagi.'); return; }
         await askVoiceAI(finalText);
       };
-      recognition.start();
+
+      try{
+        recognition.start();
+      }catch(startErr){
+        // Paling sering terjadi kalau sesi sebelumnya belum benar-benar berhenti (InvalidStateError)
+        setStatus('⚠️ Mik masih sibuk, coba tekan sekali lagi.');
+        stopListening();
+        return;
+      }
+
+      // Jaring pengaman: sebagian browser Android tidak pernah memanggil onend
+      // kalau user diam terlalu lama. Paksa berhenti setelah 20 detik.
+      clearSafetyTimer();
+      safetyTimer = setTimeout(() => {
+        if(listening){ setStatus('⏱️ Waktu mendengarkan habis. Tekan mik untuk coba lagi.'); stopListening(); }
+      }, 20000);
     };
 
     async function askVoiceAI(text){
@@ -16472,10 +16921,19 @@ Contoh: "8|Mengandung tag script dan eval"`;
       }
       inp.value = text;
       try{
+        const bubblesBefore = document.querySelectorAll('#aiSummaryMessages .ai-sum-msg.ai .ai-sum-bubble').length;
         await window.sendAiSummaryMsg();
-        const bubbles = document.querySelectorAll('#aiSummaryMessages .ai-sum-msg.ai .ai-sum-bubble');
-        const last = bubbles[bubbles.length-1];
-        const reply = last ? last.textContent.trim() : 'Maaf, aku belum dapat jawabannya.';
+        // Tunggu bubble jawaban baru benar-benar muncul (callGroqAI itu async, ada jeda network)
+        let reply = null;
+        for(let tries=0; tries<40; tries++){ // maks ~10 detik
+          const bubbles = document.querySelectorAll('#aiSummaryMessages .ai-sum-msg.ai .ai-sum-bubble:not(.ai-sum-typing)');
+          if(bubbles.length > bubblesBefore){
+            reply = bubbles[bubbles.length-1].textContent.trim();
+            break;
+          }
+          await new Promise(r => setTimeout(r, 250));
+        }
+        if(!reply) reply = 'Maaf, aku belum dapat jawabannya. Coba lagi ya.';
         setStatus('🔊 Sekretaris AI menjawab:');
         setTranscript(reply);
         speakReply(reply);
@@ -16484,141 +16942,144 @@ Contoh: "8|Mengandung tag script dan eval"`;
       }
     }
 
-    function speakReply(text){
+    // Daftar voice browser dimuat async (event voiceschanged) — kalau dipanggil
+    // terlalu awal, getVoices() bisa kosong dan beberapa browser jadi "diam" saja.
+    let _voicesCache = [];
+    function loadVoices(){
       if(!('speechSynthesis' in window)) return;
+      _voicesCache = window.speechSynthesis.getVoices() || [];
+    }
+    if('speechSynthesis' in window){
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+    function pickVoice(lang){
+      if(!_voicesCache.length) loadVoices();
+      if(!_voicesCache.length) return null;
+      return _voicesCache.find(v => v.lang === lang)
+          || _voicesCache.find(v => v.lang && v.lang.toLowerCase().startsWith(lang.split('-')[0]))
+          || null;
+    }
+
+    function speakReply(text){
+      if(!('speechSynthesis' in window)){
+        setStatus('🔊 (Perangkat ini tidak mendukung suara AI, jawaban ditampilkan sebagai teks)');
+        return;
+      }
       window.speechSynthesis.cancel();
       // Buang emoji & markdown ringan biar tidak dibacakan aneh
       const clean = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu,'').replace(/\*\*/g,'');
+      const lang = currentLang();
       const utter = new SpeechSynthesisUtterance(clean);
-      utter.lang = currentLang();
+      utter.lang = lang;
+      const v = pickVoice(lang);
+      if(v) utter.voice = v;
       utter.rate = 1;
-      window.speechSynthesis.speak(utter);
+      utter.onerror = () => setStatus('⚠️ Gagal memutar suara jawaban, tapi teksnya ada di atas.');
+      // Sebagian browser mobile butuh speak() dipanggil sedikit delay setelah cancel()
+      setTimeout(() => { try{ window.speechSynthesis.speak(utter); }catch(e){} }, 60);
     }
   })();
   </script>
 
-  <!-- ===== 3D CITY MAP (Three.js) ===== -->
+  <!-- ===== 3D CITY MAP (MapLibre GL — peta vektor 3D asli, sinkron dengan peta 2D Leaflet) ===== -->
   <script>
-  let _city3dInit = false, _city3dRenderer, _city3dScene, _city3dCam, _city3dId;
+  let _maplibMap = null;      // instance peta 3D
+  let _maplibLoaded = false;  // sudah selesai load style + layer gedung?
+  let _maplibLoading = false; // sedang proses load
+
+  function _maplib3dCenterFromLeaflet() {
+    // Ambil titik tengah dari peta 2D (Leaflet) yang sedang dilihat user, supaya peta 3D
+    // langsung nongol di lokasi yang sama, bukan reset ke titik default.
+    try {
+      if (typeof communityMap !== 'undefined' && communityMap && communityMap.getCenter) {
+        const c = communityMap.getCenter();
+        if (c && typeof c.lat === 'number') return [c.lng, c.lat];
+      }
+    } catch (e) {}
+    return [106.8456, -6.2088]; // fallback: Jakarta
+  }
 
   function init3DCity() {
-    const canvas = document.getElementById('city3dCanvas');
-    if (!canvas || !window.THREE || _city3dInit) return;
-    _city3dInit = true;
+    const container = document.getElementById('city3dCanvas');
+    if (!container || typeof maplibregl === 'undefined' || _maplibMap) return;
+    _maplibLoading = true;
 
-    const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 420;
-    _city3dRenderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    _city3dRenderer.setSize(W, H);
-    _city3dRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    _city3dRenderer.setClearColor(0x07111E, 1);
-
-    _city3dScene = new THREE.Scene();
-    _city3dScene.fog = new THREE.FogExp2(0x07111E, 0.025);
-
-    _city3dCam = new THREE.PerspectiveCamera(50, W / H, 0.1, 300);
-    _city3dCam.position.set(0, 28, 38);
-    _city3dCam.lookAt(0, 0, 0);
-
-    _city3dScene.add(new THREE.AmbientLight(0x00D9FF, 0.4));
-    const dirL = new THREE.DirectionalLight(0x7B61FF, 1.2);
-    dirL.position.set(10, 20, 10);
-    _city3dScene.add(dirL);
-
-    // Ground grid
-    _city3dScene.add(new THREE.GridHelper(80, 24, 0x00D9FF, 0x0D2137));
-
-    // Buildings
-    const bMat = new THREE.MeshLambertMaterial({ color: 0x0A1F35, transparent: true, opacity: 0.92 });
-    const eMat = new THREE.LineBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.55 });
-    const buildings = [
-      [-15,7,-16],[-9,9,-13],[-4,5,-15],[3,12,-14],[9,8,-16],
-      [15,6,-13],[17,10,-8],[16,7,-2],[15,5,4],[13,9,9],
-      [-17,8,-4],[-15,6,3],[-16,10,9],[-11,7,13],
-      [4,6,13],[9,8,14],[-2,5,-4],[6,7,-2],[0,4,2],
-      [-8,6,-8],[8,5,-7],[-6,4,7],[5,4,8],
-    ];
-    buildings.forEach(([x,h,z]) => {
-      const g = new THREE.BoxGeometry(3.5, h, 3.5);
-      const m = new THREE.Mesh(g, bMat.clone());
-      m.position.set(x, h/2, z);
-      _city3dScene.add(m);
-      const line = new THREE.LineSegments(new THREE.EdgesGeometry(g), eMat.clone());
-      line.position.set(x, h/2, z);
-      _city3dScene.add(line);
+    const [lng, lat] = _maplib3dCenterFromLeaflet();
+    _maplibMap = new maplibregl.Map({
+      container: 'city3dCanvas',
+      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      center: [lng, lat],
+      zoom: 16,
+      pitch: 60,       // miringkan kamera biar terasa 3D
+      bearing: -17.6,
+      antialias: true,
+      attributionControl: false
     });
 
-    // Glowing neon route
-    const pts = [
-      new THREE.Vector3(-13, 0.3, 13),
-      new THREE.Vector3(-7, 0.3, 7),
-      new THREE.Vector3(-2, 0.3, 3),
-      new THREE.Vector3(2, 0.3, -1),
-      new THREE.Vector3(6, 0.3, -5),
-      new THREE.Vector3(10, 0.3, -10),
-      new THREE.Vector3(13, 0.3, -14),
-    ];
-    const curve = new THREE.CatmullRomCurve3(pts);
-    const tubeGeo = new THREE.TubeGeometry(curve, 60, 0.25, 8, false);
-    const tubeMat = new THREE.MeshBasicMaterial({ color: 0x00FF99, transparent: true, opacity: 0.95 });
-    _city3dScene.add(new THREE.Mesh(tubeGeo, tubeMat));
+    // Kontrol zoom/kompas kecil di pojok, biar user bisa geser/putar peta 3D-nya sendiri
+    _maplibMap.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-    // Holographic figure at route start
-    const figGeo = new THREE.CylinderGeometry(0.4, 0.9, 4.5, 8, 1, true);
-    const figMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.45, wireframe: true, side: THREE.DoubleSide });
-    const figHead = new THREE.SphereGeometry(0.9, 8, 8);
-    const figHeadMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.4, wireframe: true });
-    const figMesh = new THREE.Mesh(figGeo, figMat);
-    figMesh.position.set(-13, 2.25, 13);
-    _city3dScene.add(figMesh);
-    const figHeadMesh = new THREE.Mesh(figHead, figHeadMat);
-    figHeadMesh.position.set(-13, 5.5, 13);
-    _city3dScene.add(figHeadMesh);
+    _maplibMap.on('load', () => {
+      _maplibLoaded = true;
+      _maplibLoading = false;
+      // Coba tambahkan ekstrusi gedung 3D kalau data tinggi gedung tersedia di tile-nya.
+      // Catatan jujur: basemap gratis Carto ini TIDAK selalu menyertakan data tinggi gedung
+      // (render_height/render_min_height) — kalau tidak ada, layer ini otomatis tidak akan
+      // menampilkan apa pun (tidak error, tidak merusak peta), peta tetap jalan sebagai peta
+      // vektor 3D yang bisa dimiringkan & diputar.
+      try {
+        if (!_maplibMap.getLayer('3d-buildings')) {
+          _maplibMap.addLayer({
+            id: '3d-buildings',
+            source: 'carto',
+            'source-layer': 'building',
+            type: 'fill-extrusion',
+            minzoom: 14,
+            paint: {
+              'fill-extrusion-color': '#00D9FF',
+              'fill-extrusion-height': ['coalesce', ['get', 'render_height'], ['get', 'height'], 6],
+              'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], ['get', 'min_height'], 0],
+              'fill-extrusion-opacity': 0.65
+            }
+          });
+        }
+      } catch (e) { console.warn('[3D Map] Layer gedung 3D tidak bisa ditambahkan:', e.message); }
+    });
 
-    // Base glow ring under figure
-    const ringGeo = new THREE.RingGeometry(1.2, 2.5, 32);
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00D9FF, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
-    const ring = new THREE.Mesh(ringGeo, ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(-13, 0.1, 13);
-    _city3dScene.add(ring);
-
-    let frame = 0;
-    function animate() {
-      _city3dId = requestAnimationFrame(animate);
-      frame++;
-      const t = frame * 0.004;
-      _city3dCam.position.x = Math.sin(t) * 42;
-      _city3dCam.position.z = Math.cos(t) * 42;
-      _city3dCam.lookAt(0, 0, 0);
-
-      figMesh.rotation.y += 0.025;
-      figHeadMesh.rotation.y -= 0.015;
-      const pulse = 0.3 + Math.sin(frame * 0.06) * 0.15;
-      figMat.opacity = pulse;
-      figHeadMat.opacity = pulse + 0.05;
-      ringMat.opacity = 0.3 + Math.sin(frame * 0.05) * 0.2;
-      ring.scale.setScalar(1 + Math.sin(frame * 0.04) * 0.1);
-
-      _city3dRenderer.render(_city3dScene, _city3dCam);
-    }
-    animate();
+    _maplibMap.on('error', (e) => {
+      console.warn('[3D Map] MapLibre error:', e && e.error ? e.error.message : e);
+    });
   }
 
   function toggle3DCity() {
-    const canvas = document.getElementById('city3dCanvas');
+    const container = document.getElementById('city3dCanvas');
     const btn = document.getElementById('toggle3DBtn');
-    if (!canvas) return;
-    const showing = canvas.style.display !== 'none';
-    canvas.style.display = showing ? 'none' : 'block';
+    if (!container) return;
+    const showing = container.style.display !== 'none';
+    container.style.display = showing ? 'none' : 'block';
     document.getElementById('mapEtaPanel')?.classList.toggle('show', !showing);
     document.getElementById('mapAiHint')?.classList.toggle('show', !showing);
     if (btn) {
       btn.style.background = showing ? 'rgba(7,17,30,0.85)' : 'rgba(0,217,255,0.2)';
+      btn.textContent = showing ? '⬡ 3D' : '🗺️ 2D';
     }
-    if (!showing && !_city3dInit) { setTimeout(init3DCity, 80); }
-    if (!showing && _city3dInit && _city3dRenderer) {
-      const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 420;
-      _city3dRenderer.setSize(W, H);
+
+    if (!showing) {
+      // Baru dibuka: init sekali saja, lalu sinkronkan ke posisi peta 2D setiap kali dibuka lagi
+      if (!_maplibMap) {
+        setTimeout(init3DCity, 80);
+      } else {
+        const [lng, lat] = _maplib3dCenterFromLeaflet();
+        _maplibMap.jumpTo({ center: [lng, lat], zoom: 16 });
+        setTimeout(() => { try { _maplibMap.resize(); } catch (e) {} }, 60);
+      }
+    } else if (_maplibMap && typeof communityMap !== 'undefined' && communityMap) {
+      // Ditutup: samakan posisi peta 2D dengan posisi terakhir yang dilihat di peta 3D
+      try {
+        const c3 = _maplibMap.getCenter();
+        communityMap.setView([c3.lat, c3.lng], communityMap.getZoom());
+      } catch (e) {}
     }
   }
   </script>

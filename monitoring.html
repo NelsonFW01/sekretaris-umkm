@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FloraSync Lite — Monitoring</title>
+  <script>setTimeout(function(){ document.body.style.visibility = "visible"; }, 4000);</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="shared.css"/>
+  <style>
+    body { visibility: hidden; }
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 1.25rem;
+    }
+    .sensor-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--gray-100);
+      padding: 1rem;
+    }
+    .sensor-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .sensor-name { font-size: 12px; color: var(--gray-400); }
+    .sensor-big  { font-size: 30px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+    .sensor-unit { font-size: 14px; font-weight: 400; color: var(--gray-400); }
+    .chart-card  {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--gray-100);
+      padding: 1.1rem;
+      margin-bottom: 1.25rem;
+    }
+    .chart-title { font-size: 13px; font-weight: 600; color: var(--gray-600); margin-bottom: 0.75rem; }
+    canvas { max-height: 180px; }
+    .threshold-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--gray-100);
+      font-size: 13px;
+      color: var(--gray-600);
+    }
+    .threshold-row:last-child { border-bottom: none; }
+    .threshold-val { font-weight: 600; color: #1a1a1a; }
+  </style>
+</head>
+<body>
+  <div id="sidebarMount"></div>
+
+  <main class="main">
+    <div class="page-header">
+      <div class="page-title">Monitoring</div>
+      <div class="page-subtitle">Nilai sensor terkini & tren 20 pembacaan terakhir</div>
+    </div>
+
+    <div id="monStale" style="display:none;background:#fff8e1;border:1px solid #ffe082;border-radius:10px;padding:10px 16px;font-size:13px;color:#7c5800;margin-bottom:1.25rem;">
+      ⚠️ Belum ada data baru &gt; 15 detik — device mungkin offline. Nilai di bawah ini data terakhir yang tercatat.
+    </div>
+
+    <!-- Sensor cards -->
+    <div class="sensor-grid">
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <div class="sensor-name">Suhu Udara</div>
+          <span id="mb_temp" class="badge badge-normal">Normal</span>
+        </div>
+        <div class="sensor-big" id="m_temp">—<span class="sensor-unit"> °C</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <div class="sensor-name">Kelembaban Udara</div>
+          <span id="mb_humid" class="badge badge-normal">Normal</span>
+        </div>
+        <div class="sensor-big" id="m_humid">—<span class="sensor-unit"> %</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <div class="sensor-name">Kelembaban Tanah</div>
+          <span id="mb_soil" class="badge badge-normal">Normal</span>
+        </div>
+        <div class="sensor-big" id="m_soil">—<span class="sensor-unit"> ADC</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <div class="sensor-name">Intensitas Cahaya</div>
+          <span id="mb_ldr" class="badge badge-normal">Normal</span>
+        </div>
+        <div class="sensor-big" id="m_ldr">—<span class="sensor-unit"> ADC</span></div>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <div class="sensor-name">Level Air</div>
+          <span id="mb_water" class="badge badge-normal">Normal</span>
+        </div>
+        <div class="sensor-big" id="m_water">—<span class="sensor-unit"> cm</span></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Aktuator -->
+      <div class="card">
+        <div class="card-title">Status Aktuator</div>
+        <div class="actuator-row">
+          <div class="actuator-name">
+            <div class="act-icon act-off" id="mIconPump">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/>
+              </svg>
+            </div>
+            Pompa Air
+          </div>
+          <span id="mTagPump" class="tag-off">OFF</span>
+        </div>
+        <div class="actuator-row">
+          <div class="actuator-name">
+            <div class="act-icon act-off" id="mIconFan">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 12c2-3 2-6-1-8-2 2-2 5 1 8zm0 0c3 2 6 2 8-1-2-2-5-2-8 1zm0 0c-2 3-2 6 1 8 2-2 2-5-1-8zm0 0c-3-2-6-2-8 1 2 2 5 2 8-1z"/>
+                <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            Kipas
+          </div>
+          <span id="mTagFan" class="tag-off">OFF</span>
+        </div>
+      </div>
+
+      <!-- Threshold -->
+      <div class="card">
+        <div class="card-title">Threshold Sistem</div>
+        <div class="threshold-row"><span>Fan ON (suhu)</span><span class="threshold-val">&gt; 31 °C</span></div>
+        <div class="threshold-row"><span>Fan ON (kelembaban)</span><span class="threshold-val">&gt; 82 %</span></div>
+        <div class="threshold-row"><span>Pump ON (tanah kering)</span><span class="threshold-val">&lt; 2000 ADC</span></div>
+        <div class="threshold-row"><span>Durasi siram</span><span class="threshold-val">10 detik</span></div>
+        <div class="threshold-row"><span>Cooldown siram</span><span class="threshold-val">60 detik</span></div>
+        <div class="threshold-row"><span>Fan pasca siram</span><span class="threshold-val">90 detik</span></div>
+        <div class="threshold-row"><span>Air dianggap habis</span><span class="threshold-val">&ge; 18,5 cm</span></div>
+        <div class="threshold-row"><span>Air dianggap cukup</span><span class="threshold-val">&le; 12,5 cm</span></div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-card">
+      <div class="chart-title">📈 Suhu Udara (°C)</div>
+      <canvas id="chartTemp"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">💧 Kelembaban Udara (%)</div>
+      <canvas id="chartHumid"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🌱 Kelembaban Tanah (ADC)</div>
+      <canvas id="chartSoil"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🚰 Level Air — jarak sensor ke air, cm (garis putus = batas kosong 18,5 cm)</div>
+      <canvas id="chartWater"></canvas>
+    </div>
+  </main>
+
+  <script type="module">
+    import { buildSidebar, requireAuth, logout, db, waterState, WATER_LEVEL_EMPTY_CM, pushIdToTimestamp } from "./shared.js";
+    import { ref, onValue, query, limitToLast, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    document.getElementById("sidebarMount").innerHTML  = buildSidebar("monitoring");
+    document.body.style.visibility = "visible";
+
+    const MAX = 20;
+    const timeLabels = [];
+    const tempArr    = [];
+    const humidArr   = [];
+    const soilArr    = [];
+    const waterArr   = [];
+
+    function makeChart(canvasId, label, color, dataArr, extra) {
+      const ctx = document.getElementById(canvasId).getContext("2d");
+      return new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: timeLabels,
+          datasets: [{
+            label,
+            data: dataArr,
+            borderColor: color,
+            backgroundColor: color + "20",
+            fill: true,
+            tension: 0.4,
+            pointRadius: 3,
+            pointBackgroundColor: color,
+            borderWidth: 2
+          }, ...(extra || [])]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { color: "#f0eeea" }, ticks: { font: { size: 10 }, color: "#888" } },
+            y: { grid: { color: "#f0eeea" }, ticks: { font: { size: 10 }, color: "#888" } }
+          }
+        }
+      });
+    }
+
+    let cTemp, cHumid, cSoil, cWater;
+    const STALE_MS = 15000;
+    let lastSeen        = 0;
+    let confirmedOnline = false;
+    let pendingActuator = null;
+
+    async function loadRecentHistoryIntoCharts() {
+      try {
+        const q    = query(ref(db, "/history"), limitToLast(MAX));
+        const snap = await get(q);
+        if (!snap.exists()) return;
+
+        const rows = [];
+        snap.forEach(child => {
+          rows.push({ ts: pushIdToTimestamp(child.key), ...child.val() });
+        });
+        rows.sort((a, b) => a.ts - b.ts); // lama -> baru, biar urut kiri ke kanan di chart
+
+        rows.forEach(d => {
+          const t = new Date(d.ts).toLocaleTimeString("id-ID",
+            { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+          timeLabels.push(t);
+          tempArr.push(d.temperature   ?? null);
+          humidArr.push(d.humidity     ?? null);
+          soilArr.push(d.soilMoisture  ?? null);
+          waterArr.push(d.waterLevel   ?? null);
+          cWater.data.datasets[1].data.push(WATER_LEVEL_EMPTY_CM);
+        });
+
+        cTemp.update("none");
+        cHumid.update("none");
+        cSoil.update("none");
+        cWater.update("none");
+      } catch (e) {
+        // Gagal narik riwayat bukan hal fatal - chart tetap jalan,
+        // cuma mulai dari kosong lalu keisi live seperti sebelumnya.
+        console.warn("[Monitoring] Gagal memuat riwayat awal chart:", e);
+      }
+    }
+
+    requireAuth(async () => {
+      document.getElementById("logoutBtn").addEventListener("click", logout);
+
+      cTemp  = makeChart("chartTemp",  "Suhu °C",     "#BA7517", tempArr);
+      cHumid = makeChart("chartHumid", "Kelembaban %","#378ADD", humidArr);
+      cSoil  = makeChart("chartSoil",  "Tanah ADC",   "#639922", soilArr);
+      // Garis putus-putus referensi batas "kosong" (18,5 cm) di chart air,
+      // biar kelihatan seberapa dekat pembacaan sekarang ke batas itu.
+      cWater = makeChart("chartWater", "Level Air cm", "#185FA5", waterArr, [{
+        label: "Batas kosong",
+        data: timeLabels.map(() => WATER_LEVEL_EMPTY_CM),
+        borderColor: "#E24B4A",
+        borderDash: [5, 4],
+        pointRadius: 0,
+        fill: false,
+        borderWidth: 1.5
+      }]);
+
+      // Isi chart pakai riwayat terakhir dari /history dulu, biar begitu
+      // halaman dibuka langsung kelihatan trennya - bukan mulai dari
+      // kosong terus nambah 1 titik per 5 detik data live baru masuk.
+      await loadRecentHistoryIntoCharts();
+
+      setInterval(() => {
+        if (lastSeen && Date.now() - lastSeen > STALE_MS) setStale();
+      }, 3000);
+
+      onValue(ref(db, "/sensor"), snap => {
+        const d = snap.val();
+        if (!d) return;
+        handleSensorSnapshot(d);
+      });
+
+      onValue(ref(db, "/actuator"), snap => {
+        const d = snap.val();
+        if (!d) return;
+        if (confirmedOnline) {
+          setAct("mTagPump", "mIconPump", d.pump);
+          setAct("mTagFan",  "mIconFan",  d.fan);
+        } else {
+          // Belum yakin device beneran hidup sekarang - simpan dulu,
+          // jangan langsung ditampilkan sebagai status "saat ini".
+          pendingActuator = d;
+        }
+      });
+    });
+
+    // Sama seperti di dashboard: Firebase selalu ngasih nilai TERAKHIR yang
+    // tersimpan begitu listener baru nyambung, walau device sudah lama
+    // mati. Snapshot pertama cuma dipakai buat nampilin angka/chart, belum
+    // dianggap bukti device hidup. Baru dipercaya online kalau snapshot
+    // KEDUA beneran masuk dalam waktu wajar (~11 detik).
+    function handleSensorSnapshot(d) {
+      renderMonitoringData(d);
+
+      if (!confirmedOnline) {
+        if (!lastSeen) {
+          lastSeen = Date.now();
+          setTimeout(() => { if (!confirmedOnline) setStale(); }, 11000);
+          return;
+        }
+        confirmedOnline = true;
+        document.getElementById("monStale").style.display = "none";
+        if (pendingActuator) {
+          setAct("mTagPump", "mIconPump", pendingActuator.pump);
+          setAct("mTagFan",  "mIconFan",  pendingActuator.fan);
+          pendingActuator = null;
+        }
+      }
+      lastSeen = Date.now();
+    }
+
+    // Firebase tidak otomatis reset /actuator kalau device mati/putus
+    // (belum pakai onDisconnect() di firmware). Begitu stale, jangan
+    // percaya lagi ON/OFF terakhir - tampilkan eksplisit sebagai Offline.
+    function setStale() {
+      document.getElementById("monStale").style.display = "block";
+      confirmedOnline = false;
+      lastSeen        = 0;
+      pendingActuator = null;
+      markActUnknown("mTagPump", "mIconPump");
+      markActUnknown("mTagFan",  "mIconFan");
+    }
+
+    function markActUnknown(tagId, iconId) {
+      document.getElementById(tagId).className   = "tag-off";
+      document.getElementById(tagId).textContent = "Offline";
+      document.getElementById(iconId).className  = "act-icon act-off";
+    }
+
+    function renderMonitoringData(d) {
+      const t = new Date().toLocaleTimeString("id-ID",
+        { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+      setDisplay("m_temp",  d.temperature,  1, "°C");
+      setDisplay("m_humid", d.humidity,     1, "%");
+      setDisplay("m_soil",  d.soilMoisture, 0, "ADC");
+      setDisplay("m_ldr",   d.ldrValue,     0, "ADC");
+      setDisplay("m_water", d.waterLevel,   1, "cm");
+
+      setBadge("mb_temp",  d.temperature,  v => v > 35 ? "danger" : v > 30 ? "warning" : "normal");
+      setBadge("mb_humid", d.humidity,     v => v > 90 ? "danger" : v > 80 ? "warning" : "normal");
+      setBadge("mb_soil",  d.soilMoisture, v => v < 1500 ? "danger" : v < 2000 ? "warning" : "normal");
+      setBadge("mb_ldr",   d.ldrValue,     () => "normal");
+      setBadge("mb_water", d.waterLevel,   () => waterState(d.waterLevel, d.waterEmpty));
+
+      if (timeLabels.length >= MAX) {
+        timeLabels.shift(); tempArr.shift(); humidArr.shift(); soilArr.shift(); waterArr.shift();
+        cWater.data.datasets[1].data.shift();
+      }
+      timeLabels.push(t);
+      tempArr.push(d.temperature  ?? null);
+      humidArr.push(d.humidity    ?? null);
+      soilArr.push(d.soilMoisture ?? null);
+      waterArr.push(d.waterLevel  ?? null);
+      cWater.data.datasets[1].data.push(WATER_LEVEL_EMPTY_CM);
+
+      cTemp.update("none");
+      cHumid.update("none");
+      cSoil.update("none");
+      cWater.update("none");
+    }
+
+    function setDisplay(id, val, dec, unit) {
+      const v = val !== undefined && val !== null
+        ? (dec > 0 ? Number(val).toFixed(dec) : Math.round(val)) : "—";
+      document.getElementById(id).innerHTML =
+        v + '<span class="sensor-unit"> ' + unit + "</span>";
+    }
+
+    function setBadge(id, val, fn) {
+      const el = document.getElementById(id);
+      if (val === undefined || val === null) return;
+      const state = fn(val);
+      const labels = { normal: "Normal", warning: "Perhatian", danger: "Bahaya" };
+      el.className   = "badge badge-" + state;
+      el.textContent = labels[state];
+    }
+
+    function setAct(tagId, iconId, isOn) {
+      const tag  = document.getElementById(tagId);
+      const icon = document.getElementById(iconId);
+      if (isOn) {
+        tag.className  = "tag-on";  tag.textContent = "ON";
+        icon.className = "act-icon act-on";
+      } else {
+        tag.className  = "tag-off"; tag.textContent = "OFF";
+        icon.className = "act-icon act-off";
+      }
+    }
+  </script>
+</body>
+</html>

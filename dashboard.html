@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FloraSync Lite — Dashboard</title>
+  <script>setTimeout(function(){ document.body.style.visibility = "visible"; }, 4000);</script>
+  <link rel="stylesheet" href="shared.css"/>
+  <style>
+    body { visibility: hidden; }
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .water-alert {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #7c5800;
+      margin-bottom: 1.25rem;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--gray-100);
+      font-size: 13px;
+      color: var(--gray-600);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-val { font-weight: 600; color: #1a1a1a; }
+
+    /* ===== Visualisasi Sistem (pompa + kipas animasi) ===== */
+    .scene-card { padding: 1.25rem; }
+    .scene-wrap { display:flex; justify-content:center; }
+    .scene-wrap svg { width:100%; max-width: 440px; height:auto; display:block; }
+    .scene-caption {
+      display:flex; justify-content:center; gap:28px; margin-top:8px;
+      font-size:12px; color: var(--gray-400);
+    }
+    .scene-caption b { color: var(--gray-600); }
+
+    .droplet {
+      opacity: 0;
+      animation: flowUp 1.3s linear infinite;
+      animation-play-state: paused;
+    }
+    .scene-wrap.pump-on .droplet { animation-play-state: running; }
+    .droplet:nth-child(1) { animation-delay: 0s; }
+    .droplet:nth-child(2) { animation-delay: .43s; }
+    .droplet:nth-child(3) { animation-delay: .86s; }
+    @keyframes flowUp {
+      0%   { transform: translateY(0);    opacity: 0; }
+      15%  { opacity: 1; }
+      85%  { opacity: 1; }
+      100% { transform: translateY(-58px); opacity: 0; }
+    }
+
+    .pump-box rect { transition: fill .3s; }
+    .scene-wrap.pump-on .pump-box rect { fill: var(--green-400); }
+    .scene-wrap.pump-on .pump-box { filter: drop-shadow(0 0 4px rgba(99,153,34,.55)); }
+
+    .fan-blades {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: spin .9s linear infinite;
+      animation-play-state: paused;
+    }
+    .scene-wrap.fan-on .fan-blades { animation-play-state: running; }
+    .scene-wrap.fan-on .fan-hub { fill: var(--teal-600); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .wind-line {
+      opacity: 0;
+      animation: windFlow 1.6s ease-in-out infinite;
+      animation-play-state: paused;
+    }
+    .scene-wrap.fan-on .wind-line { animation-play-state: running; }
+    .wind-line:nth-child(1) { animation-delay: 0s; }
+    .wind-line:nth-child(2) { animation-delay: .3s; }
+    .wind-line:nth-child(3) { animation-delay: .6s; }
+    @keyframes windFlow {
+      0%   { opacity: 0; transform: translateX(0); }
+      20%  { opacity: .8; }
+      80%  { opacity: .8; }
+      100% { opacity: 0; transform: translateX(16px); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .droplet, .fan-blades, .wind-line { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebarMount"></div>
+
+  <main class="main">
+    <div class="header-row">
+      <div class="page-header" style="margin-bottom:0">
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">Ringkasan kondisi greenhouse secara real-time</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="deviceStatus" class="badge badge-offline">
+          <span class="dot"></span> Offline
+        </span>
+        <span id="lastUpdate" style="font-size:12px;color:var(--gray-400);">—</span>
+      </div>
+    </div>
+
+    <!-- Water alert -->
+    <div id="waterAlert" class="water-alert">
+      ⚠️ <strong>Peringatan:</strong>&nbsp;<span id="waterAlertText">Level air reservoir rendah! Segera isi ulang.</span>
+    </div>
+
+    <!-- Sensor cards -->
+    <div class="grid-5">
+      <div class="stat-card">
+        <div class="stat-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#BA7517" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 14.76V3.5a2.5 2.5 0 00-5 0v11.26a4.5 4.5 0 105 0z"/></svg>
+          Suhu Udara
+        </div>
+        <div class="stat-value" id="d_temp">—<span class="stat-unit"> °C</span></div>
+        <span id="b_temp" class="badge badge-normal">Normal</span>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#378ADD" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z"/></svg>
+          Kelembaban Udara
+        </div>
+        <div class="stat-value" id="d_humid">—<span class="stat-unit"> %</span></div>
+        <span id="b_humid" class="badge badge-normal">Normal</span>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#639922" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22V12M12 12C12 7 17 4 17 4S12 8 7 4c0 0 5 3 5 8z"/></svg>
+          Kelembaban Tanah
+        </div>
+        <div class="stat-value" id="d_soil">—<span class="stat-unit"> ADC</span></div>
+        <span id="b_soil" class="badge badge-normal">Normal</span>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#BA7517" stroke-width="2"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          Intensitas Cahaya
+        </div>
+        <div class="stat-value" id="d_ldr">—<span class="stat-unit"> ADC</span></div>
+        <span id="b_ldr" class="badge badge-normal">Normal</span>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#185FA5" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 16V7a2 2 0 00-2-2H6a2 2 0 00-2 2v9m16 0H4m16 0l1.28 2.55A1 1 0 0120.37 20H3.63a1 1 0 01-.91-1.45L4 16"/></svg>
+          Level Air
+        </div>
+        <div class="stat-value" id="d_water">—<span class="stat-unit"> cm</span></div>
+        <span id="b_water" class="badge badge-normal">Normal</span>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Visualisasi animasi pompa & kipas -->
+      <div class="card scene-card">
+        <div class="card-title">Visualisasi Sistem</div>
+        <div class="scene-wrap" id="sceneWrap">
+          <svg viewBox="0 0 460 180" role="img" aria-label="Visualisasi pompa air dan kipas sirkulasi">
+            <title>Visualisasi pompa dan kipas</title>
+            <!-- pot + plant -->
+            <path d="M35 40 L75 40 L68 62 L42 62 Z" fill="var(--amber-50)" stroke="var(--amber-400)" stroke-width="1.5"/>
+            <path d="M55 40 C55 20 40 18 34 8 M55 40 C55 18 70 16 78 6 M55 40 L55 12" fill="none" stroke="var(--green-400)" stroke-width="3" stroke-linecap="round"/>
+
+            <!-- pipe: pot -> pump -->
+            <rect x="51" y="62" width="8" height="46" fill="var(--gray-100)"/>
+            <!-- pump -->
+            <g class="pump-box">
+              <rect x="36" y="108" width="38" height="24" rx="5" fill="var(--gray-100)" stroke="var(--gray-400)" stroke-width="1"/>
+            </g>
+            <!-- pipe: pump -> tank -->
+            <rect x="51" y="130" width="8" height="8" fill="var(--gray-100)"/>
+
+            <!-- droplets flowing up the pipe when pump is on -->
+            <circle class="droplet" cx="55" cy="116" r="4" fill="var(--blue-400)"/>
+            <circle class="droplet" cx="55" cy="116" r="4" fill="var(--blue-400)"/>
+            <circle class="droplet" cx="55" cy="116" r="4" fill="var(--blue-400)"/>
+
+            <!-- mini tank, fill height driven live by /sensor/waterLevel -->
+            <defs><clipPath id="miniTankClip"><rect x="26" y="138" width="58" height="36" rx="6"/></clipPath></defs>
+            <g clip-path="url(#miniTankClip)">
+              <rect id="miniWater" x="26" y="174" width="58" height="0" fill="var(--blue-400)"/>
+            </g>
+            <rect x="26" y="138" width="58" height="36" rx="6" fill="none" stroke="var(--gray-400)" stroke-width="1.5"/>
+            <text x="95" y="148" font-size="9" fill="var(--gray-400)">Tandon air</text>
+            <text id="miniWaterLabel" x="95" y="161" font-size="12" font-weight="700" fill="var(--gray-600)">— cm</text>
+
+            <line x1="200" y1="12" x2="200" y2="168" stroke="var(--gray-100)" stroke-width="1"/>
+
+            <!-- fan -->
+            <circle cx="330" cy="80" r="42" fill="#fff" stroke="var(--gray-100)" stroke-width="2"/>
+            <g class="fan-blades">
+              <ellipse cx="330" cy="60" rx="7" ry="18" fill="var(--teal-400)"/>
+              <ellipse cx="330" cy="60" rx="7" ry="18" fill="var(--teal-400)" transform="rotate(90 330 80)"/>
+              <ellipse cx="330" cy="60" rx="7" ry="18" fill="var(--teal-400)" transform="rotate(180 330 80)"/>
+              <ellipse cx="330" cy="60" rx="7" ry="18" fill="var(--teal-400)" transform="rotate(270 330 80)"/>
+              <circle class="fan-hub" cx="330" cy="80" r="7" fill="var(--gray-400)"/>
+            </g>
+            <text x="330" y="134" font-size="10" fill="var(--gray-400)" text-anchor="middle">Kipas Sirkulasi</text>
+
+            <path class="wind-line" d="M382 68 q14 0 22 -4" fill="none" stroke="var(--teal-400)" stroke-width="2" stroke-linecap="round"/>
+            <path class="wind-line" d="M382 80 q16 0 24 0"  fill="none" stroke="var(--teal-400)" stroke-width="2" stroke-linecap="round"/>
+            <path class="wind-line" d="M382 92 q14 0 22 4"  fill="none" stroke="var(--teal-400)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="scene-caption">
+          <span>💧 Pompa: <b id="scenePumpState">OFF</b></span>
+          <span>🌀 Kipas: <b id="sceneFanState">OFF</b></span>
+        </div>
+      </div>
+
+      <!-- Aktuator -->
+      <div class="card">
+        <div class="card-title">Status Aktuator</div>
+        <div class="actuator-row">
+          <div class="actuator-name">
+            <div class="act-icon act-off" id="iconPump">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+            </div>
+            Pompa Air
+          </div>
+          <span id="tagPump" class="tag-off">OFF</span>
+        </div>
+        <div class="actuator-row">
+          <div class="actuator-name">
+            <div class="act-icon act-off" id="iconFan">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M12 12m-1 0a1 1 0 102 0 1 1 0 10-2 0"/><path stroke-linecap="round" d="M12 6C10.5 3 7 2 5 4s-1 5.5 1 7M18 12c3-1.5 4-5 2-7s-5.5-1-7 1M12 18c1.5 3 5 4 7 2s1-5.5-1-7M6 12C3 13.5 2 17 4 19s5.5 1 7-1"/></svg>
+            </div>
+            Kipas
+          </div>
+          <span id="tagFan" class="tag-off">OFF</span>
+        </div>
+      </div>
+
+      <!-- Info sistem -->
+      <div class="card">
+        <div class="card-title">Informasi Sistem</div>
+        <div class="info-row"><span>Tanaman</span><span class="info-val">Pakcoy, Cabai, Kemangi</span></div>
+        <div class="info-row"><span>Dimensi</span><span class="info-val">55 × 45 × 40 cm</span></div>
+        <div class="info-row"><span>Mikrokontroler</span><span class="info-val">ESP32</span></div>
+        <div class="info-row"><span>Sensor</span><span class="info-val">DHT22, Soil, LDR, HC-SR04</span></div>
+        <div class="info-row"><span>Sumber daya</span><span class="info-val">Adaptor 5V/2A</span></div>
+        <div class="info-row"><span>Interval baca</span><span class="info-val">5 detik</span></div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { buildSidebar, requireAuth, logout, db, waterState, WATER_LEVEL_EMPTY_CM, WATER_LEVEL_OK_CM } from "./shared.js";
+    import { ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    document.getElementById("sidebarMount").innerHTML = buildSidebar("dashboard");
+    document.body.style.visibility = "visible";
+
+    requireAuth(() => {
+      document.getElementById("logoutBtn").addEventListener("click", logout);
+      listenData();
+      watchStale();
+    });
+
+    // Data harus masuk tiap ~5 detik (SENSOR_INTERVAL/FIREBASE_INTERVAL di
+    // firmware). Kalau lebih dari 15 detik tidak ada update susulan
+    // setelah online kekonfirmasi, anggap device offline.
+    const STALE_MS = 15000;
+    let lastSeen        = 0;
+    let confirmedOnline = false;
+    let pendingActuator = null;
+
+    function watchStale() {
+      setInterval(() => {
+        if (lastSeen && Date.now() - lastSeen > STALE_MS) setOffline();
+      }, 3000);
+    }
+
+    function listenData() {
+      onValue(ref(db, "/sensor"), snap => {
+        const d = snap.val();
+        if (!d) return;
+        handleSensorSnapshot(d);
+      });
+
+      onValue(ref(db, "/actuator"), snap => {
+        const d = snap.val();
+        if (!d) return;
+        if (confirmedOnline) {
+          setActuator("Pump", d.pump);
+          setActuator("Fan",  d.fan);
+        } else {
+          // Belum yakin device beneran hidup sekarang - simpan dulu,
+          // jangan langsung ditampilkan sebagai status "saat ini".
+          pendingActuator = d;
+        }
+      });
+    }
+
+    // Firebase SELALU mengirim nilai TERAKHIR yang tersimpan begitu
+    // listener baru nyambung - walau device-nya sudah mati dari lama.
+    // Kalau langsung dipercaya, dashboard sempat nampilin "Online" +
+    // status Pompa/Kipas hidup padahal itu cuma sisa data basi.
+    // Snapshot PERTAMA cuma ditampilkan sebagai angka referensi, belum
+    // menyalakan badge Online. Baru dipercaya online kalau snapshot KEDUA
+    // beneran masuk dalam rentang wajar (device aktif kirim tiap ~5 detik).
+    // Kalau snapshot kedua gak kunjung datang, langsung Offline - gak
+    // perlu nunggu basi 15 detik dari titik acuan yang salah dari awal.
+    function handleSensorSnapshot(d) {
+      renderSensorValues(d);
+
+      if (!confirmedOnline) {
+        if (!lastSeen) {
+          lastSeen = Date.now();
+          setTimeout(() => { if (!confirmedOnline) setOffline(); }, 11000);
+          return;
+        }
+        confirmedOnline = true;
+        setOnline();
+        if (pendingActuator) {
+          setActuator("Pump", pendingActuator.pump);
+          setActuator("Fan",  pendingActuator.fan);
+          pendingActuator = null;
+        }
+      }
+
+      lastSeen = Date.now();
+      document.getElementById("lastUpdate").textContent =
+        "Update: " + new Date().toLocaleTimeString("id-ID");
+    }
+
+    function renderSensorValues(d) {
+      setVal("d_temp",  d.temperature,  1, "°C");
+      setVal("d_humid", d.humidity,     1, "%");
+      setVal("d_soil",  d.soilMoisture, 0, "ADC");
+      setVal("d_ldr",   d.ldrValue,     0, "ADC");
+      setVal("d_water", d.waterLevel,   1, "cm");
+
+      setBadge("b_temp",  d.temperature,  v => v > 35 ? "danger" : v > 30 ? "warning" : "normal");
+      setBadge("b_humid", d.humidity,     v => v > 90 ? "danger" : v > 80 ? "warning" : "normal");
+      setBadge("b_soil",  d.soilMoisture, v => v < 1500 ? "danger" : v < 2000 ? "warning" : "normal");
+      setBadge("b_ldr",   d.ldrValue,     () => "normal");
+      setBadge("b_water", d.waterLevel,   () => waterState(d.waterLevel, d.waterEmpty));
+
+      updateMiniTank(d.waterLevel);
+
+      // Sensor mengukur JARAK ke air, bukan tinggi air - makin BESAR
+      // angkanya makin SEDIKIT airnya. waterEmpty dari firmware (sudah
+      // dihitung dengan hysteresis+fail-safe) jadi acuan utama alert ini.
+      const alertBox  = document.getElementById("waterAlert");
+      const alertText = document.getElementById("waterAlertText");
+      if (d.waterEmpty === true) {
+        alertBox.style.display = "flex";
+        alertText.textContent = "Level air reservoir rendah (" +
+          (d.waterLevel !== undefined ? Number(d.waterLevel).toFixed(1) : "?") +
+          " cm dari sensor, batas kosong " + WATER_LEVEL_EMPTY_CM +
+          " cm). Pompa diblokir sampai tandon diisi ulang.";
+      } else {
+        alertBox.style.display = "none";
+      }
+    }
+
+    function updateMiniTank(level) {
+      const maxH = 36; // tinggi visual tandon di svg, px
+      const has  = level !== undefined && level !== null;
+      const ratio = has ? Math.max(0, Math.min(1, 1 - level / WATER_LEVEL_EMPTY_CM)) : 0;
+      const h = ratio * maxH;
+      document.getElementById("miniWater").setAttribute("y", 174 - h);
+      document.getElementById("miniWater").setAttribute("height", h);
+      document.getElementById("miniWaterLabel").textContent = has ? Number(level).toFixed(1) + " cm" : "— cm";
+    }
+
+    function setOnline() {
+      const el = document.getElementById("deviceStatus");
+      el.className = "badge badge-online";
+      el.innerHTML = '<span class="dot"></span> Online';
+    }
+
+    // Firebase TIDAK otomatis menghapus/reset /actuator kalau ESP32-nya
+    // mati atau putus koneksi (firmware belum pakai onDisconnect()). Jadi
+    // kalau kipas ON pas listrik tiba-tiba mati, nilai "ON" itu nyangkut
+    // selamanya di database walau kipas fisiknya sudah pasti berhenti.
+    // Begitu status Offline, jangan percaya lagi state aktuator terakhir -
+    // tampilkan sebagai "Offline", bukan seolah itu kondisi yang sedang
+    // berjalan sekarang.
+    function setOffline() {
+      const el = document.getElementById("deviceStatus");
+      el.className = "badge badge-offline";
+      el.innerHTML = '<span class="dot"></span> Offline';
+      confirmedOnline = false;
+      lastSeen        = 0;
+      pendingActuator = null;
+      markActuatorUnknown("Pump");
+      markActuatorUnknown("Fan");
+    }
+
+    function markActuatorUnknown(name) {
+      const tag = document.getElementById("tag" + name);
+      tag.className  = "tag-off";
+      tag.textContent = "Offline";
+      const icon = document.getElementById("icon" + name);
+      icon.className = "act-icon act-off";
+      document.getElementById("scene" + name + "State").textContent = "Offline";
+      document.getElementById("sceneWrap").classList.remove(name.toLowerCase() + "-on");
+    }
+
+    function setVal(id, val, decimals, unit) {
+      const el = document.getElementById(id);
+      const v  = val !== undefined && val !== null
+        ? (decimals > 0 ? Number(val).toFixed(decimals) : Math.round(val))
+        : "—";
+      el.innerHTML = v + '<span class="stat-unit"> ' + unit + '</span>';
+    }
+
+    function setBadge(id, val, fn) {
+      const el = document.getElementById(id);
+      if (val === undefined || val === null) return;
+      const state = fn(val);
+      const labels = { normal: "Normal", warning: "Perhatian", danger: "Bahaya" };
+      el.className   = "badge badge-" + state;
+      el.textContent = labels[state];
+    }
+
+    function setActuator(name, isOn) {
+      const tag  = document.getElementById("tag"  + name);
+      const icon = document.getElementById("icon" + name);
+      if (isOn) {
+        tag.className  = "tag-on";  tag.textContent = "ON";
+        icon.className = "act-icon act-on";
+      } else {
+        tag.className  = "tag-off"; tag.textContent = "OFF";
+        icon.className = "act-icon act-off";
+      }
+
+      const sceneWrap = document.getElementById("sceneWrap");
+      sceneWrap.classList.toggle(name.toLowerCase() + "-on", !!isOn);
+      document.getElementById("scene" + name + "State").textContent = isOn ? "ON" : "OFF";
+    }
+  </script>
+</body>
+</html>

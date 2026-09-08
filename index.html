@@ -2197,6 +2197,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     <button class="tab" data-panel="community">👥 Komunitas</button>
     <button class="tab" data-panel="kongsi">🤝 Pasar Kongsi</button>
     <button class="tab" data-panel="brain">🧠 Otak AI</button>
+    <button class="tab" data-panel="agen">🚚 Agen Rantai Pasok</button>
     <button class="tab" data-panel="game">🎮 Game</button>
     <button class="tab" data-panel="settings">⚙️ Setting</button>
     <button type="button" onclick="event.stopPropagation();toggleAiSummaryPanel();" title="Buka Asisten AI (chatbot)" style="flex:0 0 auto;padding:11px 14px;text-align:center;border:none;background:linear-gradient(135deg,#1B4D4A,#E8633F);border-radius:11px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:600;font-size:13px;color:#fff;cursor:pointer;white-space:nowrap;">🤖 Asisten AI</button>
@@ -3369,6 +3370,71 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <div id="brainLocked" class="brain-locked" style="display:none;">⚠️ Minimal <b>5 hari berbeda</b> dengan transaksi diperlukan untuk melatih AI. Catat lebih banyak transaksi dulu di tab 💰 Catat Uang.</div>
     </section>
 
+    <!-- ===== AGEN RANTAI PASOK (Supply Chain Agent) ===== -->
+    <section class="panel" id="panel-agen">
+      <div class="brain-hero">
+        <h2>🚚 Agen Rantai Pasok AI</h2>
+        <p>Agen otonom: baca stok &amp; pemasokmu → memutuskan lewat <b>tool-calling LLM</b> apa yang perlu dilakukan → cari kecocokan di Pasar Kongsi → siapkan draf tindakan → kamu tinggal setujui. Bisa dipicu manual atau jalan sendiri tiap hari.</p>
+      </div>
+
+      <!-- INVENTORI STOK -->
+      <div class="settings-section" style="margin-bottom:14px;">
+        <h4>📦 Inventori Stok</h4>
+        <div id="stokList" style="margin-bottom:10px;"></div>
+        <div style="display:grid;grid-template-columns:1.4fr 0.8fr 0.7fr 1fr auto;gap:6px;">
+          <input type="text" id="stokNamaInput" placeholder="Nama bahan" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <input type="number" id="stokSisaInput" placeholder="Sisa" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <input type="text" id="stokSatuanInput" placeholder="Satuan" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <input type="number" id="stokTitikInput" placeholder="Titik pesan ulang" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <button id="stokAddBtn" style="padding:9px 14px;border:none;border-radius:9px;background:#7B61FF;color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;">+ Tambah</button>
+        </div>
+      </div>
+
+      <!-- DIREKTORI PEMASOK -->
+      <div class="settings-section" style="margin-bottom:14px;">
+        <h4>📇 Direktori Pemasok</h4>
+        <div id="pemasokList" style="margin-bottom:10px;"></div>
+        <div style="display:grid;grid-template-columns:1.2fr 1fr 1.2fr auto;gap:6px;">
+          <input type="text" id="pemasokNamaInput" placeholder="Nama pemasok" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <input type="text" id="pemasokWaInput" placeholder="No. WA (62...)" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <input type="text" id="pemasokCatatanInput" placeholder="Catatan (opsional)" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
+          <button id="pemasokAddBtn" style="padding:9px 14px;border:none;border-radius:9px;background:#7B61FF;color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;">+ Tambah</button>
+        </div>
+      </div>
+
+      <!-- JALANKAN AGEN -->
+      <button class="brain-train" id="agenRunBtn">🤖 Jalankan Agen Sekarang</button>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--ink-soft);">
+        <input type="checkbox" id="agenAutoDailyToggle" style="width:16px;height:16px;">
+        Agen Otomatis Harian (jalan sendiri tiap malam lewat server — butuh setup cron, lihat dokumentasi)
+      </label>
+      <div id="agenTrace" style="margin-top:14px;"></div>
+      <div id="agenResult" style="margin-top:10px;"></div>
+
+      <!-- DRAF TINDAKAN AGEN -->
+      <div class="settings-section" style="margin-top:14px;">
+        <h4>📋 Draf Tindakan Agen <span style="font-weight:400;font-size:11.5px;color:var(--ink-soft);">— menunggu persetujuanmu</span></h4>
+        <div id="agenDraftsList">
+          <div class="empty-state">Belum ada draf tindakan.</div>
+        </div>
+      </div>
+
+      <!-- RIWAYAT AGEN -->
+      <div class="settings-section" style="margin-top:14px;">
+        <h4>🕓 Riwayat Agen</h4>
+        <div id="agenRunsList">
+          <div class="empty-state">Agen belum pernah dijalankan.</div>
+        </div>
+      </div>
+
+      <div id="agenSapBox" style="display:none;margin-top:14px;padding:14px;border:1.5px dashed var(--line);border-radius:14px;">
+        <div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">📤 Sinkronisasi ke SAP</div>
+        <div id="agenSapStatus" style="font-size:12px;color:var(--ink-soft);margin-bottom:10px;">Belum ada endpoint SAP diatur — akan jalan dalam <b>mode simulasi</b> (lihat ⚙️ Setting → Integrasi SAP).</div>
+        <button class="brain-train" id="agenSapBtn" style="background:linear-gradient(135deg,#0060A9,#00A0DC);">📤 Sync Purchase Requisition ke SAP</button>
+        <pre id="agenSapLog" style="display:none;margin-top:10px;background:#0B1B2B;color:#8FE3C7;padding:10px;border-radius:10px;font-size:11px;overflow:auto;max-height:220px;"></pre>
+      </div>
+    </section>
+
     <!-- ===== SETTINGS PANEL ===== -->
     <section class="panel" id="panel-settings">
       <h2 style="font-size:18px;margin-bottom:16px;">⚙️ Pengaturan</h2>
@@ -3419,9 +3485,23 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
           <br><strong>1. Groq (utama, gratis)</strong> — <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>
         </div>
         <input type="password" id="groqKeyInput" placeholder="Tempel Groq API key (opsional, ada key default)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;">
-        <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:var(--ink-soft);"><strong>2. OpenRouter (cadangan)</strong> — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></div>
+        <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:var(--ink-soft);"><strong>2. Gemini (cadangan, kapasitas gratis besar)</strong> — <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></div>
+        <input type="password" id="geminiKeyInput" placeholder="Tempel Gemini API key (opsional)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;">
+        <div style="margin-top:8px;margin-bottom:4px;font-size:12px;color:var(--ink-soft);"><strong>3. OpenRouter (cadangan terakhir)</strong> — <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a></div>
         <input type="password" id="openrouterKeyInput" placeholder="Tempel OpenRouter API key (opsional)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:13.5px;">
-        <div style="margin-top:8px;font-size:11.5px;color:var(--ink-soft);">Kosongkan untuk pakai key bawaan (kuota bisa habis di jam sibuk).</div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--ink-soft);">Kosongkan untuk pakai key bawaan (kuota bisa habis di jam sibuk). Urutan coba: Groq → Gemini → OpenRouter, otomatis lanjut kalau salah satu penuh.</div>
+      </div>
+
+      <div class="settings-section">
+        <h4>🏭 Integrasi SAP</h4>
+        <div style="margin-bottom:8px;font-size:12px;color:var(--ink-soft);line-height:1.5;">
+          Dipakai oleh 🚚 Agen Rantai Pasok untuk mengirim rekomendasi pembelian ulang sebagai Purchase Requisition.
+          Kosongkan semua kolom untuk jalan di <b>mode simulasi</b> (aman untuk demo lomba tanpa akun SAP nyata).
+          Untuk akun gratis: <a href="https://developers.sap.com/trials-free-tier.html" target="_blank">SAP BTP free tier / trial</a>, atau pakai Joule A2A endpoint kalau sudah punya.
+        </div>
+        <input type="text" id="sapEndpointInput" placeholder="Endpoint OData/Joule A2A, mis. https://xxxx.launchpad.cfapps.eu10.hana.ondemand.com/..." style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:12.5px;margin-bottom:8px;">
+        <input type="password" id="sapTokenInput" placeholder="Bearer token / API key SAP (opsional)" style="width:100%;padding:11px 13px;border-radius:11px;border:1.5px solid var(--line);font-family:inherit;font-size:12.5px;">
+        <div id="sapStatusLine" style="margin-top:8px;font-size:11.5px;color:var(--ink-soft);"></div>
       </div>
 
       <div class="settings-section">
@@ -4681,6 +4761,10 @@ async function sendServerPush(toUid, title, body, url){
 
 let groqKey = "";
 let openrouterKey = "";
+let geminiKey = "";
+// Model Gemini Flash saat ini — kapasitas gratis besar (RPD tinggi), cocok jadi tulang punggung
+// fitur agentic (tool calling / function calling didukung native oleh Gemini API).
+const GEMINI_MODEL = 'gemini-flash-latest';
 let financeLang = "id";
 let contentLang = "id";
 let transactions = [];
@@ -4713,7 +4797,8 @@ const $ = (id) => document.getElementById(id);
 function hasAnyKey(){ return true; }
 function activeGroqKey(){ return groqKey || ''; }
 function activeOpenRouterKey(){ return openrouterKey || ''; }
-function usingAdminKey(){ return !(groqKey || openrouterKey); }
+function activeGeminiKey(){ return geminiKey || ''; }
+function usingAdminKey(){ return !(groqKey || openrouterKey || geminiKey); }
 
 // ── Proxy aman ke /api/ai-proxy (dipakai saat user belum isi key sendiri) ──
 // Key admin TIDAK PERNAH dikirim ke browser; server yang simpan & pakai.
@@ -4776,23 +4861,433 @@ function loadSavedKeys(){
   try{
     groqKey = localStorage.getItem('sekretaris_umkm_groq_key') || "";
     openrouterKey = localStorage.getItem('sekretaris_umkm_openrouter_key') || "";
+    geminiKey = localStorage.getItem('sekretaris_umkm_gemini_key') || "";
     $('groqKeyInput').value = groqKey;
     $('openrouterKeyInput').value = openrouterKey;
+    if($('geminiKeyInput')) $('geminiKeyInput').value = geminiKey;
     updateKeyStatus();
   } catch(e){}
+  try{
+    const ep = localStorage.getItem('sekretaris_umkm_sap_endpoint') || "";
+    const tok = localStorage.getItem('sekretaris_umkm_sap_token') || "";
+    if($('sapEndpointInput')) $('sapEndpointInput').value = ep;
+    if($('sapTokenInput')) $('sapTokenInput').value = tok;
+    updateSapStatus();
+  } catch(e){}
 }
+
+function sapConfig(){
+  return {
+    endpoint: (localStorage.getItem('sekretaris_umkm_sap_endpoint') || "").trim(),
+    token: (localStorage.getItem('sekretaris_umkm_sap_token') || "").trim()
+  };
+}
+function updateSapStatus(){
+  const {endpoint} = sapConfig();
+  const line = $('sapStatusLine');
+  if(line) line.innerHTML = endpoint
+    ? `✅ Endpoint SAP diatur — Agen Rantai Pasok akan sync ke: <code>${escapeHtml(endpoint)}</code>`
+    : '🟡 Belum diatur — Agen Rantai Pasok akan jalan di mode simulasi.';
+  const box = $('agenSapStatus');
+  if(box) box.innerHTML = endpoint
+    ? `Endpoint SAP aktif: <code>${escapeHtml(endpoint)}</code>`
+    : 'Belum ada endpoint SAP diatur — akan jalan dalam <b>mode simulasi</b> (lihat ⚙️ Setting → Integrasi SAP).';
+}
+$('sapEndpointInput')?.addEventListener('input', (e) => {
+  try{ localStorage.setItem('sekretaris_umkm_sap_endpoint', e.target.value.trim()); }catch(err){}
+  updateSapStatus();
+});
+$('sapTokenInput')?.addEventListener('input', (e) => {
+  try{ localStorage.setItem('sekretaris_umkm_sap_token', e.target.value.trim()); }catch(err){}
+  updateSapStatus();
+});
+
+// ============ AGEN RANTAI PASOK AI — Inventori, Pemasok, Tool-Calling, Draf, Riwayat ============
+// Loop nyata: Rasakan -> Rencanakan (tool-calling LLM) -> Bertindak -> Lapor.
+// Tindakan yang keluar dari akun user (posting publik / kirim WA) SELALU berhenti sebagai draf
+// menunggu 1x persetujuan manusia — tool "buat_draf_*" cuma pernah menulis ke tabel draf,
+// tidak pernah memanggil API pengiriman/publikasi langsung.
+
+let stokItems = []; let _stokUnsub = null;
+let pemasokList = []; let _pemasokUnsub = null;
+let agentDrafts = []; let _draftsUnsub = null;
+let agentRuns = []; let _runsUnsub = null;
+let agentAutoDaily = false; let _agentSettingsUnsub = null;
+
+// ---------- INVENTORI STOK ----------
+function loadStokItems(){
+  if(!MY_UID || !window.firebaseDb || _stokUnsub) return;
+  _stokUnsub = window.rtdbOnValue(
+    window.rtdbRef(window.firebaseDb, `stokInventori/${MY_UID}`),
+    (snap) => { const val = snap.val() || {}; stokItems = Object.entries(val).map(([id,v]) => ({id, ...v})); renderStokItems(); },
+    (err) => console.warn('[Inventori] gagal load:', err.message)
+  );
+}
+function renderStokItems(){
+  const box = $('stokList'); if(!box) return;
+  if(stokItems.length === 0){ box.innerHTML = '<div class="empty-state">Belum ada item stok. Tambah minimal 1 supaya Agen punya data untuk dianalisis.</div>'; return; }
+  box.innerHTML = stokItems.map(it => {
+    const low = Number(it.sisaStok) <= Number(it.titikPesanUlang);
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:10px;background:${low?'#FFF3E0':'var(--bg-soft,#F5F7FA)'};margin-bottom:6px;font-size:12.5px;">
+      <div><b>${escapeHtml(it.namaBahan)}</b> — ${it.sisaStok} ${escapeHtml(it.satuan||'')} ${low?'<span style="color:#B3261E;font-weight:700;">⚠️ di bawah titik pesan ulang ('+it.titikPesanUlang+')</span>':''}</div>
+      <button onclick="deleteStokItem('${it.id}')" style="border:none;background:transparent;color:#B3261E;cursor:pointer;font-size:14px;">🗑️</button>
+    </div>`;
+  }).join('');
+}
+$('stokAddBtn')?.addEventListener('click', async () => {
+  if(!MY_UID){ alert('Login dulu untuk mencatat stok.'); return; }
+  const namaBahan = $('stokNamaInput').value.trim();
+  const sisaStok = Number($('stokSisaInput').value);
+  const satuan = $('stokSatuanInput').value.trim() || 'pcs';
+  const titikPesanUlang = Number($('stokTitikInput').value);
+  if(!namaBahan){ alert('Nama bahan wajib diisi.'); return; }
+  try{
+    const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `stokInventori/${MY_UID}`));
+    await window.rtdbSet(newRef, { namaBahan, sisaStok: sisaStok||0, satuan, titikPesanUlang: titikPesanUlang||0, createdAt: Date.now() });
+    $('stokNamaInput').value=''; $('stokSisaInput').value=''; $('stokSatuanInput').value=''; $('stokTitikInput').value='';
+  } catch(e){ alert('Gagal menyimpan: ' + e.message); }
+});
+window.deleteStokItem = async function(id){
+  if(!MY_UID || !confirm('Hapus item stok ini?')) return;
+  try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb, `stokInventori/${MY_UID}/${id}`)); }
+  catch(e){ alert('Gagal menghapus: ' + e.message); }
+};
+
+// ---------- DIREKTORI PEMASOK ----------
+function loadPemasok(){
+  if(!MY_UID || !window.firebaseDb || _pemasokUnsub) return;
+  _pemasokUnsub = window.rtdbOnValue(
+    window.rtdbRef(window.firebaseDb, `pemasok/${MY_UID}`),
+    (snap) => { const val = snap.val() || {}; pemasokList = Object.entries(val).map(([id,v]) => ({id, ...v})); renderPemasok(); },
+    (err) => console.warn('[Pemasok] gagal load:', err.message)
+  );
+}
+function renderPemasok(){
+  const box = $('pemasokList'); if(!box) return;
+  if(pemasokList.length === 0){ box.innerHTML = '<div class="empty-state">Belum ada pemasok terdaftar (opsional, tapi Agen butuh ini untuk draf pesanan ulang).</div>'; return; }
+  box.innerHTML = pemasokList.map(p => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:10px;background:var(--bg-soft,#F5F7FA);margin-bottom:6px;font-size:12.5px;">
+      <div><b>${escapeHtml(p.namaPemasok)}</b> — ${escapeHtml(p.wa||'-')} ${p.catatan?'<br><span style="color:var(--ink-soft);">'+escapeHtml(p.catatan)+'</span>':''}</div>
+      <button onclick="deletePemasok('${p.id}')" style="border:none;background:transparent;color:#B3261E;cursor:pointer;font-size:14px;">🗑️</button>
+    </div>`).join('');
+}
+$('pemasokAddBtn')?.addEventListener('click', async () => {
+  if(!MY_UID){ alert('Login dulu untuk mencatat pemasok.'); return; }
+  const namaPemasok = $('pemasokNamaInput').value.trim();
+  const wa = $('pemasokWaInput').value.trim();
+  const catatan = $('pemasokCatatanInput').value.trim();
+  if(!namaPemasok){ alert('Nama pemasok wajib diisi.'); return; }
+  try{
+    const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `pemasok/${MY_UID}`));
+    await window.rtdbSet(newRef, { namaPemasok, wa, catatan, createdAt: Date.now() });
+    $('pemasokNamaInput').value=''; $('pemasokWaInput').value=''; $('pemasokCatatanInput').value='';
+  } catch(e){ alert('Gagal menyimpan: ' + e.message); }
+});
+window.deletePemasok = async function(id){
+  if(!MY_UID || !confirm('Hapus pemasok ini?')) return;
+  try{ await window.rtdbRemove(window.rtdbRef(window.firebaseDb, `pemasok/${MY_UID}/${id}`)); }
+  catch(e){ alert('Gagal menghapus: ' + e.message); }
+};
+
+// ---------- TOGGLE AGEN OTOMATIS HARIAN ----------
+function loadAgentSettings(){
+  if(!MY_UID || !window.firebaseDb || _agentSettingsUnsub) return;
+  _agentSettingsUnsub = window.rtdbOnValue(
+    window.rtdbRef(window.firebaseDb, `agentSettings/${MY_UID}`),
+    (snap) => { const v = snap.val() || {}; agentAutoDaily = !!v.autoDaily; if($('agenAutoDailyToggle')) $('agenAutoDailyToggle').checked = agentAutoDaily; },
+    (err) => console.warn('[AgentSettings] gagal load:', err.message)
+  );
+}
+$('agenAutoDailyToggle')?.addEventListener('change', async (e) => {
+  if(!MY_UID){ e.target.checked = false; alert('Login dulu untuk mengaktifkan mode otomatis.'); return; }
+  try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentSettings/${MY_UID}`), { autoDaily: e.target.checked, groqKeyForCron: groqKey || null }); }
+  catch(err){ alert('Gagal menyimpan pengaturan: ' + err.message); e.target.checked = !e.target.checked; }
+});
+
+// ---------- DRAF TINDAKAN AGEN ----------
+function loadAgentDrafts(){
+  if(!MY_UID || !window.firebaseDb || _draftsUnsub) return;
+  _draftsUnsub = window.rtdbOnValue(
+    window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}`),
+    (snap) => {
+      const val = snap.val() || {};
+      agentDrafts = Object.entries(val).map(([id,v]) => ({id, ...v})).filter(d => d.status !== 'ditolak' && d.status !== 'disetujui');
+      agentDrafts.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+      renderAgentDrafts();
+    },
+    (err) => console.warn('[AgentDrafts] gagal load:', err.message)
+  );
+}
+async function saveAgentDraft(draft){
+  if(!MY_UID) return null;
+  const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}`));
+  await window.rtdbSet(newRef, { ...draft, status: 'menunggu_persetujuan', createdAt: Date.now() });
+  return newRef.key;
+}
+function renderAgentDrafts(){
+  const box = $('agenDraftsList'); if(!box) return;
+  if(agentDrafts.length === 0){ box.innerHTML = '<div class="empty-state">Belum ada draf tindakan.</div>'; return; }
+  box.innerHTML = agentDrafts.map(d => {
+    const waLink = d.wa ? `https://wa.me/${String(d.wa).replace(/[^0-9]/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(d.pesan||'')}` : null;
+    return `<div style="padding:12px;border-radius:12px;border:1.5px solid var(--line);margin-bottom:8px;">
+      <div style="font-weight:700;font-size:12.5px;margin-bottom:4px;">${escapeHtml(d.judul||d.tipe||'Draf')}</div>
+      <div style="font-size:12px;color:var(--ink-soft);white-space:pre-wrap;margin-bottom:8px;">${escapeHtml(d.pesan||d.deskripsi||'')}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${waLink ? `<a href="${waLink}" target="_blank" onclick="approveAgentDraft('${d.id}')" style="padding:7px 12px;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;text-decoration:none;">✅ Setujui & Buka WA</a>`
+                  : `<button onclick="approveAgentDraft('${d.id}')" style="padding:7px 12px;border:none;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;cursor:pointer;">✅ Setujui</button>`}
+        <button onclick="rejectAgentDraft('${d.id}')" style="padding:7px 12px;border:none;border-radius:9px;background:#EEE;color:#444;font-weight:700;font-size:12px;cursor:pointer;">✖️ Tolak</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.approveAgentDraft = async function(id){
+  if(!MY_UID) return;
+  try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}/${id}`), { status:'disetujui', approvedAt: Date.now() }); }
+  catch(e){ console.warn(e); }
+};
+window.rejectAgentDraft = async function(id){
+  if(!MY_UID) return;
+  try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}/${id}`), { status:'ditolak', rejectedAt: Date.now() }); }
+  catch(e){ console.warn(e); }
+};
+
+// ---------- RIWAYAT AGEN ----------
+function loadAgentRuns(){
+  if(!MY_UID || !window.firebaseDb || _runsUnsub) return;
+  _runsUnsub = window.rtdbOnValue(
+    window.rtdbQuery(window.rtdbRef(window.firebaseDb, `agentRuns/${MY_UID}`), window.rtdbLimitToLast(10)),
+    (snap) => { const val = snap.val() || {}; agentRuns = Object.entries(val).map(([id,v]) => ({id, ...v})).sort((a,b)=>(b.ts||0)-(a.ts||0)); renderAgentRuns(); },
+    (err) => console.warn('[AgentRuns] gagal load:', err.message)
+  );
+}
+async function saveAgentRun(run){
+  if(!MY_UID) return;
+  try{
+    const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `agentRuns/${MY_UID}`));
+    await window.rtdbSet(newRef, { ...run, ts: Date.now() });
+  } catch(e){ console.warn('[AgentRuns] gagal simpan:', e.message); }
+}
+function renderAgentRuns(){
+  const box = $('agenRunsList'); if(!box) return;
+  if(agentRuns.length === 0){ box.innerHTML = '<div class="empty-state">Agen belum pernah dijalankan.</div>'; return; }
+  box.innerHTML = agentRuns.map(r => `
+    <div style="padding:10px 12px;border-radius:10px;background:var(--bg-soft,#F5F7FA);margin-bottom:6px;font-size:12px;">
+      <div style="color:var(--ink-soft);margin-bottom:2px;">${new Date(r.ts).toLocaleString('id-ID')} · ${escapeHtml((r.toolsDipanggil||[]).join(', ')||'-')}</div>
+      <div>${escapeHtml(r.ringkasan||'-')}</div>
+    </div>`).join('');
+}
+
+// ---------- SKEMA 7 TOOL FUNCTION-CALLING ----------
+const SUPPLY_AGENT_TOOLS = [
+  { type:"function", function:{ name:"tandai_stok_menipis", description:"Catat item stok yang terdeteksi di bawah titik pesan ulang, lengkap tingkat urgensi. Otonom, tidak perlu persetujuan.",
+    parameters:{ type:"object", properties:{ item:{type:"string"}, urgensi:{type:"string", enum:["rendah","sedang","tinggi"]} }, required:["item","urgensi"] } } },
+  { type:"function", function:{ name:"cari_tawaran_kongsi", description:"Cari tawaran relevan di Pasar Kongsi (stok lebih dari UMKM lain) berdasarkan kata kunci nama bahan. Otonom, hanya membaca data.",
+    parameters:{ type:"object", properties:{ kataKunci:{type:"string"} }, required:["kataKunci"] } } },
+  { type:"function", function:{ name:"buat_draf_kongsi_belanja", description:"Siapkan draf ajakan patungan beli bahan baku ke sesama UMKM lewat Pasar Kongsi. Hasilnya DRAF, menunggu persetujuan manusia, tidak langsung diposting.",
+    parameters:{ type:"object", properties:{ judul:{type:"string"}, deskripsi:{type:"string"}, kategoriBahan:{type:"string"} }, required:["judul","deskripsi"] } } },
+  { type:"function", function:{ name:"buat_draf_hubungi_mitra", description:"Siapkan draf pesan WhatsApp ke pemilik tawaran Kongsi yang cocok. Hasilnya DRAF, menunggu persetujuan manusia, tidak langsung dikirim.",
+    parameters:{ type:"object", properties:{ namaTujuan:{type:"string"}, waTujuan:{type:"string"}, pesan:{type:"string"} }, required:["namaTujuan","pesan"] } } },
+  { type:"function", function:{ name:"buat_draf_pesanan_pemasok", description:"Siapkan draf pemesanan ulang ke pemasok terdaftar (ambil dari Direktori Pemasok). Hasilnya DRAF, menunggu persetujuan manusia.",
+    parameters:{ type:"object", properties:{ namaPemasok:{type:"string"}, itemPesanan:{type:"string"}, catatan:{type:"string"} }, required:["namaPemasok","itemPesanan"] } } },
+  { type:"function", function:{ name:"kirim_notifikasi_penting", description:"Kirim notifikasi in-app untuk hal mendesak (stok kritis). Otonom, tidak perlu persetujuan.",
+    parameters:{ type:"object", properties:{ pesan:{type:"string"} }, required:["pesan"] } } },
+  { type:"function", function:{ name:"simpulkan_tidak_ada_tindakan", description:"Simpulkan bila seluruh stok aman dan tidak ada tindakan yang diperlukan. Panggil ini untuk MENGAKHIRI proses jika memang tidak ada masalah — jangan mengarang masalah yang tidak ada.",
+    parameters:{ type:"object", properties:{ ringkasan:{type:"string"} }, required:["ringkasan"] } } }
+];
+
+// Panggilan Groq dengan tools — dipisah dari callAI() karena butuh field tools/tool_choice
+// yang tidak dipakai fitur lain. openai/gpt-oss-120b mendukung tool use native di Groq.
+async function callGroqWithTools(messages){
+  const key = activeGroqKey();
+  const payload = { model: GROQ_MODEL, messages, tools: SUPPLY_AGENT_TOOLS, tool_choice: "auto", temperature: 0.3, max_tokens: 1024 };
+  let data;
+  if(key){
+    const res = await fetch(GROQ_API, { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+key}, body: JSON.stringify(payload) });
+    data = await res.json();
+    if(!res.ok) throw new Error(data.error?.message || 'Groq API error ' + res.status);
+  } else if(typeof callAIProxy === 'function'){
+    // Proxy server perlu meneruskan field `tools`/`tool_choice` apa adanya ke Groq.
+    data = await callAIProxy('groq', payload);
+  } else {
+    throw new Error('Tidak ada Groq key/proxy tersedia.');
+  }
+  return data.choices?.[0]?.message;
+}
+
+// Eksekutor tool — ini bagian "Bertindak" dari loop agen. Setiap fungsi mengembalikan
+// object kecil yang dikirim balik ke LLM sebagai hasil tool, sekaligus render 1 langkah di trace UI.
+async function executeSupplyTool(name, args, trace, calledNames){
+  calledNames.push(name);
+  switch(name){
+    case 'tandai_stok_menipis':
+      renderAgenStep(trace, '🚩', 'tandai_stok_menipis', `<b>${escapeHtml(args.item||'-')}</b> — urgensi: ${escapeHtml(args.urgensi||'-')}`);
+      return { ok:true };
+    case 'cari_tawaran_kongsi': {
+      renderAgenStep(trace, '🔎', 'cari_tawaran_kongsi', `Mencari "${escapeHtml(args.kataKunci||'')}" di Pasar Kongsi...`);
+      let matches = [];
+      try{
+        const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'pasarKongsi'));
+        const val = snap.val() || {};
+        const kw = (args.kataKunci||'').toLowerCase();
+        matches = Object.entries(val)
+          .map(([id,v]) => ({id, ...v}))
+          .filter(it => it.mode === 'stok' && ((it.title||'').toLowerCase().includes(kw) || (it.desc||'').toLowerCase().includes(kw)))
+          .slice(0, 5)
+          .map(it => ({ id: it.id, judul: it.title, deskripsi: it.desc, pemilikUid: it.ownerUid||null, wa: it.wa||null }));
+      } catch(e){ /* offline / no firebase — kembalikan kosong, agen tetap lanjut */ }
+      renderAgenStep(trace, '📚', 'Hasil pencarian', matches.length ? `Ditemukan ${matches.length} tawaran cocok.` : 'Tidak ada tawaran cocok saat ini.');
+      return { hasil: matches };
+    }
+    case 'buat_draf_kongsi_belanja': {
+      renderAgenStep(trace, '✍️', 'buat_draf_kongsi_belanja', `Menyiapkan draf ajakan: <b>${escapeHtml(args.judul||'-')}</b> (menunggu persetujuanmu)`);
+      const id = await saveAgentDraft({ tipe:'kongsi_belanja', judul: args.judul, pesan: args.deskripsi, kategoriBahan: args.kategoriBahan||'' });
+      return { ok:true, draftId:id, catatan:'Tersimpan sebagai draf, BELUM diposting.' };
+    }
+    case 'buat_draf_hubungi_mitra': {
+      renderAgenStep(trace, '✍️', 'buat_draf_hubungi_mitra', `Menyiapkan draf pesan ke <b>${escapeHtml(args.namaTujuan||'-')}</b> (menunggu persetujuanmu)`);
+      const id = await saveAgentDraft({ tipe:'hubungi_mitra', judul:'Pesan ke '+(args.namaTujuan||'mitra Kongsi'), pesan: args.pesan, wa: args.waTujuan||'' });
+      return { ok:true, draftId:id, catatan:'Tersimpan sebagai draf, BELUM dikirim.' };
+    }
+    case 'buat_draf_pesanan_pemasok': {
+      const pemasok = pemasokList.find(p => (p.namaPemasok||'').toLowerCase() === (args.namaPemasok||'').toLowerCase());
+      renderAgenStep(trace, '✍️', 'buat_draf_pesanan_pemasok', `Menyiapkan draf pesanan ke <b>${escapeHtml(args.namaPemasok||'-')}</b> untuk ${escapeHtml(args.itemPesanan||'-')} (menunggu persetujuanmu)`);
+      const pesan = `Halo ${args.namaPemasok||''}, saya mau pesan ulang ${args.itemPesanan||''}. ${args.catatan||''}`.trim();
+      const id = await saveAgentDraft({ tipe:'pesanan_pemasok', judul:'Pesanan ke '+(args.namaPemasok||'pemasok'), pesan, wa: pemasok?.wa||'' });
+      return { ok:true, draftId:id, pemasokDitemukan: !!pemasok, catatan:'Tersimpan sebagai draf, BELUM dikirim.' };
+    }
+    case 'kirim_notifikasi_penting':
+      renderAgenStep(trace, '🔔', 'kirim_notifikasi_penting', escapeHtml(args.pesan||'-') + '<br><span style="font-size:11px;">(catatan: ini notifikasi in-app saat ini, belum push notification FCM)</span>');
+      return { ok:true, tampilKe:'in-app' };
+    case 'simpulkan_tidak_ada_tindakan':
+      renderAgenStep(trace, '✅', 'simpulkan_tidak_ada_tindakan', escapeHtml(args.ringkasan||'Semua stok aman.'));
+      return { ok:true, akhir:true, ringkasan: args.ringkasan };
+    default:
+      return { error: 'tool_tidak_dikenal' };
+  }
+}
+
+function renderAgenStep(container, icon, title, bodyHtml){
+  const step = document.createElement('div');
+  step.style.cssText = 'padding:12px 14px;border-radius:12px;background:var(--bg-soft,#F5F7FA);margin-bottom:8px;border-left:3px solid #7B61FF;';
+  step.innerHTML = `<div style="font-weight:700;font-size:12.5px;margin-bottom:4px;">${icon} ${title}</div><div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">${bodyHtml}</div>`;
+  container.appendChild(step);
+  container.scrollTop = container.scrollHeight;
+  return step;
+}
+
+const SUPPLY_AGENT_SYSTEM_PROMPT = `Kamu adalah Agen Rantai Pasok AI untuk UMKM di Indonesia. Kamu bekerja OTONOM lewat tool-calling, bukan cuma menjawab teks.
+Alur wajib: (1) periksa data stok yang diberikan, tandai yang di bawah titik pesan ulang lewat tandai_stok_menipis, (2) untuk tiap item menipis, cari kecocokan di Pasar Kongsi lewat cari_tawaran_kongsi, (3) kalau ada kecocokan bagus, buat draf lewat buat_draf_kongsi_belanja atau buat_draf_hubungi_mitra, (4) kalau tidak ada kecocokan tapi ada pemasok terdaftar untuk bahan itu, buat draf lewat buat_draf_pesanan_pemasok, (5) kalau ada yang sangat kritis (stok ≤ 20% dari titik pesan ulang), panggil kirim_notifikasi_penting, (6) kalau semua stok aman, WAJIB panggil simpulkan_tidak_ada_tindakan — jangan mengarang masalah yang tidak ada.
+ATURAN KERAS: tool "buat_draf_*" HANYA membuat draf yang menunggu persetujuan manusia. Kamu TIDAK PERNAH mengklaim sudah "mengirim" atau "memposting" apapun — selalu bilang "sudah disiapkan sebagai draf, menunggu kamu setujui".
+Setelah semua tool selesai kamu panggil, tutup dengan satu pesan teks singkat (bukan tool call) berisi ringkasan untuk pemilik UMKM dalam Bahasa Indonesia yang ramah.`;
+
+async function runSupplyChainAgent(){
+  const btn = $('agenRunBtn');
+  const trace = $('agenTrace');
+  const resultBox = $('agenResult');
+  const sapBox = $('agenSapBox');
+  if(!btn || !trace) return;
+  if(!activeGroqKey() && typeof callAIProxy !== 'function'){ goToSettingsForKey(); alert('Isi Groq API key dulu di ⚙️ Pengaturan — tool-calling agen ini butuh Groq (bukan Gemini/OpenRouter).'); return; }
+  if(stokItems.length === 0){ alert('Tambah minimal 1 item di Inventori Stok dulu supaya Agen ada data untuk dianalisis.'); return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Agen sedang bekerja...';
+  trace.innerHTML = ''; resultBox.innerHTML = ''; sapBox.style.display = 'none';
+  const calledNames = [];
+
+  try{
+    renderAgenStep(trace, '👀', 'Rasakan', `Membaca ${stokItems.length} item stok dan ${pemasokList.length} pemasok terdaftar...`);
+    const stokRingkas = stokItems.map(it => `- ${it.namaBahan}: sisa ${it.sisaStok} ${it.satuan}, titik pesan ulang ${it.titikPesanUlang} ${it.satuan}`).join('\n');
+    const pemasokRingkas = pemasokList.map(p => `- ${p.namaPemasok}${p.catatan?' ('+p.catatan+')':''}`).join('\n') || '(belum ada pemasok terdaftar)';
+
+    let messages = [
+      { role:'system', content: SUPPLY_AGENT_SYSTEM_PROMPT },
+      { role:'user', content: `DATA STOK:\n${stokRingkas}\n\nDAFTAR PEMASOK:\n${pemasokRingkas}\n\nJalankan analisis rantai pasok sekarang.` }
+    ];
+
+    let finalText = null;
+    const MAX_TURNS = 6;
+    for(let turn = 0; turn < MAX_TURNS; turn++){
+      const msg = await callGroqWithTools(messages);
+      if(!msg){ throw new Error('Tidak ada respons dari model.'); }
+      messages.push(msg);
+
+      if(msg.tool_calls && msg.tool_calls.length > 0){
+        for(const tc of msg.tool_calls){
+          let args = {};
+          try{ args = JSON.parse(tc.function.arguments || '{}'); } catch(e){}
+          const result = await executeSupplyTool(tc.function.name, args, trace, calledNames);
+          messages.push({ role:'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+          if(result && result.akhir){ finalText = result.ringkasan; }
+        }
+        if(finalText) break;
+        continue; // lanjut loop, biar model lihat hasil tool & lanjut/menutup
+      } else {
+        finalText = msg.content || '(agen selesai tanpa ringkasan teks)';
+        break;
+      }
+    }
+
+    renderAgenStep(trace, '📣', 'Lapor', escapeHtml(finalText || 'Agen selesai.'));
+    resultBox.innerHTML = `<div style="padding:14px;border-radius:14px;background:var(--card,#fff);border:1.5px solid var(--line);font-size:13px;line-height:1.6;">${escapeHtml(finalText||'-')}</div>`;
+
+    await saveAgentRun({ ringkasan: finalText || '-', toolsDipanggil: calledNames });
+    sapBox.style.display = calledNames.includes('buat_draf_pesanan_pemasok') || calledNames.includes('tandai_stok_menipis') ? 'block' : 'none';
+  } catch(err){
+    resultBox.innerHTML = `<div style="padding:12px;border-radius:12px;background:#FDECEA;color:#B3261E;font-size:12.5px;">❌ Agen gagal jalan: ${escapeHtml(err.message||String(err))}</div>`;
+  } finally{
+    btn.disabled = false; btn.textContent = '🤖 Jalankan Agen Sekarang';
+  }
+}
+
+async function syncToSAP(payload){
+  const { endpoint, token } = sapConfig();
+  const log = $('agenSapLog');
+  if(log){ log.style.display = 'block'; log.textContent = '⏳ Mengirim Purchase Requisition...'; }
+  if(!endpoint){
+    await sleep(700);
+    const fake = { status: 'SIMULATED_OK', mode: 'simulasi', receivedAt: new Date().toISOString(), payload };
+    if(log) log.textContent = '🟡 MODE SIMULASI (belum ada endpoint SAP nyata)\n' + JSON.stringify(fake, null, 2);
+    return fake;
+  }
+  try{
+    const res = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json', ...(token?{'Authorization':'Bearer '+token}:{})}, body: JSON.stringify(payload) });
+    const text = await res.text();
+    let body; try{ body = JSON.parse(text); } catch(e){ body = text; }
+    if(log) log.textContent = `${res.ok ? '✅' : '❌'} HTTP ${res.status}\n` + (typeof body === 'string' ? body : JSON.stringify(body, null, 2));
+    return body;
+  } catch(err){
+    if(log) log.textContent = '❌ Gagal konek ke endpoint SAP: ' + err.message + '\n(Kemungkinan CORS — endpoint SAP biasanya perlu dipanggil lewat backend/proxy, bukan langsung dari browser.)';
+    throw err;
+  }
+}
+
+$('agenRunBtn')?.addEventListener('click', runSupplyChainAgent);
+$('agenSapBtn')?.addEventListener('click', () => {
+  const item = stokItems.find(it => Number(it.sisaStok) <= Number(it.titikPesanUlang));
+  if(!item){ alert('Tidak ada item yang butuh pesan ulang saat ini.'); return; }
+  syncToSAP({ material: item.namaBahan, quantity: Math.max(Number(item.titikPesanUlang)*2 - Number(item.sisaStok), 1), unit: item.satuan||'pcs', requestedDate: new Date().toISOString().slice(0,10), plant:'UMKM-01', note:'Dibuat otomatis oleh Agen Rantai Pasok' });
+});
+
+// Muat semua data modul saat siap & reset saat akun berubah (pola sama seperti modul lain)
+loadStokItems(); loadPemasok(); loadAgentSettings(); loadAgentDrafts(); loadAgentRuns();
+document.addEventListener('app-account-changed', () => {
+  [_stokUnsub,_pemasokUnsub,_draftsUnsub,_runsUnsub,_agentSettingsUnsub].forEach(u => { if(u){ try{u();}catch(e){} } });
+  _stokUnsub=_pemasokUnsub=_draftsUnsub=_runsUnsub=_agentSettingsUnsub=null;
+  stokItems=[]; pemasokList=[]; agentDrafts=[]; agentRuns=[]; agentAutoDaily=false;
+  renderStokItems(); renderPemasok(); renderAgentDrafts(); renderAgentRuns();
+  loadStokItems(); loadPemasok(); loadAgentSettings(); loadAgentDrafts(); loadAgentRuns();
+});
 
 function updateKeyStatus(){
   $('generateBtn').disabled = !(hasAnyKey() && uploadedImageBase64);
   const status = $('keyStatus');
   if(!status) return;
-  const usingOwnKey = !!(groqKey || openrouterKey);
+  const usingOwnKey = !!(groqKey || openrouterKey || geminiKey);
 
   if(usingOwnKey){
-    const both = groqKey && openrouterKey;
-    status.textContent = both
-      ? '✅ Key kamu sendiri aktif (Groq + OpenRouter)'
-      : '✅ Key kamu sendiri aktif — tambah satu lagi supaya makin stabil';
+    const activeNames = [groqKey && 'Groq', geminiKey && 'Gemini', openrouterKey && 'OpenRouter'].filter(Boolean);
+    status.textContent = activeNames.length > 1
+      ? `✅ Key kamu sendiri aktif (${activeNames.join(' + ')})`
+      : `✅ Key kamu sendiri aktif (${activeNames[0]}) — tambah satu lagi supaya makin stabil`;
     status.style.color = '#2D7A4F';
   } else {
     // Pakai key admin
@@ -4809,6 +5304,11 @@ $('groqKeyInput').addEventListener('input', (e) => {
 $('openrouterKeyInput').addEventListener('input', (e) => {
   openrouterKey = e.target.value.trim();
   try{ localStorage.setItem('sekretaris_umkm_openrouter_key', openrouterKey); } catch(e){}
+  updateKeyStatus();
+});
+$('geminiKeyInput')?.addEventListener('input', (e) => {
+  geminiKey = e.target.value.trim();
+  try{ localStorage.setItem('sekretaris_umkm_gemini_key', geminiKey); } catch(e){}
   updateKeyStatus();
 });
 
@@ -4902,7 +5402,9 @@ function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 async function callGroq(prompt, imageBase64 = null){
   const key = activeGroqKey();
-  const model = imageBase64 ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.3-70b-versatile";
+  // Model lama (llama-3.3-70b-versatile, llama-4-scout) sudah di-deprecate Groq (16 Agu 2026).
+  // openai/gpt-oss-120b = teks/reasoning, qwen/qwen3.6-27b = multimodal (bisa baca gambar struk).
+  const model = imageBase64 ? "qwen/qwen3.6-27b" : "openai/gpt-oss-120b";
   const content = imageBase64
     ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
@@ -4932,7 +5434,10 @@ async function callGroq(prompt, imageBase64 = null){
 
 async function callOpenRouter(prompt, imageBase64 = null){
   const key = activeOpenRouterKey();
-  const model = imageBase64 ? "meta-llama/llama-4-scout:free" : "meta-llama/llama-4-maverick:free";
+  // "openrouter/free" = router otomatis yang pilih model gratis yang masih sehat & mendukung
+  // fitur yang dibutuhkan (vision/tool-calling), jadi tidak perlu hardcode ID model yang bisa
+  // di-deprecate sewaktu-waktu seperti llama-4-scout/maverick:free sebelumnya.
+  const model = "openrouter/free";
   const content = imageBase64
     ? [{ type:"text", text:prompt }, { type:"image_url", image_url:{ url:`data:image/jpeg;base64,${imageBase64}` } }]
     : prompt;
@@ -4958,8 +5463,36 @@ async function callOpenRouter(prompt, imageBase64 = null){
   return text;
 }
 
+// Gemini Flash: free tier Google (tanpa kartu kredit), kapasitas RPD jauh lebih besar
+// dibanding Groq/OpenRouter — dipakai sebagai provider kedua di antara Groq & OpenRouter.
+async function callGemini(prompt, imageBase64 = null){
+  const key = activeGeminiKey();
+  const parts = [{ text: prompt }];
+  if(imageBase64) parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64 } });
+  const payload = { contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.7 } };
+  let data;
+  if(key){
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if(!res.ok){
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP_${res.status}`;
+      const e = new Error(msg); e.limited = res.status===429||/rate.?limit|quota/i.test(msg); throw e;
+    }
+    data = await res.json();
+  } else {
+    data = await callAIProxy('gemini', payload);
+  }
+  const text = data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') ;
+  if(!text) throw new Error('NO_RESPONSE');
+  return text;
+}
+
 async function callAI(prompt, imageBase64 = null){
-  const attempts = [() => callGroq(prompt, imageBase64), () => callOpenRouter(prompt, imageBase64)];
+  const attempts = [() => callGroq(prompt, imageBase64), () => callGemini(prompt, imageBase64), () => callOpenRouter(prompt, imageBase64)];
   let lastErr = null;
   let allRateLimited = true;
   for(let i=0; i<attempts.length; i++){
@@ -14601,7 +15134,9 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
 /* ===== ASISTEN RINGKASAN AI — Ditenagai Groq (Gratis) ===== */
 (function(){
   const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
-  const GROQ_MODEL = 'llama-3.3-70b-versatile';
+  // llama-3.3-70b-versatile & llama-4-scout dinonaktifkan Groq per 16 Agu 2026.
+  // Pengganti resmi: openai/gpt-oss-120b (teks) & qwen/qwen3.6-27b (vision/multimodal).
+  const GROQ_MODEL = 'openai/gpt-oss-120b';
   // ===== MEMORI AI (persisten di localStorage) =====
   // Chatbot "ingat" percakapan & kebiasaan user dari sesi sebelumnya, jadi makin
   // sering dipakai, makin nyambung & makin pintar kasih saran personal.
@@ -15934,7 +16469,7 @@ Balas HANYA dengan angka (0-10) dan alasan singkat (maks 20 kata) dipisahkan pip
 Contoh: "8|Mengandung tag script dan eval"`;
 
       const payload = {
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-120b',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.2,
         max_tokens: 50

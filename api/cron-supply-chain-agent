@@ -1,0 +1,189 @@
+// api/cron-supply-chain-agent.js
+//
+// Vercel Serverless Function yang dipicu Vercel Cron 1x/hari.
+// Menjalankan LOOP AGEN yang sama (7 tool function-calling) yang ada di index.html,
+// tapi untuk SEMUA pengguna yang mengaktifkan toggle "Agen Otomatis Harian" —
+// tanpa mereka perlu membuka aplikasi sama sekali.
+//
+// ⚠️ BELUM DIUJI END-TO-END: sandbox tempat kode ini ditulis tidak punya akses jaringan
+// ke Firebase/Vercel/Groq, jadi file ini ditulis mengikuti API resmi Firebase Admin SDK,
+// Vercel Cron, dan Groq secara struktural benar, tapi kamu WAJIB uji sendiri sebelum
+// diandalkan untuk demo (lihat README-CRON.md untuk cara setup & tes).
+//
+// ENV VARS yang dibutuhkan (set di Vercel Project Settings → Environment Variables):
+//   FIREBASE_SERVICE_ACCOUNT_B64  — JSON service account Firebase, di-encode base64 (satu baris)
+//   FIREBASE_DATABASE_URL         — url Realtime Database, mis. https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app
+//   GROQ_API_KEY                  — key Groq milik admin (dipakai untuk semua user auto-daily
+//                                    yang belum menyimpan key sendiri lewat groqKeyForCron)
+//   CRON_SECRET                   — string acak, dipakai untuk verifikasi request cron (lihat vercel.json)
+
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getDatabase } from 'firebase-admin/database';
+
+const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'openai/gpt-oss-120b'; // sinkron dengan index.html — lihat catatan deprecation di sana
+
+// ---------- Skema tool sama persis dengan index.html (SUPPLY_AGENT_TOOLS) ----------
+const SUPPLY_AGENT_TOOLS = [
+  { type: 'function', function: { name: 'tandai_stok_menipis', description: 'Catat item stok yang terdeteksi di bawah titik pesan ulang, lengkap tingkat urgensi. Otonom, tidak perlu persetujuan.',
+    parameters: { type: 'object', properties: { item: { type: 'string' }, urgensi: { type: 'string', enum: ['rendah', 'sedang', 'tinggi'] } }, required: ['item', 'urgensi'] } } },
+  { type: 'function', function: { name: 'cari_tawaran_kongsi', description: 'Cari tawaran relevan di Pasar Kongsi (stok lebih dari UMKM lain) berdasarkan kata kunci nama bahan. Otonom, hanya membaca data.',
+    parameters: { type: 'object', properties: { kataKunci: { type: 'string' } }, required: ['kataKunci'] } } },
+  { type: 'function', function: { name: 'buat_draf_kongsi_belanja', description: 'Siapkan draf ajakan patungan beli bahan baku ke sesama UMKM. Hasilnya DRAF, menunggu persetujuan manusia.',
+    parameters: { type: 'object', properties: { judul: { type: 'string' }, deskripsi: { type: 'string' }, kategoriBahan: { type: 'string' } }, required: ['judul', 'deskripsi'] } } },
+  { type: 'function', function: { name: 'buat_draf_hubungi_mitra', description: 'Siapkan draf pesan WhatsApp ke pemilik tawaran Kongsi yang cocok. Hasilnya DRAF, menunggu persetujuan manusia.',
+    parameters: { type: 'object', properties: { namaTujuan: { type: 'string' }, waTujuan: { type: 'string' }, pesan: { type: 'string' } }, required: ['namaTujuan', 'pesan'] } } },
+  { type: 'function', function: { name: 'buat_draf_pesanan_pemasok', description: 'Siapkan draf pemesanan ulang ke pemasok terdaftar. Hasilnya DRAF, menunggu persetujuan manusia.',
+    parameters: { type: 'object', properties: { namaPemasok: { type: 'string' }, itemPesanan: { type: 'string' }, catatan: { type: 'string' } }, required: ['namaPemasok', 'itemPesanan'] } } },
+  { type: 'function', function: { name: 'kirim_notifikasi_penting', description: 'Kirim notifikasi in-app untuk hal mendesak (stok kritis). Otonom, tidak perlu persetujuan.',
+    parameters: { type: 'object', properties: { pesan: { type: 'string' } }, required: ['pesan'] } } },
+  { type: 'function', function: { name: 'simpulkan_tidak_ada_tindakan', description: 'Simpulkan bila seluruh stok aman. Panggil untuk MENGAKHIRI proses jika tidak ada masalah.',
+    parameters: { type: 'object', properties: { ringkasan: { type: 'string' } }, required: ['ringkasan'] } } }
+];
+
+const SYSTEM_PROMPT = `Kamu adalah Agen Rantai Pasok AI untuk UMKM di Indonesia. Kamu bekerja OTONOM lewat tool-calling, bukan cuma menjawab teks.
+Alur wajib: (1) periksa data stok, tandai yang di bawah titik pesan ulang lewat tandai_stok_menipis, (2) untuk tiap item menipis, cari kecocokan di Pasar Kongsi lewat cari_tawaran_kongsi, (3) kalau ada kecocokan, buat draf lewat buat_draf_kongsi_belanja atau buat_draf_hubungi_mitra, (4) kalau tidak ada kecocokan tapi ada pemasok terdaftar, buat draf lewat buat_draf_pesanan_pemasok, (5) kalau ada yang sangat kritis, panggil kirim_notifikasi_penting, (6) kalau semua aman, WAJIB panggil simpulkan_tidak_ada_tindakan.
+ATURAN KERAS: tool "buat_draf_*" HANYA membuat draf menunggu persetujuan manusia — kamu TIDAK PERNAH mengklaim sudah "mengirim" atau "memposting" apapun.
+Tutup dengan satu pesan teks singkat (bukan tool call) berisi ringkasan ramah untuk pemilik UMKM.`;
+
+function initFirebaseAdmin() {
+  if (getApps().length) return;
+  // Terima nama variable & format apa pun yang sudah ada di project (JSON mentah ATAU base64),
+  // supaya tidak perlu bikin env var baru kalau sudah punya salah satu dari ini.
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT (atau FIREBASE_SERVICE_ACCOUNT_B64) belum diset.');
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(raw); // sudah JSON mentah
+  } catch (e) {
+    serviceAccount = JSON.parse(Buffer.from(raw, 'base64').toString('utf-8')); // ternyata base64
+  }
+  initializeApp({ credential: cert(serviceAccount), databaseURL: process.env.FIREBASE_DATABASE_URL });
+}
+
+async function callGroqWithTools(messages, apiKey) {
+  const res = await fetch(GROQ_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+    body: JSON.stringify({ model: GROQ_MODEL, messages, tools: SUPPLY_AGENT_TOOLS, tool_choice: 'auto', temperature: 0.3, max_tokens: 1024 })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || `Groq API error ${res.status}`);
+  return data.choices?.[0]?.message;
+}
+
+async function executeToolServer(db, uid, name, args, calledNames, pemasokList) {
+  calledNames.push(name);
+  switch (name) {
+    case 'tandai_stok_menipis':
+      return { ok: true };
+    case 'cari_tawaran_kongsi': {
+      const snap = await db.ref('pasarKongsi').get();
+      const val = snap.val() || {};
+      const kw = (args.kataKunci || '').toLowerCase();
+      const matches = Object.entries(val)
+        .map(([id, v]) => ({ id, ...v }))
+        .filter((it) => it.mode === 'stok' && ((it.title || '').toLowerCase().includes(kw) || (it.desc || '').toLowerCase().includes(kw)))
+        .slice(0, 5)
+        .map((it) => ({ id: it.id, judul: it.title, deskripsi: it.desc, pemilikUid: it.ownerUid || null, wa: it.wa || null }));
+      return { hasil: matches };
+    }
+    case 'buat_draf_kongsi_belanja': {
+      const ref = db.ref(`agentDrafts/${uid}`).push();
+      await ref.set({ tipe: 'kongsi_belanja', judul: args.judul, pesan: args.deskripsi, kategoriBahan: args.kategoriBahan || '', status: 'menunggu_persetujuan', createdAt: Date.now(), sumber: 'cron' });
+      return { ok: true, draftId: ref.key };
+    }
+    case 'buat_draf_hubungi_mitra': {
+      const ref = db.ref(`agentDrafts/${uid}`).push();
+      await ref.set({ tipe: 'hubungi_mitra', judul: 'Pesan ke ' + (args.namaTujuan || 'mitra Kongsi'), pesan: args.pesan, wa: args.waTujuan || '', status: 'menunggu_persetujuan', createdAt: Date.now(), sumber: 'cron' });
+      return { ok: true, draftId: ref.key };
+    }
+    case 'buat_draf_pesanan_pemasok': {
+      const pemasok = pemasokList.find((p) => (p.namaPemasok || '').toLowerCase() === (args.namaPemasok || '').toLowerCase());
+      const pesan = `Halo ${args.namaPemasok || ''}, saya mau pesan ulang ${args.itemPesanan || ''}. ${args.catatan || ''}`.trim();
+      const ref = db.ref(`agentDrafts/${uid}`).push();
+      await ref.set({ tipe: 'pesanan_pemasok', judul: 'Pesanan ke ' + (args.namaPemasok || 'pemasok'), pesan, wa: pemasok?.wa || '', status: 'menunggu_persetujuan', createdAt: Date.now(), sumber: 'cron' });
+      return { ok: true, draftId: ref.key, pemasokDitemukan: !!pemasok };
+    }
+    case 'kirim_notifikasi_penting':
+      return { ok: true, tampilKe: 'in-app' };
+    case 'simpulkan_tidak_ada_tindakan':
+      return { ok: true, akhir: true, ringkasan: args.ringkasan };
+    default:
+      return { error: 'tool_tidak_dikenal' };
+  }
+}
+
+async function runAgentForUser(db, uid, groqApiKey) {
+  const [stokSnap, pemasokSnap] = await Promise.all([db.ref(`stokInventori/${uid}`).get(), db.ref(`pemasok/${uid}`).get()]);
+  const stokItems = Object.entries(stokSnap.val() || {}).map(([id, v]) => ({ id, ...v }));
+  const pemasokList = Object.entries(pemasokSnap.val() || {}).map(([id, v]) => ({ id, ...v }));
+  if (stokItems.length === 0) return { skipped: true, alasan: 'Belum ada item stok.' };
+
+  const stokRingkas = stokItems.map((it) => `- ${it.namaBahan}: sisa ${it.sisaStok} ${it.satuan}, titik pesan ulang ${it.titikPesanUlang} ${it.satuan}`).join('\n');
+  const pemasokRingkas = pemasokList.map((p) => `- ${p.namaPemasok}${p.catatan ? ' (' + p.catatan + ')' : ''}`).join('\n') || '(belum ada pemasok terdaftar)';
+
+  let messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: `DATA STOK:\n${stokRingkas}\n\nDAFTAR PEMASOK:\n${pemasokRingkas}\n\nJalankan analisis rantai pasok sekarang.` }
+  ];
+
+  const calledNames = [];
+  let finalText = null;
+  for (let turn = 0; turn < 6; turn++) {
+    const msg = await callGroqWithTools(messages, groqApiKey);
+    if (!msg) throw new Error('Tidak ada respons dari model.');
+    messages.push(msg);
+    if (msg.tool_calls?.length) {
+      for (const tc of msg.tool_calls) {
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) {}
+        const result = await executeToolServer(db, uid, tc.function.name, args, calledNames, pemasokList);
+        messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+        if (result?.akhir) finalText = result.ringkasan;
+      }
+      if (finalText) break;
+      continue;
+    } else {
+      finalText = msg.content || '(agen selesai tanpa ringkasan teks)';
+      break;
+    }
+  }
+
+  await db.ref(`agentRuns/${uid}`).push({ ringkasan: finalText || '-', toolsDipanggil: calledNames, ts: Date.now(), sumber: 'cron' });
+  return { ok: true, ringkasan: finalText, toolsDipanggil: calledNames };
+}
+
+export default async function handler(req, res) {
+  // Verifikasi request memang dari Vercel Cron, bukan dipanggil sembarang orang.
+  const auth = req.headers['authorization'];
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    initFirebaseAdmin();
+    const db = getDatabase();
+
+    const settingsSnap = await db.ref('agentSettings').get();
+    const settings = settingsSnap.val() || {};
+    const activeUids = Object.entries(settings)
+      .filter(([, v]) => v && v.autoDaily === true)
+      .map(([uid, v]) => ({ uid, groqApiKey: v.groqKeyForCron || process.env.GROQ_API_KEY }));
+
+    const results = [];
+    for (const { uid, groqApiKey } of activeUids) {
+      if (!groqApiKey) { results.push({ uid, error: 'Tidak ada Groq API key (user maupun admin).' }); continue; }
+      try {
+        const r = await runAgentForUser(db, uid, groqApiKey);
+        results.push({ uid, ...r });
+      } catch (err) {
+        results.push({ uid, error: err.message });
+      }
+    }
+
+    return res.status(200).json({ processed: activeUids.length, results });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+}

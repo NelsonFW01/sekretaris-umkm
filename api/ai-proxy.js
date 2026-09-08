@@ -1,90 +1,68 @@
 // api/ai-proxy.js
 //
-// Proxy aman untuk fitur AI (Asisten AI, Otak AI, Bikin Konten, SecurityAI, dll)
-// saat pengguna BELUM mengisi API key Groq/OpenRouter miliknya sendiri.
+// Proxy server — SATU-SATUNYA tempat API key provider (Groq/Gemini/OpenRouter) boleh berada.
+// Key TIDAK PERNAH ditulis di index.html karena file itu dikirim mentah ke browser semua
+// orang yang buka app-nya (repo private tidak melindungi ini — begitu di-deploy, source
+// index.html tetap bisa dibaca lewat "View Page Source" oleh siapa pun yang membuka linknya).
 //
-// Kenapa file ini ada: sebelumnya, key admin (Groq & OpenRouter) ditulis
-// langsung di index.html sebagai `const ADMIN_GROQ_KEY = "..."`. Karena
-// index.html dikirim mentah-mentah ke browser SETIAP pengunjung, siapapun
-// tinggal klik kanan → "View Page Source" untuk mencuri key itu. Sekarang key
-// admin hanya hidup di server, sebagai Environment Variable di Vercel, dan
-// tidak pernah dikirim ke browser sama sekali.
-//
-// Cara pakai dari client (lihat callAIProxy() di index.html):
-//   fetch('/api/ai-proxy', {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ provider: 'groq' | 'openrouter', payload: {...} })
-//   })
-// `payload` adalah body chat-completion standar ala OpenAI (model, messages,
-// temperature, dst) — bentuknya sama persis dengan yang dulu dikirim langsung
-// ke api.groq.com / openrouter.ai, jadi tidak perlu ubah logic parsing di client.
-//
-// WAJIB diset di Vercel → Project Settings → Environment Variables:
-//   GROQ_API_KEY        = key baru dari console.groq.com/keys
-//   OPENROUTER_API_KEY  = key baru dari openrouter.ai/keys
-// (Key LAMA yang sempat bocor di index.html harus dianggap sudah bocor —
-//  revoke/regenerate dulu di dashboard masing-masing, baru pasang yang baru
-//  di sini. Key lama tetap bisa dipakai orang lain selama belum di-revoke.)
+// index.html sudah otomatis manggil endpoint ini (lihat callAIProxy()) kalau user tidak
+// isi key pribadi sendiri di ⚙️ Setting. Kamu HANYA perlu:
+//   1. Taruh file ini di folder api/ project Vercel kamu.
+//   2. Di Vercel Project Settings → Environment Variables, isi:
+//        GROQ_API_KEY        = gsk_... (key Groq kamu)
+//        GEMINI_API_KEY      = AQ.Ab8... (key Gemini kamu)
+//        OPENROUTER_API_KEY  = (opsional)
+//   3. Deploy. Selesai — jangan pernah tempel key-nya di file lain manapun yang ikut ke repo.
 
-const UPSTREAM = {
+const GEMINI_MODEL = 'gemini-flash-latest'; // sinkron dengan GEMINI_MODEL di index.html
+
+const PROVIDERS = {
   groq: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
-    envKey: 'GROQ_API_KEY',
+    key: () => process.env.GROQ_API_KEY,
+    headers: (key) => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }),
+    body: (payload) => JSON.stringify(payload) // payload sudah gaya OpenAI: {model, messages, tools?, tool_choice?}
   },
   openrouter: {
     url: 'https://openrouter.ai/api/v1/chat/completions',
-    envKey: 'OPENROUTER_API_KEY',
+    key: () => process.env.OPENROUTER_API_KEY,
+    headers: (key) => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }),
+    body: (payload) => JSON.stringify(payload)
   },
+  gemini: {
+    url: () => `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    key: () => process.env.GEMINI_API_KEY,
+    headers: () => ({ 'Content-Type': 'application/json' }), // Gemini pakai ?key= di URL, bukan header
+    body: (payload) => JSON.stringify(payload) // payload sudah gaya Gemini: {contents, generationConfig}
+  }
 };
 
-// Batas wajar supaya satu request nakal tidak menghabiskan kuota/biaya.
-const MAX_TOKENS_CAP = 2048;
-
 export default async function handler(req, res) {
-  // Ganti '*' dengan domain aslimu (mis. https://sekretaris-umkm.vercel.app
-  // atau domain custom-mu) kalau mau membatasi siapa saja yang boleh
-  // memanggil endpoint ini langsung dari browser.
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const { provider, payload } = req.body || {};
-  const target = UPSTREAM[provider];
-  if (!target) {
-    return res.status(400).json({ error: 'provider harus "groq" atau "openrouter"' });
-  }
-  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.messages)) {
-    return res.status(400).json({ error: 'payload.messages wajib berupa array' });
+  const cfg = PROVIDERS[provider];
+  if (!cfg) {
+    return res.status(400).json({ error: `Provider tidak dikenal: ${provider}` });
   }
 
-  const apiKey = process.env[target.envKey];
-  if (!apiKey) {
-    return res.status(500).json({
-      error: `${target.envKey} belum diset di Vercel Environment Variables`,
-    });
+  const key = cfg.key();
+  if (!key) {
+    return res.status(500).json({ error: `${provider.toUpperCase()}_API_KEY belum diset di Environment Variables Vercel.` });
   }
-
-  // Teruskan payload apa adanya, tapi jaga max_tokens supaya tidak dieksploitasi.
-  const safePayload = {
-    ...payload,
-    max_tokens: Math.min(payload.max_tokens || 1024, MAX_TOKENS_CAP),
-  };
 
   try {
-    const upstreamRes = await fetch(target.url, {
+    const url = typeof cfg.url === 'function' ? cfg.url() : cfg.url;
+    const upstream = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(safePayload),
+      headers: cfg.headers(key),
+      body: cfg.body(payload)
     });
-    const data = await upstreamRes.json().catch(() => ({}));
-    return res.status(upstreamRes.status).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+    const data = await upstream.json();
+    return res.status(upstream.status).json(data);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
   }
 }

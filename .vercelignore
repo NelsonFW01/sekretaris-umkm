@@ -1,0 +1,10 @@
+tests
+tools
+samples
+docs
+n8n
+uipath
+*.md
+.env
+.env.*
+node_modules

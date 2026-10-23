@@ -17,8 +17,28 @@
 //  revoke/regenerate dulu di dashboard masing-masing provider, baru pasang yang baru di sini.
 //  Key lama tetap bisa dipakai orang lain selama belum di-revoke.)
 
+import { clientIp, createLimiter } from '../lib/ratelimit.js';
+
 const GEMINI_MODEL = 'gemini-flash-latest'; // sinkron dengan GEMINI_MODEL di index.html
 const MAX_TOKENS_CAP = 2048; // batas wajar biar satu request nakal gak menghabiskan kuota/biaya
+const MAX_MESSAGES = 60;           // jumlah pesan per permintaan
+const MAX_BODY_CHARS = 4_000_000;  // total teks (gambar base64 ikut dihitung) per permintaan; batas body Vercel ±4,5 MB
+
+// Pembatas laju per IP (di memori; lihat lib/ratelimit.js untuk batasannya). AI_PROXY_RATE_PER_10MIN mengubah batas.
+const limiter = createLimiter({ max: Number(process.env.AI_PROXY_RATE_PER_10MIN) || 120, windowMs: 10 * 60_000 });
+export const __limiter = limiter; // untuk uji
+
+// Hanya field yang benar-benar dipakai index.html yang diteruskan ke provider. Field lain (n, stream, user,
+// logit_bias, parameter khusus provider, …) dibuang supaya pemanggil tidak bisa menyetel model/biaya sembarangan.
+const OPENAI_FIELDS = ['model', 'messages', 'tools', 'tool_choice', 'temperature', 'top_p', 'max_tokens', 'response_format', 'stop'];
+const GEMINI_FIELDS = ['contents', 'systemInstruction', 'generationConfig'];
+const MODEL_RE = /^[A-Za-z0-9._:\/-]{1,100}$/;
+export function pickPayload(payload, fields) {
+  const out = {};
+  for (const f of fields) if (payload[f] !== undefined) out[f] = payload[f];
+  if ('model' in out && !MODEL_RE.test(String(out.model))) delete out.model;
+  return out;
+}
 
 const PROVIDERS = {
   groq: {
@@ -61,9 +81,9 @@ const PROVIDERS = {
 };
 
 export default async function handler(req, res) {
-  // Ganti '*' dengan domain asli app kamu (mis. https://sekretaris-umkm.vercel.app)
-  // kalau mau membatasi siapa saja yang boleh manggil endpoint ini langsung dari browser.
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // index.html memanggil endpoint ini dari asal yang sama (fetch('/api/ai-proxy')), jadi CORS cukup untuk
+  // domain aplikasi sendiri. Set APP_ORIGIN (mis. https://nama-app.vercel.app) bila domainmu berbeda.
+  res.setHeader('Access-Control-Allow-Origin', process.env.APP_ORIGIN || 'https://sekretaris-umkm.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -80,6 +100,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `payload.${cfg.messagesField} wajib berupa array` });
   }
 
+  const msgs = payload[cfg.messagesField];
+  if (msgs.length === 0 || msgs.length > MAX_MESSAGES) return res.status(400).json({ error: `jumlah pesan harus 1–${MAX_MESSAGES}` });
+  if (JSON.stringify(msgs).length > MAX_BODY_CHARS) return res.status(413).json({ error: 'Permintaan terlalu besar' });
+
+  if (!limiter.allow(clientIp(req))) {
+    res.setHeader('Retry-After', '600');
+    return res.status(429).json({ error: 'Terlalu banyak permintaan AI dari alamat ini. Coba lagi beberapa menit lagi.' });
+  }
+
   const key = cfg.key();
   if (!key) {
     return res.status(500).json({
@@ -87,7 +116,11 @@ export default async function handler(req, res) {
     });
   }
 
-  const safePayload = cfg.capTokens(payload);
+  const safePayload = cfg.capTokens(pickPayload(payload, cfg.messagesField === 'contents' ? GEMINI_FIELDS : OPENAI_FIELDS));
+  if (safePayload.generationConfig) { // hanya pengaturan sampling yang aman
+    const g = safePayload.generationConfig;
+    safePayload.generationConfig = Object.fromEntries(['temperature', 'topP', 'maxOutputTokens', 'responseMimeType'].filter((k) => g[k] !== undefined).map((k) => [k, g[k]]));
+  }
 
   try {
     const url = typeof cfg.url === 'function' ? cfg.url() : cfg.url;

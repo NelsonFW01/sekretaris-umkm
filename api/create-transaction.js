@@ -82,7 +82,7 @@ async function getFirebaseAccessToken(serviceAccount) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', process.env.APP_ORIGIN || 'https://sekretaris-umkm.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
 
   const { sellerUid, itemId, itemName, amount, customerName, customerPhone } = req.body || {};
 
-  if (!sellerUid || typeof sellerUid !== 'string') {
+  if (!sellerUid || typeof sellerUid !== 'string' || !/^[A-Za-z0-9_-]{3,128}$/.test(sellerUid)) {
     return res.status(400).json({ error: 'sellerUid wajib diisi -- tidak bisa memproses pembayaran tanpa tahu penjualnya siapa.' });
   }
   const grossAmount = Math.round(Number(amount));

@@ -2142,6 +2142,27 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   }
 </style>
 
+<style>
+/* === Perbaikan tata letak layar lebar & kolom input yang meluber === */
+.form-row-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));align-items:stretch;}
+.form-row-grid > *{min-width:0;width:100%;box-sizing:border-box;}
+.form-row-stok{grid-template-columns:minmax(0,1.6fr) minmax(0,.9fr) minmax(0,.9fr) minmax(0,1.3fr) auto;}
+.form-row-pemasok{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1.2fr) auto;}
+.form-row-grid button{width:auto;white-space:nowrap;}
+@media (max-width:640px){
+  .form-row-stok, .form-row-pemasok{grid-template-columns:1fr 1fr;}
+  .form-row-grid button{grid-column:1 / -1;width:100%;}
+}
+.settings-section input, .settings-section select, .settings-section textarea{max-width:100%;box-sizing:border-box;min-width:0;}
+.settings-section, .brain-hero{overflow-wrap:anywhere;}
+#panel-agen .settings-section{padding:14px 14px 16px;}
+#panel-agen .settings-section h4{margin:0 0 10px;}
+/* Layar laptop/desktop: kolom aplikasi lebih lebar & bottom-nav ikut selebar kolom (bukan selebar layar) */
+@media (min-width:900px){
+  .app{max-width:860px;}
+  .bottom-nav{left:0;right:0;margin:0 auto;max-width:860px;border-radius:18px 18px 0 0;}
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -3381,7 +3402,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <div class="settings-section" style="margin-bottom:14px;">
         <h4>📦 Inventori Stok</h4>
         <div id="stokList" style="margin-bottom:10px;"></div>
-        <div style="display:grid;grid-template-columns:1.4fr 0.8fr 0.7fr 1fr auto;gap:6px;">
+        <div class="form-row-grid form-row-stok">
           <input type="text" id="stokNamaInput" placeholder="Nama bahan" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
           <input type="number" id="stokSisaInput" placeholder="Sisa" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
           <input type="text" id="stokSatuanInput" placeholder="Satuan" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
@@ -3394,7 +3415,7 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <div class="settings-section" style="margin-bottom:14px;">
         <h4>📇 Direktori Pemasok</h4>
         <div id="pemasokList" style="margin-bottom:10px;"></div>
-        <div style="display:grid;grid-template-columns:1.2fr 1fr 1.2fr auto;gap:6px;">
+        <div class="form-row-grid form-row-pemasok">
           <input type="text" id="pemasokNamaInput" placeholder="Nama pemasok" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
           <input type="text" id="pemasokWaInput" placeholder="No. WA (62...)" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
           <input type="text" id="pemasokCatatanInput" placeholder="Catatan (opsional)" style="padding:9px 10px;border-radius:9px;border:1.5px solid var(--line);font-size:12.5px;">
@@ -4673,6 +4694,26 @@ function initAuthGate(){
       MY_UID = user.uid; // Firebase Auth UID — sama persis di semua device untuk akun yang sama
       currentAuthEmail = user.email || '';
       isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
+
+      // ── Pisahkan data lokal antar akun ──────────────────────────────────────────
+      // Banyak data (transaksi, nama, warna, API key AI, dll.) disimpan di localStorage browser
+      // TANPA nama akun, jadi akun baru di perangkat yang sama ikut melihat data akun sebelumnya.
+      // Kalau akun yang login berbeda dari akun terakhir di perangkat ini: hapus data lokal milik
+      // akun lama lalu muat ulang halaman sekali (supaya semua variabel di memori juga bersih).
+      try{
+        const _prevUid = localStorage.getItem('umkm_last_uid');
+        if(_prevUid && _prevUid !== user.uid){
+          ['umkm_display_name','umkm_transactions_v1','umkm_holo_color','umkm_nationality','umkm_notif',
+           'umkm_avatar_hint_seen','sekretaris_umkm_groq_key','sekretaris_umkm_openrouter_key',
+           'sekretaris_umkm_gemini_key','sekretaris_umkm_sap_token','sekretaris_umkm_sap_endpoint',
+           'kgOwnerKey','boost_bca_owner','boost_bca_number','boost_admin_password'
+          ].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+          localStorage.setItem('umkm_last_uid', user.uid);
+          location.reload();
+          return;
+        }
+        localStorage.setItem('umkm_last_uid', user.uid);
+      }catch(e){}
 
       // Email sudah diverifikasi via OTP saat daftar, langsung lanjut
 

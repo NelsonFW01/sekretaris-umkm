@@ -4274,6 +4274,7 @@ window.addEventListener('error', (e)=>{ showDebugToast('JS Error: '+e.message); 
 window.addEventListener('unhandledrejection', (e)=>{ showDebugToast('Promise Error: '+((e.reason&&e.reason.message)||e.reason)); });
 
 // ============ USER IDENTITY (pakai Firebase Auth UID, sama di semua device) ============
+let _udUnsubUsers = null, _udUnsubPresence = null, _udUnsubTier = null, _udUid = null;
 let MY_UID = null; // diisi saat login berhasil (onAuthStateChanged), bukan dari device lagi
 
 // ============ AUTH GATE: LOGIN / REGISTER WAJIB ============
@@ -4696,6 +4697,7 @@ function initAuthGate(){
       } catch(e){}
       if(typeof applyTierUI === 'function') applyTierUI(); // Apply tier immediately after isAdmin is set
       if(typeof setupPresence === 'function') setupPresence();
+      if(typeof startUserDirectoryListeners === 'function') startUserDirectoryListeners(); // pasang listener komunitas SETELAH login
       if(typeof loadMyProfile === 'function') await loadMyProfile();
       if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
       applyNameLockUI();
@@ -4718,6 +4720,7 @@ function initAuthGate(){
     } else {
       MY_UID = null;
       currentAuthEmail=''; isAdmin=false;
+      try{ [_udUnsubUsers,_udUnsubPresence,_udUnsubTier].forEach(fn=>{ if(typeof fn==='function') fn(); }); }catch(e){} _udUnsubUsers=_udUnsubPresence=_udUnsubTier=null; _udUid=null; allUsersCache={}; allPresenceCache={};
       unlockAuthOverlay(); // Tampilkan login hanya setelah splash selesai
       $a('authUserEmail').textContent = '—';
     }
@@ -10026,19 +10029,33 @@ function renderUserDirectory(){
 
 function startUserDirectoryListeners(){
   if(!window.firebaseReady){ $('userDirectory').innerHTML = '<div class="empty-state">Direktori pengguna butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); });
-  window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); });
+  // Rules Firebase mewajibkan login (auth != null). Listener yang dipasang SEBELUM login ditolak
+  // (permission_denied) dan Firebase membatalkannya permanen, jadi daftar komunitas kosong untuk
+  // pengguna biasa. Karena itu listener hanya dipasang kalau sudah login, dan dipasang ulang
+  // setiap kali akun berganti / login selesai.
+  if(!MY_UID){ return; }
+  if(_udUid === MY_UID && _udUnsubUsers) return; // sudah terpasang untuk akun ini
+  [_udUnsubUsers, _udUnsubPresence, _udUnsubTier].forEach(fn => { try{ if(typeof fn === 'function') fn(); }catch(e){} });
+  _udUid = MY_UID;
+  const showDirError = (what) => (err) => {
+    console.error('Direktori komunitas gagal membaca ' + what + ':', err);
+    _udUnsubUsers = null; // izinkan percobaan ulang saat login berikutnya
+    const el = $('userDirectory');
+    if(el && !Object.keys(allUsersCache||{}).length){
+      el.innerHTML = '<div class="empty-state">Daftar komunitas gagal dimuat (' + escapeHtml(String(err && (err.code || err.message) || 'error')) + '). Muat ulang halaman atau login ulang.</div>';
+    }
+  };
+  _udUnsubUsers = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); }, showDirError('users'));
+  _udUnsubPresence = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); }, showDirError('presence'));
   // Listen for tier changes on MY account so button updates instantly when admin upgrades
-  if(MY_UID && window.firebaseReady){
-    window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/accountTier'), (snap) => {
-      const newTier = snap.val();
-      if(newTier && newTier !== myProfile.accountTier){
-        myProfile.accountTier = newTier;
-        applyTierUI();
-        renderUserDirectory();
-      }
-    });
-  }
+  _udUnsubTier = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/accountTier'), (snap) => {
+    const newTier = snap.val();
+    if(newTier && newTier !== myProfile.accountTier){
+      myProfile.accountTier = newTier;
+      applyTierUI();
+      renderUserDirectory();
+    }
+  }, () => {});
 }
 if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEventListener('firebase-ready', startUserDirectoryListeners); }
 

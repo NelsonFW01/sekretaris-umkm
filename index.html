@@ -3406,16 +3406,21 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
       <button class="brain-train" id="agenRunBtn">🤖 Jalankan Agen Sekarang</button>
       <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12.5px;color:var(--ink-soft);">
         <input type="checkbox" id="agenAutoDailyToggle" style="width:16px;height:16px;">
-        Agen Otomatis Harian (jalan sendiri tiap malam lewat server — butuh setup cron, lihat dokumentasi)
+        <span>Agen Otomatis Harian — izinkan <b>Robot UiPath + Agen AI</b> mengurus pengingat tagihan &amp; stok. Kasus aman dikirim otomatis; kasus berisiko jadi draf yang menunggu persetujuanmu di bawah.</span>
       </label>
+      <div id="agenRobotInfo" style="margin-top:6px;font-size:12px;color:var(--ink-soft);"></div>
       <div id="agenTrace" style="margin-top:14px;"></div>
       <div id="agenResult" style="margin-top:10px;"></div>
 
       <!-- DRAF TINDAKAN AGEN -->
       <div class="settings-section" style="margin-top:14px;">
-        <h4>📋 Draf Tindakan Agen <span style="font-weight:400;font-size:11.5px;color:var(--ink-soft);">— menunggu persetujuanmu</span></h4>
+        <h4>📋 Draf Tindakan Agen <span style="font-weight:400;font-size:11.5px;color:var(--ink-soft);">— kamu yang memutuskan</span></h4>
         <div id="agenDraftsList">
           <div class="empty-state">Belum ada draf tindakan.</div>
+        </div>
+        <div style="margin:12px 0 6px;font-size:12px;font-weight:700;color:var(--ink-soft);">Sudah diproses (terbaru)</div>
+        <div id="agenDraftsDone">
+          <div class="empty-state">Belum ada draf yang diproses.</div>
         </div>
       </div>
 
@@ -5000,18 +5005,40 @@ function loadAgentSettings(){
 }
 $('agenAutoDailyToggle')?.addEventListener('change', async (e) => {
   if(!MY_UID){ e.target.checked = false; alert('Login dulu untuk mengaktifkan mode otomatis.'); return; }
-  try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentSettings/${MY_UID}`), { autoDaily: e.target.checked, groqKeyForCron: groqKey || null }); }
+  try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentSettings/${MY_UID}`), { autoDaily: e.target.checked, groqKeyForCron: null /* hapus kunci Groq pribadi yang pernah disalin ke database oleh versi lama; kunci AI kini hanya ada di server */ }); }
   catch(err){ alert('Gagal menyimpan pengaturan: ' + err.message); e.target.checked = !e.target.checked; }
 });
 
 // ---------- DRAF TINDAKAN AGEN ----------
+// Draf dibuat oleh Agen AI — lewat Robot UiPath (jadwal otomatis) atau tombol "Jalankan Agen" di atas.
+// MANUSIA (kamu) yang memutuskan. Alur email pengingat yang berisiko:
+//   menunggu_persetujuan → [kamu setujui] disetujui → [robot UiPath mengirim] dieksekusi | dilewati
+// Draf WhatsApp / pesanan stok TIDAK pernah dikirim robot: setelah kamu setujui, kamu yang mengirimnya sendiri.
+const DRAFT_PENDING = 'menunggu_persetujuan';
+const DRAFT_REASON_LABEL = {
+  nilai_tinggi:'nilai tagihan besar', telat_lama:'sudah lama telat', nada_tegas:'nada pesan tegas',
+  tanpa_email:'pelanggan tanpa email', agen_pilih_wa:'agen memilih WhatsApp', agen_menandai_janggal:'agen menandai janggal',
+  draf_stok:'pesanan stok', tagihan_ganda:'kemungkinan tagihan ganda', indikasi_injeksi:'teks mencurigakan (instruksi tersembunyi)',
+  ada_tautan:'ada tautan di teks AI', kontak_asing:'ada kontak asing di teks AI', nomor_asing:'ada nomor asing di teks AI',
+  bahasa_mengancam:'bahasa mengancam', jumlah_tidak_cocok:'nominal di teks AI tidak cocok',
+  tanggal_tidak_cocok:'tanggal/hitungan hari di teks AI tidak cocok', klaim_biaya:'AI menyebut denda/diskon/biaya', harga_dikarang:'AI menyebut harga', angka_tak_dikenal:'AI menulis angka yang tidak berasal dari data'
+};
+const DRAFT_RESULT_LABEL = {
+  sudah_lunas:'tagihan sudah lunas', tagihan_tidak_ditemukan:'tagihan sudah tidak ada', penerima_berubah:'email pelanggan berubah',
+  sudah_dikirim:'pengingat serupa sudah terkirim', tagihan_berubah:'nominal/jatuh tempo tagihan berubah sejak draf dibuat', rencana_kedaluwarsa:'rencana dari hari lain', dikirim_server:'dikirim lewat server', dikirim_robot_smtp:'dikirim lewat email robot'
+};
+const draftLabel = (map, k) => map[k] || String(k||'').replace(/_/g,' ');
+const draftTime = (ms) => ms ? new Date(ms).toLocaleString('id-ID') : '';
+// draf email pengingat berisiko = satu-satunya jenis yang dieksekusi robot setelah disetujui
+const isRobotEmailDraft = (d) => d.tipe === 'pengingat_tagihan' && d.route === 'approval';
+
 function loadAgentDrafts(){
   if(!MY_UID || !window.firebaseDb || _draftsUnsub) return;
   _draftsUnsub = window.rtdbOnValue(
     window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}`),
     (snap) => {
       const val = snap.val() || {};
-      agentDrafts = Object.entries(val).map(([id,v]) => ({id, ...v})).filter(d => d.status !== 'ditolak' && d.status !== 'disetujui');
+      agentDrafts = Object.entries(val).filter(([,v]) => v && typeof v === 'object').map(([id,v]) => ({id, ...v}));
       agentDrafts.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
       renderAgentDrafts();
     },
@@ -5021,32 +5048,75 @@ function loadAgentDrafts(){
 async function saveAgentDraft(draft){
   if(!MY_UID) return null;
   const newRef = window.rtdbPush(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}`));
-  await window.rtdbSet(newRef, { ...draft, status: 'menunggu_persetujuan', createdAt: Date.now() });
+  await window.rtdbSet(newRef, { ...draft, status: DRAFT_PENDING, createdAt: Date.now() });
   return newRef.key;
+}
+function draftStatusInfo(d){
+  switch(d.status){
+    case 'disetujui':
+      return isRobotEmailDraft(d)
+        ? { icon:'⏳', text:'Disetujui — robot UiPath akan mengirim email ini pada jadwal berikutnya.' }
+        : { icon:'✅', text:'Disetujui — kamu yang mengirim/menjalankannya sendiri.' };
+    case 'dieksekusi': return { icon:'📧', text:'Terkirim oleh robot UiPath' + (d.executedAt ? ' · ' + draftTime(d.executedAt) : '') + '.' };
+    case 'dilewati':   return { icon:'⏭️', text:'Dilewati robot: ' + draftLabel(DRAFT_RESULT_LABEL, d.result || 'kondisi_berubah') + '.' };
+    case 'ditolak':    return { icon:'✖️', text:'Kamu menolak draf ini.' };
+    default:           return { icon:'📋', text: String(d.status||'-') };
+  }
+}
+function renderDraftCard(d, pending){
+  const email = isRobotEmailDraft(d);
+  const id = escapeHtml(d.id);
+  const badges = [];
+  if(email) badges.push('📧 Email — dikirim robot setelah kamu setujui');
+  else if(d.route === 'manual_wa') badges.push('💬 WhatsApp — kamu kirim sendiri');
+  if(d.sumber && d.aiGenerated !== undefined) badges.push(d.aiGenerated ? '✨ ditulis AI' : '📄 template');
+  (Array.isArray(d.reasons) ? d.reasons : []).forEach(r => badges.push('⚠️ ' + draftLabel(DRAFT_REASON_LABEL, r)));
+  const badgeHtml = badges.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${badges.map(b => `<span style="font-size:11px;padding:2px 8px;border-radius:999px;background:var(--bg-soft,#F5F7FA);border:1px solid var(--line);">${escapeHtml(b)}</span>`).join('')}</div>` : '';
+  const flagHtml = (Array.isArray(d.flags) && d.flags.length) ? `<div style="font-size:11.5px;color:#B3261E;margin-bottom:6px;">🚩 Perlu kamu cek: ${escapeHtml(d.flags.map(f => draftLabel(DRAFT_REASON_LABEL, f)).join(', '))}</div>` : '';
+  const toHtml = email ? `<div style="font-size:12px;margin-bottom:4px;"><b>Ke:</b> ${escapeHtml(d.to||'-')}<br><b>Subjek:</b> ${escapeHtml(d.subject||'-')}</div>` : '';
+  const noteHtml = d.note ? `<div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">Catatan agen: ${escapeHtml(d.note)}</div>` : '';
+  const body = d.body || d.pesan || d.deskripsi || '';
+  let actions = '';
+  if(pending){
+    const waLink = (!email && d.wa) ? `https://wa.me/${String(d.wa).replace(/[^0-9]/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(d.pesan||'')}` : null;
+    actions = `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener" data-draft-act="approve" data-id="${id}" style="padding:7px 12px;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;text-decoration:none;">✅ Setujui & Buka WA</a>`
+                  : `<button data-draft-act="approve" data-id="${id}" style="padding:7px 12px;border:none;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;cursor:pointer;">${email ? '✅ Setujui (robot yang mengirim)' : '✅ Setujui'}</button>`}
+        <button data-draft-act="reject" data-id="${id}" style="padding:7px 12px;border:none;border-radius:9px;background:#EEE;color:#444;font-weight:700;font-size:12px;cursor:pointer;">✖️ Tolak</button>
+      </div>`;
+  } else {
+    const st = draftStatusInfo(d);
+    actions = `<div style="font-size:12px;color:var(--ink-soft);">${st.icon} ${escapeHtml(st.text)}</div>`;
+  }
+  return `<div style="padding:12px;border-radius:12px;border:1.5px solid var(--line);margin-bottom:8px;">
+      <div style="font-weight:700;font-size:12.5px;margin-bottom:4px;">${escapeHtml(d.judul||d.tipe||'Draf')}</div>
+      ${badgeHtml}${toHtml}
+      <div style="font-size:12px;color:var(--ink-soft);white-space:pre-wrap;margin-bottom:8px;${pending ? '' : 'max-height:64px;overflow:hidden;'}">${escapeHtml(body)}</div>
+      ${flagHtml}${noteHtml}${actions}
+    </div>`;
 }
 function renderAgentDrafts(){
   const box = $('agenDraftsList'); if(!box) return;
-  if(agentDrafts.length === 0){ box.innerHTML = '<div class="empty-state">Belum ada draf tindakan.</div>'; return; }
-  box.innerHTML = agentDrafts.map(d => {
-    const waLink = d.wa ? `https://wa.me/${String(d.wa).replace(/[^0-9]/g,'').replace(/^0/,'62')}?text=${encodeURIComponent(d.pesan||'')}` : null;
-    return `<div style="padding:12px;border-radius:12px;border:1.5px solid var(--line);margin-bottom:8px;">
-      <div style="font-weight:700;font-size:12.5px;margin-bottom:4px;">${escapeHtml(d.judul||d.tipe||'Draf')}</div>
-      <div style="font-size:12px;color:var(--ink-soft);white-space:pre-wrap;margin-bottom:8px;">${escapeHtml(d.pesan||d.deskripsi||'')}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${waLink ? `<a href="${waLink}" target="_blank" onclick="approveAgentDraft('${d.id}')" style="padding:7px 12px;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;text-decoration:none;">✅ Setujui & Buka WA</a>`
-                  : `<button onclick="approveAgentDraft('${d.id}')" style="padding:7px 12px;border:none;border-radius:9px;background:#25D366;color:#fff;font-weight:700;font-size:12px;cursor:pointer;">✅ Setujui</button>`}
-        <button onclick="rejectAgentDraft('${d.id}')" style="padding:7px 12px;border:none;border-radius:9px;background:#EEE;color:#444;font-weight:700;font-size:12px;cursor:pointer;">✖️ Tolak</button>
-      </div>
-    </div>`;
-  }).join('');
+  const pending = agentDrafts.filter(d => (d.status || DRAFT_PENDING) === DRAFT_PENDING);
+  const done = agentDrafts.filter(d => d.status && d.status !== DRAFT_PENDING).slice(0, 8);
+  box.innerHTML = pending.length ? pending.map(d => renderDraftCard(d, true)).join('') : '<div class="empty-state">Tidak ada draf yang menunggu persetujuanmu.</div>';
+  const doneBox = $('agenDraftsDone');
+  if(doneBox) doneBox.innerHTML = done.length ? done.map(d => renderDraftCard(d, false)).join('') : '<div class="empty-state">Belum ada draf yang diproses.</div>';
 }
+const DRAFT_ID_RE = /^[A-Za-z0-9_-]{3,128}$/;
+document.addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-draft-act]') : null;
+  if(!b) return;
+  if(b.dataset.draftAct === 'approve') window.approveAgentDraft(b.dataset.id);
+  else if(b.dataset.draftAct === 'reject') window.rejectAgentDraft(b.dataset.id);
+});
 window.approveAgentDraft = async function(id){
-  if(!MY_UID) return;
+  if(!MY_UID || !DRAFT_ID_RE.test(String(id))) return;
   try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}/${id}`), { status:'disetujui', approvedAt: Date.now() }); }
   catch(e){ console.warn(e); }
 };
 window.rejectAgentDraft = async function(id){
-  if(!MY_UID) return;
+  if(!MY_UID || !DRAFT_ID_RE.test(String(id))) return;
   try{ await window.rtdbUpdate(window.rtdbRef(window.firebaseDb, `agentDrafts/${MY_UID}/${id}`), { status:'ditolak', rejectedAt: Date.now() }); }
   catch(e){ console.warn(e); }
 };
@@ -5067,14 +5137,28 @@ async function saveAgentRun(run){
     await window.rtdbSet(newRef, { ...run, ts: Date.now() });
   } catch(e){ console.warn('[AgentRuns] gagal simpan:', e.message); }
 }
+const ROBOT_STAT_LABEL = { emailTerkirim:'email terkirim', drafDibuat:'draf dibuat', dilewati:'dilewati', galat:'galat', stokMenipis:'stok menipis' };
+function renderRobotInfo(){
+  const el = $('agenRobotInfo'); if(!el) return;
+  const last = agentRuns.find(r => r.sumber === 'uipath-robot');
+  el.innerHTML = last
+    ? `🤖 Robot UiPath terakhir melapor: <b>${escapeHtml(new Date(last.ts).toLocaleString('id-ID'))}</b>`
+    : '🤖 Robot UiPath belum pernah melapor untuk akun ini (aktifkan toggle di atas, lalu jalankan robot).';
+}
 function renderAgentRuns(){
   const box = $('agenRunsList'); if(!box) return;
+  renderRobotInfo();
   if(agentRuns.length === 0){ box.innerHTML = '<div class="empty-state">Agen belum pernah dijalankan.</div>'; return; }
-  box.innerHTML = agentRuns.map(r => `
+  box.innerHTML = agentRuns.map(r => {
+    const st = r.stats && typeof r.stats === 'object' ? r.stats : null;
+    const statText = st ? Object.entries(st).filter(([k]) => ROBOT_STAT_LABEL[k]).map(([k,v]) => `${Number(v)||0} ${ROBOT_STAT_LABEL[k]}`).join(' · ') : '';
+    return `
     <div style="padding:10px 12px;border-radius:10px;background:var(--bg-soft,#F5F7FA);margin-bottom:6px;font-size:12px;">
-      <div style="color:var(--ink-soft);margin-bottom:2px;">${new Date(r.ts).toLocaleString('id-ID')} · ${escapeHtml((r.toolsDipanggil||[]).join(', ')||'-')}</div>
+      <div style="color:var(--ink-soft);margin-bottom:2px;">${new Date(r.ts).toLocaleString('id-ID')} · ${r.sumber === 'uipath-robot' ? '🤖 Robot UiPath' : '👤 Manual'} · ${escapeHtml((r.toolsDipanggil||[]).join(', ')||'-')}</div>
       <div>${escapeHtml(r.ringkasan||'-')}</div>
-    </div>`).join('');
+      ${statText ? `<div style="color:var(--ink-soft);margin-top:2px;">${escapeHtml(statText)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 // ---------- SKEMA 7 TOOL FUNCTION-CALLING ----------
@@ -5931,7 +6015,8 @@ Balas hanya dengan teks saran, tanpa markdown.`;
 }
 
 function escapeHtml(str){
-  const div = document.createElement('div'); div.textContent = str; return div.innerHTML;
+  // textContent→innerHTML meng-escape & < > ; tanda kutip ganda juga (teks ini sering dipakai di dalam atribut data-*="…")
+  const div = document.createElement('div'); div.textContent = str; return div.innerHTML.replace(/"/g, '&quot;');
 }
 
 // ============ TAGIHAN / PIUTANG ============
@@ -7741,12 +7826,18 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
         name:m.street_names?m.street_names.join(', '):''}))}]};
   }
 
+  // API key opsional (tidak ikut di repo). Isi LOKAL lewat window.APP_API_KEYS = {graphhopper:'…', ors:'…', mapillary:'…'}
+  // di <script> terpisah yang TIDAK di-commit. Tanpa key, mesin rute ini dilewati dan rute pindah ke mesin berikutnya.
+  const GH_KEY=(window.APP_API_KEYS&&window.APP_API_KEYS.graphhopper)||'';
+  const ORS_KEY=(window.APP_API_KEYS&&window.APP_API_KEYS.ors)||'';
+
   async function tryGraphHopper(vehicle){
+    if(!GH_KEY) throw new Error('GraphHopper dilewati (tanpa API key — opsional)');
     const v=vehicle||'car';
     const url='https://graphhopper.com/api/1/route'
       +'?point='+fromLat+','+fromLng+'&point='+destLat+','+destLng
       +'&vehicle='+v+'&locale=id&points_encoded=false&instructions=true'
-      +'&key=LijBPDQGfu7Iiq80ebFCtWMuznIa7Nq3iyBcId9V';
+      +'&key='+encodeURIComponent(GH_KEY);
     const resp=await fetch(url,{signal:AbortSignal.timeout(timeoutMs-3000)});
     if(!resp.ok) throw new Error('GH HTTP '+resp.status);
     const d=await resp.json();
@@ -7761,10 +7852,11 @@ async function _doRoute(fromLat, fromLng, destLat, destLng, destName, bar){
   }
 
   async function tryORS(profile){
+    if(!ORS_KEY) throw new Error('ORS dilewati (tanpa API key — opsional)');
     const pr=profile||'driving-car';
     const resp=await fetch('https://api.openrouteservice.org/v2/directions/'+pr+'/geojson',{
       method:'POST',headers:{'Content-Type':'application/json',
-      'Authorization':'5b3ce3597851110001cf6248a3c69e728c4d44a49b057de5e62f4b2a'},
+      'Authorization':ORS_KEY},
       body:JSON.stringify({coordinates:[[fromLng,fromLat],[destLng,destLat]]}),
       signal:AbortSignal.timeout(timeoutMs-3000)});
     if(!resp.ok) throw new Error('ORS HTTP '+resp.status);
@@ -9925,7 +10017,7 @@ function renderUserDirectory(){
       </div>
       <div class="uc-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
         <span>${u.online?'🟢 Online':'🔴 Offline'}</span>
-        <button class="uc-chat-btn" data-uid="${u.uid}" data-name="${escapeHtml(name)}" data-photo="${escapeHtml(u.profilePhotoUrl||'')}" onclick="event.stopPropagation();openChat('${u.uid}','${escapeHtml(name).replace(/'/g,'')}','${escapeHtml(u.profilePhotoUrl||'')}')" style="padding:4px 9px;border-radius:20px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">💬 Chat</button>
+        <button class="uc-chat-btn" data-uid="${escapeHtml(u.uid)}" data-name="${escapeHtml(name)}" data-photo="${escapeHtml(u.profilePhotoUrl||'')}" onclick="event.stopPropagation();openChat(this.dataset.uid,this.dataset.name,this.dataset.photo)" style="padding:4px 9px;border-radius:20px;border:1.5px solid var(--teal);background:transparent;color:var(--teal);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">💬 Chat</button>
       </div>
       ${delBtn}
     </div>`;
@@ -11958,6 +12050,11 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     // Bersihkan peta rute list yang lama
     Object.values(listRouteMaps).forEach(m=>{try{m.remove();}catch(e){}});
     listRouteMaps={};
+    // Data Pasar Kongsi ditulis pengguna lain → id/uid hanya boleh karakter aman, foto hanya https (dipakai di atribut HTML)
+    const SAFE_KEY=/^[A-Za-z0-9_-]{1,128}$/;
+    items=items.filter(i=>i&&typeof i.id==='string'&&SAFE_KEY.test(i.id)).map(i=>({...i,
+      ownerUid: SAFE_KEY.test(String(i.ownerUid||'')) ? i.ownerUid : '',
+      ownerPhoto: /^https:\/\/[^\s"'<>\\]+$/.test(String(i.ownerPhoto||'')) ? i.ownerPhoto : ''}));
     const filtered=items.filter(i=>i.mode===kgMode).sort((a,b)=>(b.ts||0)-(a.ts||0));
     if(filtered.length===0){list.innerHTML='<div class="empty-state">Belum ada tawaran di mode ini. Jadilah yang pertama posting!</div>';return;}
 
@@ -12070,7 +12167,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
             ${o.note?`<div style="font-size:11px;color:#888;margin-bottom:4px;">📝 ${escapeHtml(o.note)}</div>`:''}
             <div style="font-size:10.5px;color:#A08B5E;margin-bottom:6px;">⏱️ ${fmtTime(o.ts||Date.now())}</div>
             <div style="display:flex;gap:6px;">
-              <a href="https://wa.me/${(o.wa||'').replace(/\D/g,'')}?text=${encodeURIComponent('Halo '+escapeHtml(o.name||'')+', saya kurir yang kamu pesan. Siap mengantarkan ke '+escapeHtml(o.dest||'tujuanmu')+'.')}" target="_blank" style="flex:1;padding:6px 0;border-radius:8px;background:#25D366;color:white;font-weight:700;font-size:12px;text-align:center;text-decoration:none;">💬 Chat WA</a>
+              <a href="https://wa.me/${(o.wa||'').replace(/\D/g,'')}?text=${encodeURIComponent('Halo '+(o.name||'')+', saya kurir yang kamu pesan. Siap mengantarkan ke '+(o.dest||'tujuanmu')+'.')}" target="_blank" style="flex:1;padding:6px 0;border-radius:8px;background:#25D366;color:white;font-weight:700;font-size:12px;text-align:center;text-decoration:none;">💬 Chat WA</a>
               ${o.dest?`<button class="kc-nav-kurir-btn" data-id="${it.id}" data-to="${escapeHtml(o.dest)}" style="flex:1;padding:6px;border-radius:8px;border:none;background:#E8633F;color:white;font-weight:700;font-size:12px;cursor:pointer;">🧭 Navigasi ke Sini</button>`:''}
             </div>
           </div>`).join('')}
@@ -12084,7 +12181,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
           <span class="kc-price">${it.price>0?fmtRp(it.price):'Nego'}</span>
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             ${!isMyKurir && it.mode==='kurir' ? `<button class="kc-order-toggle-btn" data-id="${it.id}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:#E8633F;color:white;font-weight:700;font-size:12.5px;cursor:pointer;">📦 Pesan Kurir Ini</button>`:''}
-            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Kurir')}" data-chat-photo="${it.ownerPhoto||''}"><span>💬</span> ${it.mode==='kurir'?'Chat Kurir':'Chat Penjual'}</button>`:''}
+            ${!isMine&&it.ownerKey&&it.ownerUid?`<button class="kc-chat-btn" data-item-id="${it.id}" data-chat-uid="${it.ownerUid}" data-chat-name="${escapeHtml(it.ownerName||'Kurir')}" data-chat-photo="${escapeHtml(it.ownerPhoto||'')}"><span>💬</span> ${it.mode==='kurir'?'Chat Kurir':'Chat Penjual'}</button>`:''}
             ${!isMine && it.mode==='stok' ? `<button class="kc-nego-btn" data-item-id="${it.id}" data-title="${escapeHtml(it.title)}" data-desc="${escapeHtml(it.desc||'')}" data-price="${Number(it.price)||0}" data-wa="${wa||''}" data-owner-uid="${it.ownerUid||''}" style="display:flex;align-items:center;gap:5px;padding:8px 12px;border:none;border-radius:9px;background:linear-gradient(135deg,#7B61FF,#00D9FF);color:white;font-weight:700;font-size:12.5px;cursor:pointer;">🤖 Nego AI</button>` : ''}
             ${wa?`<a class="kc-wa" data-item-id="${it.id}" href="${waLink}" target="_blank" rel="noopener">💬 WA</a>`:''}
           </div>
@@ -12381,9 +12478,14 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     const inner = panel.querySelector('[id^=lrsv-inner]') || panel.querySelector('div:last-child');
     if(!inner) return;
 
-    // Try Mapillary viewer (open platform, street-level imagery)
-    // Mapillary closest image API
-    const mapillaryUrl = `https://www.mapillary.com/embed?image_key=null&x=0.5&y=0.5&client_id=MLY%7C4381520045248549%7C8cb1978e46afe79b1e3d19b31e55e98c&style=photo&lat=${lat}&lng=${lng}`;
+    // Pratinjau Mapillary tertanam hanya bila client-id diisi LOKAL (window.APP_API_KEYS.mapillary); tanpa itu tombol tautan di bawah tetap jalan.
+    const MLY_ID = (window.APP_API_KEYS && window.APP_API_KEYS.mapillary) || '';
+    const mlyEmbed = MLY_ID ? `<div style="margin-top:14px;border-radius:10px;overflow:hidden;height:200px;border:1px solid rgba(255,255,255,0.1);">
+          <iframe src="https://www.mapillary.com/embed?image_key=null&x=0.5&y=0.5&client_id=${encodeURIComponent(MLY_ID)}&style=photo&lat=${lat}&lng=${lng}"
+            style="width:100%;height:100%;border:none;" loading="lazy"
+            title="Street View ${escapeHtml(fallbackName)}"></iframe>
+        </div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:8px;">Foto jalan nyata dari komunitas Mapillary (open source)</div>` : '';
 
     inner.innerHTML = `
       <div style="background:#111827;padding:14px;text-align:center;">
@@ -12400,12 +12502,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
             📷 Lihat Foto Jalan di Mapillary
           </a>
         </div>
-        <div style="margin-top:14px;border-radius:10px;overflow:hidden;height:200px;border:1px solid rgba(255,255,255,0.1);">
-          <iframe src="https://www.mapillary.com/embed?image_key=null&x=0.5&y=0.5&client_id=MLY%7C4381520045248549%7C8cb1978e46afe79b1e3d19b31e55e98c&style=photo&lat=${lat}&lng=${lng}" 
-            style="width:100%;height:100%;border:none;" loading="lazy"
-            title="Street View ${escapeHtml(fallbackName)}"></iframe>
-        </div>
-        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:8px;">Foto jalan nyata dari komunitas Mapillary (open source)</div>
+        ${mlyEmbed}
       </div>`;
   }
 
@@ -13285,7 +13382,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
     if(!el) return;
     el.scrollTo({top:el.scrollHeight, behavior:smooth?'smooth':'auto'});
   }
-  function escHtml(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
+  function escHtml(s){ const d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML.replace(/"/g,'&quot;'); }
 
   // ── Avatar helper ──────────────────────────────────────────────────────────
   function avatarHtml(photoUrl, fallback){
@@ -13887,7 +13984,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
       const timeStr = c.lastTs ? fmtMsgTime(c.lastTs) : '';
       const lastMsgPreview = (c.lastMsg||'').slice(0,40) + ((c.lastMsg||'').length>40?'…':'');
 
-      html += `<div class="conv-item" onclick="openChat('${escHtml(peerUid)}','${escHtml(peerName).replace(/'/g,'')}','${escHtml(peerPhoto)}')">
+      html += `<div class="conv-item" data-uid="${escHtml(peerUid)}" data-name="${escHtml(peerName)}" data-photo="${escHtml(peerPhoto)}" onclick="openChat(this.dataset.uid,this.dataset.name,this.dataset.photo)">
         <div class="ci-avatar" style="position:relative;">${peerPhoto ? `<img src="${escHtml(peerPhoto)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.innerHTML='👤'">` : '👤'}
           ${peerOnline ? '<div style="position:absolute;bottom:0;right:0;width:10px;height:10px;background:#2D7A4F;border-radius:50%;border:2px solid white;"></div>' : ''}
         </div>

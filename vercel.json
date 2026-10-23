@@ -10,10 +10,18 @@
       ]
     }
   ],
+  "functions": {
+    "api/agent.js": { "maxDuration": 60 },
+    "api/robot.js": { "maxDuration": 30 }
+  },
   "crons": [
     {
       "path": "/api/cron-invoice-reminder",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron-supply-chain-agent",
+      "schedule": "0 2 * * *"
     }
   ]
 }

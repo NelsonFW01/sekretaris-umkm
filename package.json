@@ -1,0 +1,18 @@
+{
+  "name": "sekretaris-umkm",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sekretaris UMKM — aplikasi web + agen AI tool-calling (gratis) + robot UiPath sebagai inti otomasi",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec \"tests/*.test.js\"",
+    "robot:ref": "node tools/robot-reference.mjs",
+    "seed:mock": "node tools/seed-rtdb.mjs",
+    "check:submit": "node tools/pre-submit-check.mjs",
+    "test:n8n": "node --test --test-reporter=spec tests/n8n-real.test.js",
+    "test:rules": "node --test --test-reporter=spec tests/firebase-rules.test.js"
+  }
+}

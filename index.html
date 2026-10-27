@@ -2163,6 +2163,56 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
   .bottom-nav{left:0;right:0;margin:0 auto;max-width:860px;border-radius:18px 18px 0 0;}
 }
 </style>
+<style id="ui-fix-agen">
+/* === Warna & tata letak modul Agen Rantai Pasok (tema gelap, termasuk layar HP) ===
+   Dulu kartu memakai var(--bg-soft,#F5F7FA) dan var(--card,#fff) yang TIDAK pernah didefinisikan, jadi jatuh ke putih
+   sementara tulisannya putih (tema gelap) → tulisan tak terbaca. Sekarang keduanya didefinisikan untuk tema yang aktif. */
+:root{
+  --bg-soft: rgba(255,255,255,0.07) !important;
+  --card: rgba(255,255,255,0.06) !important;
+  --warn-bg: rgba(255,170,60,0.16);
+  --warn-ink: #FFB4A8;
+}
+/* Baris stok menipis & teks peringatan ditulis dengan warna terang langsung di kode; timpa supaya terbaca di tema gelap. */
+#panel-agen [style*="#FFF3E0"]{ background: var(--warn-bg) !important; }
+#panel-agen [style*="#B3261E"]{ color: var(--warn-ink) !important; }
+/* Tata letak HP: teks panjang (email, nama bahan, URL) membungkus, bukan mendorong kartu keluar layar. */
+#panel-agen{ overflow-wrap:anywhere; word-break:break-word; min-width:0; max-width:100%; }
+#panel-agen .settings-section, #panel-agen .brain-hero, #panel-agen #agenDraftsList > div, #panel-agen #agenDraftsDone > div, #panel-agen #agenRunsList > div{ min-width:0; max-width:100%; box-sizing:border-box; }
+#panel-agen label{ align-items:flex-start !important; }
+#panel-agen label > input[type="checkbox"]{ flex:0 0 auto; margin:2px 0 0; }
+#panel-agen pre{ white-space:pre-wrap; }
+@media (max-width:480px){
+  #panel-agen .settings-section{ padding:12px 12px 14px; }
+  #panel-agen [data-draft-act]{ flex:1 1 100%; text-align:center; justify-content:center; box-sizing:border-box; }
+}
+</style>
+<style id="ui-fix-global">
+/* === Perbaikan tampilan seluruh aplikasi (terutama layar HP, tema gelap) ===
+   1) Kartu di tab Pengaturan tidak punya jarak dalam → judul & kolom menempel ke garis kartu.
+   2) Link bawaan browser (biru gelap) hampir tak terbaca di latar gelap.
+   3) Tema gelap mengubah --teal jadi biru muda (#00D9FF), tapi banyak tombol/kartu masih berteks putih
+      → kontras ±1,7 (susah dibaca). Di sini teksnya dibuat gelap hanya di elemen berlatar biru muda. */
+#panel-settings .settings-section{ padding:14px 14px 16px; box-sizing:border-box; max-width:100%; min-width:0; overflow-wrap:anywhere; }
+#panel-settings .settings-section h4{ margin:0 0 10px; }
+#panel-settings, #panel-agen{ min-width:0; max-width:100%; }
+.settings-section a, #panel-settings a, #panel-agen a:not([data-draft-act]), .settings-section a:visited{ color:#7FD8FF; text-decoration:underline; overflow-wrap:anywhere; }
+/* Teks gelap di atas latar biru muda (--teal) / hijau WhatsApp */
+.inv-summary-card:not(.warn), .inv-summary-card:not(.warn) .isc-label, .inv-summary-card:not(.warn) .isc-value,
+.switch .knob, .live-mode-toggle button.active, .loc-actions .share-on, .live-cam-row .cam-btn,
+.text-fallback button, .generate-btn.secondary, .welcome-box button, .chat-send-btn, .cbm-play,
+.chat-bubble.mine, .ai-sum-msg.user .ai-sum-bubble, .auth-tab.active, #threeDModal .td-controls .td-primary,
+[style*="background:var(--teal)"], [style*="background: var(--teal)"],
+[style*="background:#25D366"], [style*="background: #25D366"]{ color:#04202B !important; }
+.inv-summary-card:not(.warn) .isc-label{ opacity:.85; }
+#store2Lock{ color:#0B3A47 !important; }
+[style*="color:#93C5FD"]{ color:#1E40AF !important; }
+.kg-primary{ color:#1A0603 !important; }
+/* Aman dari layar sempit: gambar/grafik/kolom tidak boleh melebihi lebar layar */
+img, video, canvas, svg, iframe{ max-width:100%; }
+pre, code{ overflow-wrap:anywhere; }
+input, select, textarea{ max-width:100%; box-sizing:border-box; }
+</style>
 </head>
 <body>
 <div class="app">
@@ -5510,11 +5560,11 @@ function updateKeyStatus(){
     status.textContent = activeNames.length > 1
       ? `✅ Key kamu sendiri aktif (${activeNames.join(' + ')})`
       : `✅ Key kamu sendiri aktif (${activeNames[0]}) — tambah satu lagi supaya makin stabil`;
-    status.style.color = '#2D7A4F';
+    status.style.color = '#6EE7A8';
   } else {
     // Pakai key admin
     status.innerHTML = '🟡 Pakai <strong>key bawaan dari admin</strong> — fitur AI tetap jalan, tapi bisa lambat di jam sibuk. Isi key sendiri di bawah supaya lebih stabil & priority.';
-    status.style.color = '#8A5A1F';
+    status.style.color = '#FFC27A';
   }
 }
 

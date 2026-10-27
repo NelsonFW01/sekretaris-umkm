@@ -2208,10 +2208,9 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 #store2Lock{ color:#0B3A47 !important; }
 [style*="color:#93C5FD"]{ color:#1E40AF !important; }
 .kg-primary{ color:#1A0603 !important; }
-/* Aman dari layar sempit: gambar/grafik/kolom tidak boleh melebihi lebar layar */
-img, video, canvas, svg, iframe{ max-width:100%; }
+/* Aman dari layar sempit: grafik & teks kode tidak boleh melebihi lebar layar (sengaja sempit: tidak menyentuh gambar/peta/input) */
+canvas{ max-width:100%; }
 pre, code{ overflow-wrap:anywhere; }
-input, select, textarea{ max-width:100%; box-sizing:border-box; }
 </style>
 </head>
 <body>

@@ -3585,7 +3585,10 @@ pre, code{ overflow-wrap:anywhere; }
           <div class="sr-label">Sekretaris UMKM</div>
           <div class="sr-sub">Versi 2.0 · Solusi Digital untuk UMKM</div>
           <div class="sr-sub">Ditenagai Groq &amp; OpenRouter AI + Firebase</div>
+          <div class="sr-sub" id="appBuildLine"></div>
         </div>
+        <button class="generate-btn outline" id="diagBtn" type="button" style="margin-top:8px;">🔍 Diagnosa akun &amp; sinkron data</button>
+        <pre id="diagOut" style="display:none;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;line-height:1.5;margin:8px 0 0;padding:10px;border-radius:10px;background:rgba(255,255,255,0.06);color:#fff;"></pre>
         <button class="generate-btn outline" id="clearDataBtn" style="margin-top:8px;border-color:var(--bad);color:var(--bad);">🗑️ Hapus Semua Data Lokal (Reset)</button>
       </div>
     </section>
@@ -4971,6 +4974,47 @@ async function txFlush(){ // dipanggil sebelum keluar akun / saat tab disembunyi
 }
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden'){ try{ txFlush(); }catch(e){} } });
 /* TX-SYNC:END */
+
+/* DIAG:BEGIN */
+// ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
+// Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
+// terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
+const APP_BUILD = '2026-10-28.3';
+(function(){
+  const line = document.getElementById('appBuildLine');
+  if(line) line.textContent = 'Build ' + APP_BUILD;
+  const btn = document.getElementById('diagBtn');
+  if(!btn) return;
+  btn.addEventListener('click', async () => {
+    const out = document.getElementById('diagOut');
+    out.style.display = 'block';
+    out.textContent = '⏳ Memeriksa...';
+    const lines = [];
+    let email = '(tidak terbaca)';
+    try{ email = (window.fbAuth && window.fbAuth.currentUser && window.fbAuth.currentUser.email) || '(belum login)'; }catch(e){}
+    lines.push('Build berkas : ' + APP_BUILD);
+    lines.push('Email login  : ' + email);
+    lines.push('UID          : ' + (MY_UID || '(kosong)'));
+    lines.push('Firebase     : ' + ((window.firebaseDb && window.rtdbGet) ? 'siap' : 'BELUM siap'));
+    const nodes = [['profil', 'users/'], ['tagihan', 'invoices/'], ['stok', 'stokInventori/'], ['pemasok', 'pemasok/'],
+                   ['draf agen', 'agentDrafts/'], ['riwayat robot', 'agentRuns/'], ['transaksi', 'transaksi/'], ['poin game', 'gameData/']];
+    if(MY_UID && window.firebaseDb && window.rtdbGet){
+      for(const [label, base] of nodes){
+        let res;
+        try{
+          const v = (await window.rtdbGet(window.rtdbRef(window.firebaseDb, base + MY_UID))).val();
+          res = v == null ? 'kosong (belum ada data di akun ini)'
+              : (typeof v === 'object' ? (base === 'transaksi/' || base === 'users/' || base === 'gameData/' ? 'ADA' : Object.keys(v).length + ' item') : 'ADA');
+        }catch(e){ res = 'DITOLAK oleh aturan database (' + (e && (e.code || e.message) || 'permission_denied') + ')'; }
+        lines.push(('Firebase ' + label + '            ').slice(0, 24) + ': ' + res);
+      }
+    }
+    lines.push('Di browser ini: ' + (typeof transactions !== 'undefined' ? transactions.length : '?') + ' transaksi, ' +
+               (typeof invoices !== 'undefined' ? invoices.length : '?') + ' tagihan dimuat');
+    out.textContent = lines.join('\n');
+  });
+})();
+/* DIAG:END */
 let uploadedImageBase64 = null;
 let uploadedImageDataUrl = null;
 let lastGenerated = null;

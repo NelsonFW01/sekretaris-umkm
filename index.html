@@ -3425,7 +3425,7 @@ pre, code{ overflow-wrap:anywhere; }
     <section class="panel" id="panel-brain">
       <div class="brain-hero">
         <h2>🧠 Otak AI UMKM — Privacy First</h2>
-        <p>Neural network mini yang <b>kamu latih sendiri</b> dari riwayat transaksimu. Data tidak pernah keluar browser. Setelah cukup data + dilatih, AI ini prediksi profit harian, hari terkuatmu, dan deteksi anomali.</p>
+        <p>Neural network mini yang <b>kamu latih sendiri</b> dari riwayat transaksimu. Latihannya berjalan di browser-mu (tidak dikirim ke layanan AI luar); riwayat transaksi disalin ke akunmu sendiri supaya ikut ke perangkat lain, dan hanya kamu yang bisa membacanya. Setelah cukup data + dilatih, AI ini prediksi profit harian, hari terkuatmu, dan deteksi anomali.</p>
       </div>
       <div class="brain-status" id="brainStatus">
         <div class="bs-row"><span class="bs-l">Data transaksi tersedia</span><span class="bs-v" id="bsRows">0</span></div>
@@ -6243,7 +6243,7 @@ function loadInvoices(){
       invoices.sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
       renderInvoices();
     },
-    (err) => console.warn('[Tagihan] gagal load:', err.message)
+    (err) => { _invUnsub = null; console.warn('[Tagihan] gagal load:', err.message); } // lepas penanda supaya bisa dicoba lagi (mis. saat tab dibuka)
   );
 }
 
@@ -6334,8 +6334,9 @@ window.deleteInvoice = async function(id){
 document.addEventListener('app-account-changed', () => {
   if(_invUnsub){ try{ _invUnsub(); }catch(e){} _invUnsub = null; }
   invoices = [];
-  const panel = document.getElementById('panel-tagihan');
-  if(panel && panel.classList.contains('active')) loadInvoices();
+  // SELALU muat data tagihan akun yang login, tidak menunggu tab Tagihan dibuka: layar Home (Pengingat Mendatang, Insight Pelanggan,
+  // Skor Kesehatan, tugas) membacanya. Dulu baru dimuat saat tab Tagihan diklik → login di browser baru = Home tampak kosong.
+  loadInvoices();
 });
 
 // ============ EXCEL EXPORT (Enhanced with Cover + Charts) ============

@@ -4621,6 +4621,7 @@ $a('otpInput').addEventListener('input', function(){
 $a('authLogoutBtn').addEventListener('click', async () => {
   if(!window.firebaseReady) return;
   if(!confirm('Keluar dari akun?')) return;
+  try{ if(typeof txFlush === 'function') await txFlush(); }catch(e){} // unggah dulu perubahan transaksi yang belum terkirim
   try{ await window.fbSignOut(window.fbAuth); } catch(e){}
 });
 
@@ -4686,6 +4687,10 @@ function initAuthGate(){
     const newUid = user ? user.uid : null;
     if(newUid !== _lastAuthUid){
       _lastAuthUid = newUid;
+      // PENTING: isi MY_UID LEBIH DULU, baru kirim event. Pendengar event (modul Agen Rantai Pasok, dll.) langsung memasang
+      // pendengar data memakai MY_UID; kalau MY_UID masih kosong/akun lama saat itu, datanya tidak pernah termuat
+      // (tab Agen kosong walau data ada di database).
+      MY_UID = newUid;
       // Beritahu modul lain (mis. Game & Poin) bahwa akun yang login berubah,
       // supaya data poin/cache milik akun sebelumnya tidak ikut nempel di akun baru.
       document.dispatchEvent(new CustomEvent('app-account-changed', { detail: { uid: newUid } }));
@@ -4703,7 +4708,7 @@ function initAuthGate(){
       try{
         const _prevUid = localStorage.getItem('umkm_last_uid');
         if(_prevUid && _prevUid !== user.uid){
-          ['umkm_display_name','umkm_transactions_v1','umkm_holo_color','umkm_nationality','umkm_notif',
+          ['umkm_display_name','umkm_transactions_v1','umkm_tx_rev','umkm_tx_dirty','umkm_holo_color','umkm_nationality','umkm_notif',
            'umkm_avatar_hint_seen','sekretaris_umkm_groq_key','sekretaris_umkm_openrouter_key',
            'sekretaris_umkm_gemini_key','sekretaris_umkm_sap_token','sekretaris_umkm_sap_endpoint',
            'kgOwnerKey','boost_bca_owner','boost_bca_number','boost_admin_password'
@@ -4739,6 +4744,7 @@ function initAuthGate(){
       if(typeof applyTierUI === 'function') applyTierUI(); // Apply tier immediately after isAdmin is set
       if(typeof setupPresence === 'function') setupPresence();
       if(typeof startUserDirectoryListeners === 'function') startUserDirectoryListeners(); // pasang listener komunitas SETELAH login
+      if(typeof txPull === 'function') txPull(); // riwayat transaksi mengikuti akun (tarik/gabung dari Firebase)
       if(typeof loadMyProfile === 'function') await loadMyProfile();
       if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
       applyNameLockUI();
@@ -4825,9 +4831,97 @@ try{
     if(Array.isArray(_parsed)) transactions = _parsed;
   }
 }catch(e){ transactions = []; }
-function persistTransactions(){
-  try{ localStorage.setItem('umkm_transactions_v1', JSON.stringify(transactions.slice(-3000))); }catch(e){}
+/* TX-SYNC:BEGIN */
+// ============ RIWAYAT TRANSAKSI IKUT AKUN (disinkronkan ke Firebase: transaksi/<uid>) ============
+// Dulu transaksi HANYA tersimpan di localStorage browser, jadi login ke akun yang sama di browser/HP lain = riwayat kosong.
+// Sekarang: localStorage tetap dipakai (cepat & tetap jalan offline), lalu salinannya diunggah ke akun (tertunda 1,5 dtk setelah
+// perubahan) dan ditarik saat login. Aturan gabung (tidak pernah menghapus data diam-diam):
+//   • akun belum punya salinan  → data lokal diunggah.
+//   • lokal kosong              → pakai salinan akun.
+//   • lokal punya perubahan yang belum terunggah, atau belum pernah disinkronkan → GABUNGKAN keduanya (tanpa duplikat).
+//   • lokal bersih & salinan akun lebih baru (diubah dari perangkat lain) → pakai salinan akun.
+const TX_LS_KEY = 'umkm_transactions_v1', TX_REV_KEY = 'umkm_tx_rev', TX_DIRTY_KEY = 'umkm_tx_dirty';
+let _txTimer = null, _txApplying = false, _txVersion = 0, _txReadyFor = null, _txPulling = false;
+const txKey = (t) => [String(t.time || ''), String(t.type || ''), Number(t.amount) || 0, String(t.desc || ''), String(t.category || '')].join('|');
+function txMerge(a, b){
+  const seen = new Set(), out = [];
+  for(const t of [].concat(a || [], b || [])){
+    if(!t || typeof t !== 'object') continue;
+    const k = txKey(t);
+    if(seen.has(k)) continue;
+    seen.add(k); out.push(t);
+  }
+  out.sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
+  return out.slice(-3000);
 }
+function txCanSync(){ return !!(MY_UID && window.firebaseDb && window.rtdbRef && window.rtdbSet && window.rtdbGet); }
+function persistTransactions(){
+  try{ localStorage.setItem(TX_LS_KEY, JSON.stringify(transactions.slice(-3000))); }catch(e){}
+  if(_txApplying) return;
+  _txVersion++;
+  try{
+    // daftar kosong yang belum pernah disinkronkan tidak perlu dilindungi (jangan sampai menimpa salinan akun dengan kosong)
+    if(transactions.length > 0 || localStorage.getItem(TX_REV_KEY)) localStorage.setItem(TX_DIRTY_KEY, '1');
+  }catch(e){}
+  if(!txCanSync()) return;
+  if(_txReadyFor !== MY_UID){ txPull(); return; } // isi akun belum diketahui: tarik dulu, keputusan gabung/unggah diambil di sana
+  clearTimeout(_txTimer);
+  _txTimer = setTimeout(() => { txUpload(); }, 1500);
+}
+async function txUpload(){
+  clearTimeout(_txTimer); _txTimer = null;
+  if(!txCanSync()) return false;
+  const uid = MY_UID, ver = _txVersion, rev = Date.now();
+  let list = transactions.slice(-3000), payload = JSON.stringify(list);
+  while(payload.length > 1400000 && list.length > 1){ list = list.slice(Math.ceil(list.length * 0.1)); payload = JSON.stringify(list); } // batas aturan database 1,5 jt karakter: buang yang terlama
+  try{
+    await window.rtdbSet(window.rtdbRef(window.firebaseDb, 'transaksi/' + uid), { data: payload, rev: rev, updatedAt: rev });
+    if(MY_UID === uid){
+      localStorage.setItem(TX_REV_KEY, String(rev));
+      if(_txVersion === ver) localStorage.removeItem(TX_DIRTY_KEY); // ada perubahan baru selama mengunggah → tetap kotor
+    }
+    return true;
+  }catch(e){ console.warn('[Transaksi] gagal sinkron ke akun:', e && (e.code || e.message)); return false; }
+}
+function txApply(items, rev){
+  _txApplying = true;
+  try{
+    transactions = items.slice(-3000);
+    localStorage.setItem(TX_LS_KEY, JSON.stringify(transactions));
+    if(rev){ localStorage.setItem(TX_REV_KEY, String(rev)); localStorage.removeItem(TX_DIRTY_KEY); }
+    if(typeof renderTransactions === 'function') renderTransactions();
+    if(typeof onTransactionsChanged === 'function') onTransactionsChanged();
+  } finally { _txApplying = false; }
+}
+async function txPull(){
+  if(!txCanSync() || _txPulling) return;
+  const uid = MY_UID;
+  _txPulling = true;
+  try{
+    let cloud = null;
+    try{ cloud = (await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'transaksi/' + uid))).val(); }
+    catch(e){ console.warn('[Transaksi] gagal membaca riwayat akun:', e && (e.code || e.message)); return; } // offline/ditolak: biarkan data lokal apa adanya
+    if(MY_UID !== uid) return;
+    let items = null, cloudRev = 0;
+    if(cloud && typeof cloud.data === 'string'){
+      try{ const p = JSON.parse(cloud.data); if(Array.isArray(p)){ items = p.filter(x => x && typeof x === 'object'); cloudRev = Number(cloud.rev) || 0; } }catch(e){}
+    }
+    const localRev = Number(localStorage.getItem(TX_REV_KEY)) || 0;
+    const dirty = localStorage.getItem(TX_DIRTY_KEY) === '1';
+    _txReadyFor = uid; // mulai sini perubahan boleh diunggah
+    if(items === null){ if(transactions.length > 0) await txUpload(); return; }
+    if(dirty && transactions.length === 0 && localRev > 0){ await txUpload(); return; }   // sengaja dikosongkan di perangkat ini
+    if(transactions.length === 0){ txApply(items, cloudRev); return; }
+    if(dirty || localRev === 0){ txApply(txMerge(items, transactions), 0); await txUpload(); return; }
+    if(cloudRev > localRev) txApply(items, cloudRev);
+  } finally { _txPulling = false; }
+}
+async function txFlush(){ // dipanggil sebelum keluar akun / saat tab disembunyikan: unggah perubahan yang masih tertunda
+  if(!txCanSync() || _txReadyFor !== MY_UID) return;
+  if(_txTimer || localStorage.getItem(TX_DIRTY_KEY) === '1') await txUpload();
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden'){ try{ txFlush(); }catch(e){} } });
+/* TX-SYNC:END */
 let uploadedImageBase64 = null;
 let uploadedImageDataUrl = null;
 let lastGenerated = null;
@@ -4969,7 +5063,7 @@ function loadStokItems(){
   _stokUnsub = window.rtdbOnValue(
     window.rtdbRef(window.firebaseDb, `stokInventori/${MY_UID}`),
     (snap) => { const val = snap.val() || {}; stokItems = Object.entries(val).map(([id,v]) => ({id, ...v})); renderStokItems(); },
-    (err) => console.warn('[Inventori] gagal load:', err.message)
+    (err) => { _stokUnsub = null; console.warn('[Inventori] gagal load:', err.message); } // dilepas supaya dicoba lagi saat tab dibuka
   );
 }
 function renderStokItems(){
@@ -5008,7 +5102,7 @@ function loadPemasok(){
   _pemasokUnsub = window.rtdbOnValue(
     window.rtdbRef(window.firebaseDb, `pemasok/${MY_UID}`),
     (snap) => { const val = snap.val() || {}; pemasokList = Object.entries(val).map(([id,v]) => ({id, ...v})); renderPemasok(); },
-    (err) => console.warn('[Pemasok] gagal load:', err.message)
+    (err) => { _pemasokUnsub = null; console.warn('[Pemasok] gagal load:', err.message); }
   );
 }
 function renderPemasok(){
@@ -5044,7 +5138,7 @@ function loadAgentSettings(){
   _agentSettingsUnsub = window.rtdbOnValue(
     window.rtdbRef(window.firebaseDb, `agentSettings/${MY_UID}`),
     (snap) => { const v = snap.val() || {}; agentAutoDaily = !!v.autoDaily; if($('agenAutoDailyToggle')) $('agenAutoDailyToggle').checked = agentAutoDaily; },
-    (err) => console.warn('[AgentSettings] gagal load:', err.message)
+    (err) => { _agentSettingsUnsub = null; console.warn('[AgentSettings] gagal load:', err.message); }
   );
 }
 $('agenAutoDailyToggle')?.addEventListener('change', async (e) => {
@@ -5086,7 +5180,7 @@ function loadAgentDrafts(){
       agentDrafts.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
       renderAgentDrafts();
     },
-    (err) => console.warn('[AgentDrafts] gagal load:', err.message)
+    (err) => { _draftsUnsub = null; console.warn('[AgentDrafts] gagal load:', err.message); }
   );
 }
 async function saveAgentDraft(draft){
@@ -5171,7 +5265,7 @@ function loadAgentRuns(){
   _runsUnsub = window.rtdbOnValue(
     window.rtdbQuery(window.rtdbRef(window.firebaseDb, `agentRuns/${MY_UID}`), window.rtdbLimitToLast(10)),
     (snap) => { const val = snap.val() || {}; agentRuns = Object.entries(val).map(([id,v]) => ({id, ...v})).sort((a,b)=>(b.ts||0)-(a.ts||0)); renderAgentRuns(); },
-    (err) => console.warn('[AgentRuns] gagal load:', err.message)
+    (err) => { _runsUnsub = null; console.warn('[AgentRuns] gagal load:', err.message); }
   );
 }
 async function saveAgentRun(run){
@@ -5451,6 +5545,8 @@ document.querySelectorAll('.tab').forEach(tab => {
     $('panel-' + tab.dataset.panel).classList.add('active');
     if(tab.dataset.panel === 'dashboard') renderDashboard();
     if(tab.dataset.panel === 'tagihan') loadInvoices();
+    // Modul agen: pasang (atau pasang ulang) pendengar data akun yang sedang login. Aman dipanggil berulang (dijaga _xxxUnsub).
+    if(tab.dataset.panel === 'agen'){ loadStokItems(); loadPemasok(); loadAgentSettings(); loadAgentDrafts(); loadAgentRuns(); }
     if(tab.dataset.panel === 'finance'){
       $('transcriptPreview').textContent = '';
       $('transcriptPreview').classList.remove('show');

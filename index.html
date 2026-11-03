@@ -2211,6 +2211,29 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
 /* Aman dari layar sempit: grafik & teks kode tidak boleh melebihi lebar layar (sengaja sempit: tidak menyentuh gambar/peta/input) */
 canvas{ max-width:100%; }
 pre, code{ overflow-wrap:anywhere; }
+
+/* ===== FIX: layar Masuk/Daftar/OTP tidak terpotong (HP & laptop) =====
+   Sebelumnya overlay di-center secara vertikal tanpa scroll, jadi kalau form lebih tinggi
+   dari layar, bagian atas & bawahnya terpotong dan tidak bisa digeser. */
+.welcome-overlay{
+  align-items:flex-start;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  box-sizing:border-box;
+  padding:max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom));
+}
+.welcome-overlay > .welcome-box{ margin:auto; }   /* di tengah bila muat, mulai dari atas bila tidak muat */
+@media (max-width:480px){
+  .welcome-box{ padding:22px 16px; border-radius:18px; }
+  .welcome-box .wb-icon{ font-size:34px; margin-bottom:8px; }
+  .welcome-box p{ margin-bottom:16px; }
+}
+/* Tab Masuk/Daftar: sebelumnya keduanya sama-sama biru sehingga tidak kelihatan mana yang aktif */
+.welcome-box .auth-tab:not(.active){
+  background:transparent !important; color:var(--ink-soft, #9FB3C8) !important;
+}
+.welcome-box .auth-tab.active{ background:var(--teal) !important; }
 </style>
 </head>
 <body>

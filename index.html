@@ -26036,10 +26036,13 @@ html.bali-lite .nx-pulse,html.bali-lite .nx-dash,html.bali-lite .nx-clouds,html.
   if (window.BaliBG) return;
   const T = THREE, K = BaliKit;
   const LS_KEY = 'umkm_bali_bg';
-  const REDUCE = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // FIX HP: HP Android yang memakai Hemat Baterai / «Hapus animasi» melaporkan prefers-reduced-motion → dulu latar 3D hanya digambar SEKALI
+  // (tidak ada animasi, kios tidak pernah «tumbuh» sehingga tak terlihat). Sekarang tetap dianimasikan, hanya dengan fps lebih rendah.
+  const REDUCE_OS = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const REDUCE = false;
   const MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || Math.min(screen.width, screen.height) < 700;
   const LOW = MOBILE || (navigator.hardwareConcurrency || 4) <= 4 || !!(window.BaliFx && BaliFx.isLite());
-  const FPS = LOW ? 24 : 40;
+  const FPS = REDUCE_OS ? 16 : (LOW ? 24 : 40);
   let fpsNow = FPS, emaWork = 0, govAt = 0;   // pengatur beban: bila latar memakan >40% waktu thread utama, turunkan fps (min 12)
 
   let renderer = null, scene, camera, canvas, sky, skyMat, hemi, dir, ground, groundMat, ocean, oceanMat, sunSp, sunCore, sunRays, moonSp, moonCore, seaPath, shootSp, starsPts, petalPts, flyPts;

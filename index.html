@@ -7370,6 +7370,16 @@ setInterval(()=>{ if(window.firebaseReady) startGalleryListener(); },60000);
 let myProfile = {displayName:'', storeName:'', address:'', store2Name:'', store2Address:'', extraStores:[], accountTier:'free', email:'', holoColor:'245,184,61'};
 let myLocation = null;
 let allUsersCache = {}, allPresenceCache = {};
+// Nama tampilan yang selalu ada: nama → toko → bagian depan email → label umum
+function userLabel(u, uid){
+  u = u || {};
+  const n = (u.displayName || u.storeName || '').trim();
+  if(n) return n;
+  let em = u.email || '';
+  if(!em && uid && typeof MY_UID !== 'undefined' && uid === MY_UID && typeof currentAuthEmail !== 'undefined') em = currentAuthEmail || '';
+  if(em && em.indexOf('@') > 0) return em.split('@')[0];
+  return 'Pengguna baru';
+}
 
 // ============ HOLOGRAM AI: WARNA & FOTO (bisa diganti user, terlihat user lain) ============
 const HOLO_COLOR_PRESETS = [
@@ -9485,7 +9495,7 @@ async function doMapSearch(){
     // Toko ke-1
     if(name.includes(q) || store.includes(q) || addr.includes(q)){
       hits.push({
-        uid, label: u.storeName || u.displayName || '(Belum isi nama)',
+        uid, label: u.storeName || u.displayName || userLabel(u, uid),
         sub: u.address || (u.storeName ? u.displayName : ''),
         lat: u.storeCoords?.lat ?? null,
         lng: u.storeCoords?.lng ?? null,
@@ -9827,17 +9837,43 @@ document.addEventListener('click', async (e) => {
   }, 1200);
 });
 
+let _presUnsub = null, _presUid = null, _presConnected = false;
+function assertMyPresence(){
+  // Tulis ulang status "online" milikku (dipanggil saat connect, app dibuka lagi, atau online kembali)
+  if(!window.firebaseReady || !MY_UID || !_presConnected) return;
+  try{
+    const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
+    window.rtdbOnDisconnect(presenceRef).set({online:false, lastSeen:Date.now()});
+    window.rtdbSet(presenceRef, {online:true, lastSeen:Date.now()}).catch(()=>{});
+  }catch(e){}
+}
 function setupPresence(){
-  if(!window.firebaseReady) return;
-  const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
+  if(!window.firebaseReady || !MY_UID) return;
+  if(_presUid === MY_UID && _presUnsub) return;      // jangan pasang ganda
+  try{ _presUnsub && _presUnsub(); }catch(e){}
+  _presUid = MY_UID;
   const connectedRef = window.rtdbRef(window.firebaseDb, '.info/connected');
-  window.rtdbOnValue(connectedRef, (snap) => {
-    if(snap.val() === true){
-      window.rtdbOnDisconnect(presenceRef).set({online:false, lastSeen:Date.now()});
-      window.rtdbSet(presenceRef, {online:true, lastSeen:Date.now()});
-    }
+  _presUnsub = window.rtdbOnValue(connectedRef, (snap) => {
+    _presConnected = (snap.val() === true);
+    if(_presConnected) assertMyPresence();
   });
 }
+// App dibuka lagi / jaringan kembali → tegaskan online & segarkan daftar online orang lain
+(function presenceKeepAlive(){
+  async function pullPresence(){
+    if(!window.firebaseReady || !MY_UID || document.visibilityState!=='visible') return;
+    try{
+      const ps = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence'));
+      allPresenceCache = (ps && ps.val()) ? ps.val() : {};
+      if(typeof renderUserDirectory === 'function') renderUserDirectory();
+    }catch(e){}
+  }
+  function wake(){ try{ window.rtdbGoOnline && window.rtdbGoOnline(); }catch(e){} assertMyPresence(); pullPresence(); }
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') wake(); });
+  window.addEventListener('focus', wake);
+  window.addEventListener('online', wake);
+  setInterval(pullPresence, 45000); // jaring pengaman: ambil ulang daftar online tiap 45 dtk saat app terlihat
+})();
 // setupPresence() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
 
 // ===== UI Tier & Toko Tambahan =====
@@ -10399,7 +10435,7 @@ function populateLocPrivateUsers(){
     return;
   }
   wrap.innerHTML = others.map(([uid, u]) => {
-    const name = u.displayName || u.storeName || '(Belum isi nama)';
+    const name = userLabel(u, uid);
     const checked = locPrivateAllowedUIDs.has(uid) ? 'checked' : '';
     return '<label style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);cursor:pointer;">'+
       '<input type="checkbox" data-uid="'+uid+'" '+checked+' style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;">'+
@@ -10634,7 +10670,7 @@ function renderUserDirectory(){
   // ===== TAMPILKAN STATUS DIRI SENDIRI DI ATAS =====
   const myU = allUsersCache[MY_UID] || {};
   const myP = allPresenceCache[MY_UID] || {};
-  const myName = myU.displayName || myU.storeName || '(Belum isi nama)';
+  const myName = userLabel(myU, MY_UID);
   const mySelfDiv = document.getElementById('mySelfCard');
   if(mySelfDiv){
     const adminBadge = isAdmin ? ' <span style="background:var(--coral);color:white;font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;vertical-align:middle;">👑 Admin</span>' : '';
@@ -10671,7 +10707,7 @@ function renderUserDirectory(){
   });
   arr.sort((a,b) => (b.online?1:0)-(a.online?1:0));
   list.innerHTML = arr.map(u => {
-    const name = u.displayName || u.storeName || '(Belum isi nama)';
+    const name = userLabel(u, u.uid);
     const noName = !u.displayName && !u.storeName;
     // Admin hanya bisa hapus user LAIN, tidak bisa hapus dirinya sendiri
     const delBtn = (isAdmin && u.uid !== MY_UID)?`<button class="ud-admin-del" data-uid="${u.uid}" title="Hapus pengguna ini (Admin)">🗑️</button>`:'';
@@ -10716,7 +10752,9 @@ function startUserDirectoryListeners(){
   _udUid = MY_UID;
   const showDirError = (what) => (err) => {
     console.error('Direktori komunitas gagal membaca ' + what + ':', err);
-    _udUnsubUsers = null; // izinkan percobaan ulang saat login berikutnya
+    _udUnsubUsers = null; // izinkan percobaan ulang
+    clearTimeout(window._udRetryTimer);
+    window._udRetryTimer = setTimeout(function(){ try{ startUserDirectoryListeners(); }catch(e){} }, 3000); // pasang ulang otomatis (users + presence)
     const el = $('userDirectory');
     if(el && !Object.keys(allUsersCache||{}).length){
       el.innerHTML = '<div class="empty-state">Daftar komunitas gagal dimuat (' + escapeHtml(String(err && (err.code || err.message) || 'error')) + '). Muat ulang halaman atau login ulang.</div>';
@@ -10996,16 +11034,22 @@ function renderAdminUserList(){
   section.style.display = 'block';
   const container = document.getElementById('adminUserList');
   if(!container) return;
-  const entries = Object.entries(allUsersCache);
+  // Gabungkan akun di /users dengan akun yang hanya punya data presence (belum isi nama / node users belum ada)
+  const _adminIds = new Set([...Object.keys(allUsersCache), ...Object.keys(allPresenceCache)]);
+  const entries = [..._adminIds].map(uid => [uid, allUsersCache[uid] || {}]);
   if(entries.length === 0){
     container.innerHTML = '<div class="empty-state">Belum ada pengguna terdaftar.</div>';
     return;
   }
-  // Urutkan: diri sendiri di atas, sisanya urut nama
-  entries.sort(([aUid],[bUid]) => (aUid===MY_UID?-1:bUid===MY_UID?1:0));
+  // Urutkan: diri sendiri di atas, lalu yang online, sisanya mengikuti urutan
+  entries.sort(([aUid],[bUid]) => {
+    if(aUid===MY_UID) return -1; if(bUid===MY_UID) return 1;
+    const ao = (allPresenceCache[aUid]||{}).online?1:0, bo = (allPresenceCache[bUid]||{}).online?1:0;
+    return bo-ao;
+  });
   container.innerHTML = entries.map(([uid, u]) => {
     const isSelf = uid === MY_UID;
-    const name = escapeHtml(u.displayName || u.storeName || '(Belum isi nama)');
+    const name = escapeHtml(userLabel(u, uid));
     const email = escapeHtml(u.email || '(email tidak tersedia)');
     const p = allPresenceCache[uid] || {};
     const online = !!p.online;
@@ -11330,7 +11374,7 @@ $('startLiveBtn').addEventListener('click', async () => {
     try{
       const newRef=window.rtdbPush(window.rtdbRef(window.firebaseDb,'liveSessions'));
       liveSessionId=newRef.key;
-      const hostName=(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM';
+      const hostName=(myProfile && (myProfile.storeName||myProfile.displayName)) || userLabel({email:(typeof currentAuthEmail!=='undefined'?currentAuthEmail:'')}, MY_UID);
       await window.rtdbSet(newRef,{
         hostUid:MY_UID, hostName, sessionName:name,
         productInfo:$('liveProductInfo').value.trim(),
@@ -11442,7 +11486,7 @@ function populateCollabInviteSelect(){
     const u = allUsersCache[uid] || {};
     const p = allPresenceCache[uid] || {};
     if(!p.online) return; // hanya tawarkan yang online
-    const name = u.displayName || u.storeName || uid;
+    const name = userLabel(u, uid);
     opts.push(`<option value="${escapeAttr(uid)}">${escapeHtml(name)}</option>`);
   });
   sel.innerHTML = opts.join('');
@@ -11453,7 +11497,7 @@ $('collabInviteBtn').addEventListener('click', async () => {
   if(!targetUid){ alert('Pilih pengguna yang mau diundang dulu.'); return; }
   if(!liveSessionId){ alert('Mulai sesi live dulu sebelum mengundang co-host.'); return; }
   try{
-    const hostName=(myProfile && (myProfile.storeName||myProfile.displayName)) || 'UMKM';
+    const hostName=(myProfile && (myProfile.storeName||myProfile.displayName)) || userLabel({email:(typeof currentAuthEmail!=='undefined'?currentAuthEmail:'')}, MY_UID);
     await window.rtdbSet(window.rtdbRef(window.firebaseDb, `collabInvites/${targetUid}/${liveSessionId}`), {
       sessionId: liveSessionId, hostUid: MY_UID, hostName, invitedAt: Date.now()
     });

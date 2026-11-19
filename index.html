@@ -4344,6 +4344,16 @@ pre, code{ overflow-wrap:anywhere; }
       <div class="auth-error" id="authError"></div>
       <button id="authSubmitBtn">Masuk</button>
       <button type="button" id="forgotPasswordBtn" style="margin-top:10px;background:none;border:none;color:var(--teal);font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;">Lupa password?</button>
+      <div id="resetBox" style="display:none;margin-top:12px;padding:14px;border:1px solid var(--line);border-radius:14px;text-align:left;background:rgba(255,255,255,.05);">
+        <div style="font-weight:800;font-size:13.5px;">🔑 Reset password</div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin:4px 0 10px;line-height:1.5;">Masukkan email akunmu. Kami kirim link untuk membuat password baru.</div>
+        <input type="email" id="resetEmailInput" placeholder="Email akun kamu" autocomplete="email" style="width:100%;box-sizing:border-box;margin:0;">
+        <div id="resetMsg" role="status" style="font-size:12px;line-height:1.5;margin-top:8px;min-height:16px;"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button type="button" id="resetSendBtn" style="flex:1;">Kirim link reset</button>
+          <button type="button" id="resetCancelBtn" style="flex:0 0 auto;background:transparent;border:1px solid var(--line);color:var(--ink-soft);">Batal</button>
+        </div>
+      </div>
     </div>
 
     <!-- Step 2: OTP verifikasi (muncul setelah daftar) -->
@@ -4819,26 +4829,39 @@ $a('authLogoutBtn').addEventListener('click', async () => {
   try{ await window.fbSignOut(window.fbAuth); } catch(e){}
 });
 
-$a('forgotPasswordBtn').addEventListener('click', async () => {
-  $a('authError').textContent = '';
-  if(!window.firebaseReady){ $a('authError').textContent = 'Firebase belum dikonfigurasi, reset password tidak bisa dipakai.'; return; }
-  const email = $a('authEmailInput').value.trim();
-  if(!email){ $a('authError').textContent = 'Isi dulu email kamu di kotak email di atas, baru klik "Lupa password?".'; return; }
-  const oldLabel = $a('forgotPasswordBtn').textContent;
-  $a('forgotPasswordBtn').disabled = true;
-  $a('forgotPasswordBtn').textContent = 'Mengirim email...';
-  try{
-    await window.fbSendPasswordReset(window.fbAuth, email);
-    $a('authError').style.color = 'var(--good)';
-    $a('authError').textContent = `✅ Link reset password sudah dikirim ke ${email}. Cek inbox (atau folder spam) lalu ikuti link-nya untuk buat password baru.`;
-  } catch(err){
-    $a('authError').style.color = '';
-    $a('authError').textContent = translateAuthError(err.code) || ('Gagal mengirim email reset: ' + err.message);
-  } finally {
-    $a('forgotPasswordBtn').disabled = false;
-    $a('forgotPasswordBtn').textContent = oldLabel;
+// ---- Lupa password: kotak reset di dalam form login ----
+(function(){
+  const box=$a('resetBox'), msg=$a('resetMsg'), send=$a('resetSendBtn'), inp=$a('resetEmailInput');
+  let cooldown=0, timer=null;
+  function say(t, ok){ msg.style.color = ok ? 'var(--good)' : '#ff8a7a'; msg.textContent = t; }
+  function tickCd(){
+    if(cooldown>0){ send.disabled=true; send.textContent='Kirim ulang ('+cooldown+'d)'; cooldown--; timer=setTimeout(tickCd,1000); }
+    else { send.disabled=false; send.textContent='Kirim link reset'; }
   }
-});
+  $a('forgotPasswordBtn').addEventListener('click', () => {
+    $a('authError').textContent='';
+    const open = box.style.display==='none';
+    box.style.display = open ? 'block' : 'none';
+    if(open){ inp.value = $a('authEmailInput').value.trim(); say('',true); setTimeout(()=>{ try{inp.focus();}catch(e){} },50); }
+  });
+  $a('resetCancelBtn').addEventListener('click', () => { box.style.display='none'; });
+  send.addEventListener('click', async () => {
+    const email = inp.value.trim();
+    if(!window.firebaseReady){ say('Layanan login belum siap, coba refresh halaman.', false); return; }
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ say('Isi email yang valid dulu ya.', false); return; }
+    send.disabled=true; send.textContent='Mengirim...'; say('',true);
+    try{
+      try{ window.fbAuth.languageCode='id'; }catch(e){}
+      await window.fbSendPasswordReset(window.fbAuth, email);
+      say('✅ Jika '+email+' terdaftar, link reset password sudah dikirim. Cek inbox dan folder spam, lalu ikuti link-nya untuk membuat password baru.', true);
+      cooldown=60; tickCd();
+    } catch(err){
+      say(translateAuthError(err.code) || ('Gagal mengirim email reset: '+err.message), false);
+      send.disabled=false; send.textContent='Kirim link reset';
+    }
+  });
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); send.click(); } });
+})();
 
 // Disebut oleh initAuthGate (user belum login) DAN oleh closeSplash / seenSplash path.
 // Hanya menampilkan authOverlay jika splash sudah selesai.
@@ -27102,6 +27125,12 @@ html.bali-gate #dockPane{display:none !important;}
 .splash-flagbar i:last-child{background:#fff;}
 .splash-hero p{max-width:340px !important;color:rgba(255,255,255,.72) !important;}
 .splash-hero h1 .bali-edition{font-size:.42em;vertical-align:middle;}
+/* Form login: placeholder simetris, ikon mata tepat di tengah, link "Lupa password?" kuning terbaca */
+#authOverlay .welcome-box #authEmailInput,#authOverlay .welcome-box #authPasswordInput,#authOverlay .welcome-box #authPasswordConfirm{padding-left:52px !important;padding-right:52px !important;text-align:center;box-sizing:border-box;}
+#authOverlay .welcome-box #authPasswordInput,#authOverlay .welcome-box #authPasswordConfirm{margin-bottom:0 !important;display:block;}
+#authPasswordConfirmWrap,#authPasswordInput{margin-top:0;}
+#togglePasswordBtn,#togglePasswordConfirmBtn{top:0 !important;bottom:0 !important;height:100% !important;padding:0 !important;line-height:1 !important;margin:0 !important;background:none !important;box-shadow:none !important;}
+#authOverlay .welcome-box #forgotPasswordBtn{width:auto !important;background:none !important;border:0 !important;box-shadow:none !important;color:#FFD36B !important;font-size:13.5px !important;font-weight:700 !important;text-decoration:underline;text-underline-offset:3px;padding:8px 12px !important;margin-top:8px !important;opacity:1 !important;}
 .splash-overlay > svg.splash-scene,#authOverlay > svg.splash-scene{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(1800px,max(100vw,820px));height:auto;z-index:0;pointer-events:none;}
 </style>
 </body>

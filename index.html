@@ -363,6 +363,22 @@
         try { p.then(function (snap) { FBC.putSnap(q, snap); }, function () {}); } catch (e) {}
         return p;
       };
+      // get() satu kali bisa gagal ("Client is offline" / jaringan HP lambat) tepat setelah deploy atau saat app baru dibuka,
+      // dan SDK TIDAK mengulanginya sendiri (beda dengan onValue). Versi ini mencoba ulang otomatis: 1,5 → 3 → 6 → 12 → 24 dtk.
+      // Penolakan aturan database (permission_denied) tidak diulang karena percuma.
+      window.rtdbGetRetry = async function (q, tries) {
+        tries = tries || 5; let lastErr;
+        for (let i = 0; i < tries; i++) {
+          try { return await window.rtdbGet(q); }
+          catch (e) {
+            lastErr = e;
+            if (/permission[_ -]?denied/i.test(String((e && (e.code || e.message)) || ''))) throw e;
+            try { goOnline(db); } catch (e2) {}
+            await new Promise(function (r) { setTimeout(r, 1500 * Math.pow(2, i)); });
+          }
+        }
+        throw lastErr;
+      };
       window.rtdbQuery = query;
       window.rtdbOrderByChild = orderByChild;
       window.rtdbLimitToLast = limitToLast;
@@ -5368,14 +5384,27 @@ function txApply(items, rev){
     if(typeof onTransactionsChanged === 'function') onTransactionsChanged();
   } finally { _txApplying = false; }
 }
+// Jadwal coba-ulang otomatis kalau tarikan data akun gagal (jaringan lambat / offline sesaat): 3,6,12,24,48 lalu tiap 60 dtk
+// selama akun masih login & belum berhasil. Dulu gagal sekali = diam selamanya sampai user hapus data situs.
+let _txRetryN = 0, _txRetryTimer = null;
+function txScheduleRetry(){
+  if(_txRetryTimer || !MY_UID) return;
+  const wait = Math.min(60000, 3000 * Math.pow(2, _txRetryN++));
+  _txRetryTimer = setTimeout(() => { _txRetryTimer = null; if(MY_UID && _txReadyFor !== MY_UID) txPull(); }, wait);
+}
 async function txPull(){
   if(!txCanSync() || _txPulling) return;
   const uid = MY_UID;
   _txPulling = true;
   try{
     let cloud = null;
-    try{ cloud = (await window.rtdbGet(window.rtdbRef(window.firebaseDb, 'transaksi/' + uid))).val(); }
-    catch(e){ console.warn('[Transaksi] gagal membaca riwayat akun:', e && (e.code || e.message)); return; } // offline/ditolak: biarkan data lokal apa adanya
+    try{ cloud = (await (window.rtdbGetRetry || window.rtdbGet)(window.rtdbRef(window.firebaseDb, 'transaksi/' + uid))).val(); }
+    catch(e){ // offline/ditolak: biarkan data lokal apa adanya, tapi JANGAN menyerah — coba lagi otomatis
+      console.warn('[Transaksi] gagal membaca riwayat akun:', e && (e.code || e.message));
+      if(!/permission[_ -]?denied/i.test(String((e && (e.code || e.message)) || ''))) txScheduleRetry();
+      return;
+    }
+    _txRetryN = 0;
     if(MY_UID !== uid) return;
     let items = null, cloudRev = 0;
     if(cloud && typeof cloud.data === 'string'){
@@ -5396,13 +5425,26 @@ async function txFlush(){ // dipanggil sebelum keluar akun / saat tab disembunyi
   if(_txTimer || localStorage.getItem(TX_DIRTY_KEY) === '1') await txUpload();
 }
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden'){ try{ txFlush(); }catch(e){} } });
+// Pemulihan otomatis: kalau tarikan data akun (transaksi / profil) belum berhasil, coba lagi begitu internet kembali atau app dibuka lagi.
+let _syncHealAt = 0;
+function syncHealNow(){
+  if(!MY_UID || Date.now() - _syncHealAt < 4000) return;
+  _syncHealAt = Date.now();
+  try{ if(window.rtdbGoOnline) window.rtdbGoOnline(); }catch(e){}
+  if(_txReadyFor !== MY_UID){ clearTimeout(_txRetryTimer); _txRetryTimer = null; txPull(); }
+  try{ if(typeof loadMyProfile === 'function' && loadMyProfile._ok === false) loadMyProfile(); }catch(e){}
+}
+window.addEventListener('online', syncHealNow);
+window.addEventListener('focus', syncHealNow);
+window.addEventListener('pageshow', syncHealNow);
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') syncHealNow(); });
 /* TX-SYNC:END */
 
 /* DIAG:BEGIN */
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-11-19.3';
+const APP_BUILD = '2026-11-19.4';
 // ===== TOMBOL REFRESH: bersihkan cache file aplikasi lalu muat ulang versi terbaru =====
 // Login Firebase & data akun TIDAK dihapus (disimpan di IndexedDB), jadi user tetap masuk.
 (function setupRefreshButton(){
@@ -5532,6 +5574,7 @@ const APP_BUILD = '2026-11-19.3';
     lines.push('Email login  : ' + email);
     lines.push('UID          : ' + (MY_UID || '(kosong)'));
     lines.push('Firebase     : ' + ((window.firebaseDb && window.rtdbGet) ? 'siap' : 'BELUM siap'));
+    try{ lines.push('Sinkron akun  : ' + (_txReadyFor === MY_UID && MY_UID ? 'siap' : 'BELUM (dicoba ulang otomatis)') + ' · profil ' + (loadMyProfile._ok ? 'termuat' : 'BELUM termuat')); }catch(e){}
     const nodes = [['profil', 'users/'], ['tagihan', 'invoices/'], ['stok', 'stokInventori/'], ['pemasok', 'pemasok/'],
                    ['draf agen', 'agentDrafts/'], ['riwayat robot', 'agentRuns/'], ['transaksi', 'transaksi/'], ['poin game', 'gameData/']];
     if(MY_UID && window.firebaseDb && window.rtdbGet){
@@ -10185,6 +10228,7 @@ function goAddStoreFromMap(){
 }
 
 async function loadMyProfile(_pre){
+  if(!_pre) loadMyProfile._ok = false; // true setelah profil berhasil dibaca (dipakai pemulih otomatis syncHealNow)
   // Restore nama dari localStorage dulu sebagai fallback cepat
   try{
     const localName = localStorage.getItem('umkm_display_name');
@@ -10202,13 +10246,14 @@ async function loadMyProfile(_pre){
       loadMyProfile._done = true;
       if(_cached){
         snap = _cached;
-        window.rtdbGet(_pRef).then(fresh=>{ try{ window.fbCachePut && window.fbCachePut(_pRef, fresh); }catch(e){} loadMyProfile(fresh); }).catch(()=>{});
+        (window.rtdbGetRetry || window.rtdbGet)(_pRef).then(fresh=>{ try{ window.fbCachePut && window.fbCachePut(_pRef, fresh); }catch(e){} loadMyProfile(fresh); }).catch(()=>{});
       } else {
-        snap = await window.rtdbGet(_pRef);
+        snap = await (window.rtdbGetRetry || window.rtdbGet)(_pRef);
         try{ window.fbCachePut && window.fbCachePut(_pRef, snap); }catch(e){}
       }
     }
     const d = snap.val();
+    loadMyProfile._ok = true; loadMyProfile._retryN = 0;
     if(d){
       myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||'', holoColor:d.holoColor||'245,184,61', recapWa:d.recapWa||'', recapHour:(d.recapHour!==undefined&&d.recapHour!==null)?d.recapHour:21};
       $('profDisplayName').value = myProfile.displayName;
@@ -10248,7 +10293,14 @@ async function loadMyProfile(_pre){
       allUsersCache[MY_UID].holoColor = myProfile.holoColor;
       allUsersCache[MY_UID].profilePhotoUrl = myProfile.profilePhotoUrl;
     }
-  } catch(e){ console.error('Gagal memuat profil:', e); }
+  } catch(e){
+    console.error('Gagal memuat profil:', e);
+    // gagal baca profil dari server → jadwalkan coba lagi otomatis (maks. 5x: 4,8,12,16,20 dtk); setelah itu syncHealNow yang melanjutkan
+    if(!_pre && MY_UID && !/permission[_ -]?denied/i.test(String((e && (e.code || e.message)) || '')) && (loadMyProfile._retryN = (loadMyProfile._retryN || 0) + 1) <= 5){
+      clearTimeout(loadMyProfile._retryT);
+      loadMyProfile._retryT = setTimeout(() => { try{ loadMyProfile(); }catch(e2){} }, 4000 * loadMyProfile._retryN);
+    }
+  }
   if(typeof applyHeroHolo === 'function') applyHeroHolo();
   try{ if(typeof assertMyPresence === 'function') assertMyPresence(); }catch(e){}
   loadMyMidtransBadge();

@@ -126,7 +126,7 @@
   //    posisi kurir) SENGAJA tidak di-cache. Cek isinya: ketik fbCacheStats() di Console.
   // ==========================================================================================
   const FBC = (function () {
-    const VERSION = 'v2';                 // naikkan kalau struktur data berubah → cache lama otomatis tidak dipakai
+    const VERSION = 'v3';                 // naikkan kalau struktur data berubah → cache lama otomatis tidak dipakai
     const TTL_MS = 30 * 24 * 3600 * 1000; // cache > 30 hari dibuang
     const DB_NAME = 'umkm_fb_cache', STORE = 'snap';
     const PUBLIC = /^\/(gallery|liveVideos|pasarKongsi|rewards)$/;
@@ -398,7 +398,7 @@
       let _hardRcAt = 0;
       window.rtdbHardReconnect = function (why) {
         const now = Date.now();
-        if (now - _hardRcAt < 30000) return;          // jangan putus-sambung terus-menerus (jaringan HP lambat butuh waktu menyelesaikan handshake)
+        if (now - _hardRcAt < 15000) return;          // jangan putus-sambung terus-menerus
         _hardRcAt = now;
         console.warn('[RTDB] sambung ulang paksa:', why || '');
         try { goOffline(db); } catch (e) {}
@@ -416,6 +416,24 @@
           try { update(ref(db, 'presence/' + uid), { lastSeen: Date.now() }).then(function () { fin(true); }, function () { fin(true); }); }
           catch (e) { fin(true); }
         });
+      };
+      // ── PEMANTAU KONEKSI & TOKEN (self-heal) ──
+      // .info/connected = status socket RTDB yang SEBENARNYA. Dipakai watchdog untuk tahu kapan harus sambung ulang paksa.
+      window._rtdbConnected = false; window._rtdbConnectedAt = 0;
+      try {
+        onValue(ref(db, '.info/connected'), function (s) {
+          window._rtdbConnected = s.val() === true;
+          if (window._rtdbConnected) window._rtdbConnectedAt = Date.now();
+          document.dispatchEvent(new CustomEvent('rtdb-connection', { detail: { connected: window._rtdbConnected } }));
+        });
+      } catch (e) {}
+      // Tunggu sesi login selesai dipulihkan dari IndexedDB (supaya tidak salah mengira "belum login")
+      window.fbAuthReady = (auth.authStateReady ? auth.authStateReady() : Promise.resolve()).catch(function () {});
+      // Paksa token baru dari server. Token lama/rusak di perangkat inilah yang biasanya membuat data "tidak kecatch"
+      // sampai user hapus data situs & login ulang — sekarang dipulihkan otomatis.
+      window.fbRefreshToken = async function (force) {
+        const u = auth.currentUser; if (!u) return null;
+        return u.getIdToken(force !== false);
       };
       window.storageRef = storageRef;
       window.storageUploadBytes = uploadBytes;
@@ -5194,6 +5212,149 @@ function splashDone(){
   }
 }
 
+
+// =====================================================================================================
+//  SELF-HEAL FIREBASE  (pengganti "hapus riwayat situs lalu login ulang" yang dulu dilakukan manual)
+//  Penyebab umum data akun "hilang / tidak kecatch" setelah deploy:
+//   (a) token login yang tersimpan di perangkat sudah basi/rusak → database menolak/membisu, tapi UI mengira sudah login;
+//   (b) socket WebSocket setengah putus (zombie) setelah reload;
+//   (c) profil tampil dari cache lokal sehingga sistem mengira "sudah OK" padahal server tidak pernah menjawab.
+//  Yang dilakukan di sini, otomatis: segarkan token → sambung ulang paksa → pasang ulang semua listener → muat ulang profil,
+//  lalu bila masih gagal tampilkan tombol "Perbaiki" (reset ringan: cache file + cache data dibersihkan, LOGIN TETAP).
+// =====================================================================================================
+const _HEAL = { running:false, last:0, tries:0, wd:[], uid:null };
+const _BAD_TOKEN = /user-token-expired|invalid-user-token|user-disabled|user-not-found|invalid-credential|requires-recent-login|id-token-revoked/i;
+
+function healthSummary(){
+  const u = window.fbAuth && window.fbAuth.currentUser;
+  return {
+    login: !!u,
+    socket: window._rtdbConnected === true,
+    profilServer: loadMyProfile._fresh === true,
+    userDirectory: Object.keys(allUsersCache||{}).length
+  };
+}
+function isHealthy(){
+  const h = healthSummary();
+  return h.login && h.socket && h.profilServer && h.userDirectory > 0;
+}
+
+async function selfHealNow(reason){
+  if(!MY_UID || !window.firebaseReady) return false;
+  if(_HEAL.running) return false;
+  if(Date.now() - _HEAL.last < 6000) return false;       // jangan menghantam server terus-menerus
+  _HEAL.running = true; _HEAL.last = Date.now(); _HEAL.tries++;
+  console.warn('[SelfHeal] mulai pemulihan #' + _HEAL.tries + ' — ' + (reason||''), healthSummary());
+  try{
+    // 1) Token: paksa baru dari server. Token yang benar-benar ditolak → sesi tak bisa dipulihkan → logout bersih (user cukup login sekali).
+    try{
+      if(window.fbRefreshToken) await window.fbRefreshToken(true);
+    }catch(e){
+      const code = String((e && (e.code || e.message)) || '');
+      if(_BAD_TOKEN.test(code)){
+        console.warn('[SelfHeal] sesi login tidak valid lagi → keluar bersih:', code);
+        try{ FBC_clearSafe(); }catch(_){}
+        try{ await window.fbSignOut(window.fbAuth); }catch(_){}
+        try{
+          const er = document.getElementById('authError');
+          if(er){ er.style.color = 'var(--bad)'; er.textContent = 'Sesi login kedaluwarsa. Silakan masuk lagi — datamu aman di server.'; }
+        }catch(_){}
+        return false;
+      }
+      // error jaringan biasa (network-request-failed, dll.) → lanjut coba langkah berikutnya
+    }
+    // 2) Sambung ulang socket
+    try{ window.rtdbGoOnline && window.rtdbGoOnline(); }catch(e){}
+    if(window._rtdbConnected !== true){ try{ window.rtdbHardReconnect && window.rtdbHardReconnect(reason || 'self-heal'); }catch(e){} }
+    else { try{ if(window.ensureLinkAlive){ _linkChkAt = 0; await window.ensureLinkAlive('self-heal'); } }catch(e){} }
+    // 3) Pasang ulang listener yang mungkin sudah dibatalkan Firebase (permission_denied saat token basi)
+    try{ if(_udUnsubUsers){ [_udUnsubUsers,_udUnsubPresence,_udUnsubTier].forEach(fn=>{ try{ typeof fn==='function' && fn(); }catch(e){} }); } _udUnsubUsers=_udUnsubPresence=_udUnsubTier=null; _udUid=null; startUserDirectoryListeners(); }catch(e){ console.warn(e); }
+    try{ _liveWatchUnsub && _liveWatchUnsub(); _liveWatchUnsub = null; startGlobalLiveWatcher(); }catch(e){}
+    try{ if(sessionListenerBound){ sessionListenerBound = false; } const w = document.getElementById('liveWatchMode'); if(w && w.style.display !== 'none') startSessionListListener(); }catch(e){}
+    try{ setupCollabInviteListener && setupCollabInviteListener(); }catch(e){}
+    // 4) Muat ulang profil & transaksi dari server
+    try{ loadMyProfile(); }catch(e){}
+    try{ if(typeof txPull === 'function') { _txReadyFor = null; txPull(); } }catch(e){}
+    try{ if(typeof pullDirectoryFresh === 'function') pullDirectoryFresh(true); }catch(e){}
+    return true;
+  }finally{
+    setTimeout(()=>{ _HEAL.running = false; }, 1500);
+  }
+}
+window.selfHealNow = selfHealNow;
+function FBC_clearSafe(){ try{ window.fbCacheClear && window.fbCacheClear(); }catch(e){} }
+
+// Reset ringan: buang cache file + cache data + service worker, TAPI login (IndexedDB Auth) dipertahankan.
+async function softResetKeepLogin(){
+  try{ FBC_clearSafe(); }catch(e){}
+  try{ if('serviceWorker' in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.unregister().catch(()=>{}))); } }catch(e){}
+  try{ if(window.caches){ const ks = await caches.keys(); await Promise.all(ks.map(k => caches.delete(k))); } }catch(e){}
+  try{ window.rtdbGoOffline && window.rtdbGoOffline(); }catch(e){}
+  await new Promise(r => setTimeout(r, 500));
+  const u = new URL(location.href); u.searchParams.set('_r', Date.now()); location.replace(u.toString());
+}
+window.softResetKeepLogin = softResetKeepLogin;
+
+function showHealBanner(){
+  if(document.getElementById('healBanner')) return;
+  const b = document.createElement('div');
+  b.id = 'healBanner';
+  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:100000;max-width:min(92vw,460px);background:#2b1236;color:#fff;border:1px solid #e0b24a;border-radius:14px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.5);font:600 13px/1.4 system-ui,sans-serif;display:flex;gap:10px;align-items:center;';
+  b.innerHTML = '<span style="flex:1">⚠️ Data akunmu belum tersambung ke server.</span>'
+    + '<button type="button" id="healBtnFix" style="background:#f5b942;color:#2b1236;border:0;border-radius:10px;padding:8px 12px;font-weight:800;cursor:pointer">Perbaiki</button>'
+    + '<button type="button" id="healBtnX" aria-label="Tutup" style="background:transparent;color:#fff;border:0;font-size:18px;cursor:pointer">×</button>';
+  document.body.appendChild(b);
+  document.getElementById('healBtnFix').onclick = async () => {
+    const t = document.getElementById('healBtnFix'); t.disabled = true; t.textContent = 'Memperbaiki…';
+    _HEAL.last = 0; const ok = await selfHealNow('tombol perbaiki');
+    setTimeout(()=>{ if(isHealthy()){ b.remove(); } else { softResetKeepLogin(); } }, 6000);
+  };
+  document.getElementById('healBtnX').onclick = () => b.remove();
+}
+function hideHealBanner(){ const b = document.getElementById('healBanner'); if(b) b.remove(); }
+
+// Dipanggil setiap kali user login / sesi dipulihkan: jadwalkan pemeriksaan kesehatan bertahap.
+function startSelfHealWatchdog(user){
+  if(_HEAL.uid === user.uid && _HEAL.wd.length) return;
+  _HEAL.uid = user.uid; _HEAL.tries = 0;
+  _HEAL.wd.forEach(clearTimeout); _HEAL.wd = [];
+  // Token dicek lebih dulu di belakang layar (tidak memblokir UI)
+  (async()=>{
+    try{ if(window.fbAuthReady) await window.fbAuthReady; }catch(e){}
+    try{ await user.getIdToken(true); }
+    catch(e){
+      const code = String((e && (e.code || e.message)) || '');
+      if(_BAD_TOKEN.test(code)) selfHealNow('token ditolak saat pemulihan sesi');
+    }
+  })();
+  [7000, 18000, 35000, 60000].forEach((ms, i) => {
+    _HEAL.wd.push(setTimeout(async () => {
+      if(!MY_UID || MY_UID !== user.uid) return;
+      if(isHealthy()){ hideHealBanner(); return; }
+      await selfHealNow('watchdog ' + (ms/1000) + ' dtk');
+      if(i >= 2){ setTimeout(()=>{ if(!isHealthy()) showHealBanner(); else hideHealBanner(); }, 6000); }
+    }, ms));
+  });
+}
+// Setelah koneksi pulih di tengah jalan, pastikan semua data ikut terisi
+document.addEventListener('rtdb-connection', (ev) => {
+  try{
+    if(ev.detail && ev.detail.connected){
+      if(MY_UID && (loadMyProfile._fresh !== true || !Object.keys(allUsersCache||{}).length)) setTimeout(()=>{ _HEAL.last = 0; selfHealNow('socket tersambung, data belum lengkap'); }, 1200);
+      else hideHealBanner();
+    }
+  }catch(e){}
+});
+// Socket mati > 12 dtk saat internet ada → sambung ulang paksa
+setInterval(() => {
+  try{
+    if(!MY_UID || document.visibilityState !== 'visible' || !navigator.onLine) return;
+    if(window._rtdbConnected !== true && Date.now() - (window._rtdbConnectedAt || 0) > 12000 && window.rtdbHardReconnect) window.rtdbHardReconnect('socket mati >12 dtk');
+  }catch(e){}
+}, 6000);
+// Diagnosis cepat dari Console: ketik fbHealth()
+window.fbHealth = function(){ const h = healthSummary(); console.table(h); return h; };
+
 function initAuthGate(){
   let _lastAuthUid = null;
   window.fbOnAuthStateChanged(window.fbAuth, async (user) => {
@@ -5249,6 +5410,7 @@ function initAuthGate(){
         }).catch(()=>{});
       }
 
+      try{ startSelfHealWatchdog(user); }catch(e){ console.warn('[SelfHeal]', e); }
       $a('authOverlay').classList.add('hidden');
       if(typeof speakWelcomeGreeting === 'function') speakWelcomeGreeting();
       $a('authUserEmail').textContent = currentAuthEmail + (isAdmin ? ' · 👑 Admin' : '');
@@ -5266,7 +5428,7 @@ function initAuthGate(){
         const _profP = loadMyProfile();
         await Promise.race([_profP, new Promise(r => setTimeout(r, 2500))]);
         // Watchdog: kalau profil belum terbaca setelah 6 dtk / 15 dtk → uji socket, sambung ulang paksa bila zombie, lalu coba lagi
-        [6000, 15000, 35000].forEach(ms => setTimeout(() => {
+        [6000, 15000].forEach(ms => setTimeout(() => {
           try{ if(MY_UID && loadMyProfile._ok === false){ if(window.ensureLinkAlive){ _linkChkAt = 0; window.ensureLinkAlive('profil belum terbaca'); } loadMyProfile(); } }catch(e){}
         }, ms));
       }
@@ -10034,7 +10196,6 @@ document.addEventListener('click', async (e) => {
 });
 
 let _presUnsub = null, _presUid = null, _presConnected = false, _healAt = 0, _healTimer = null;
-let _discSince = Date.now(), _linkFail = 0;   // sejak kapan SDK melaporkan terputus; jumlah uji-hidup beruntun yang gagal
 function healMyPresence(){
   // Status online saya bisa hilang/jadi offline sendiri (tab lain ditutup, admin menghapus node, koneksi putus-sambung).
   // Kalau terdeteksi saat masih terhubung, tulis ulang — tanpa polling, hanya bereaksi saat data presence berubah.
@@ -10119,8 +10280,7 @@ function setupPresence(){
   const connectedRef = window.rtdbRef(window.firebaseDb, '.info/connected');
   _presUnsub = window.rtdbOnValue(connectedRef, (snap) => {
     _presConnected = (snap.val() === true);
-    if(_presConnected){ _discSince = 0; _presCid = _newPresCid(); assertMyPresence(); } // koneksi baru → id baru
-    else if(!_discSince){ _discSince = Date.now(); }
+    if(_presConnected){ _presCid = _newPresCid(); assertMyPresence(); } // koneksi baru → id baru
   });
 }
 // ===== DIREKTORI ANTI-MACET =====
@@ -10183,18 +10343,8 @@ async function ensureLinkAlive(reason){
   try{
     if(!window.firebaseReady || !MY_UID || !window.rtdbProbe || !navigator.onLine) return;
     if(Date.now() - _linkChkAt < 8000) return; _linkChkAt = Date.now();
-    if(!_presConnected){
-      // SDK sendiri tahu sedang terputus dan SEDANG mencoba menyambung. Jangan putus-sambung lagi: itu membatalkan handshake yang
-      // hampir selesai dan di jaringan HP lambat membuat data tidak pernah termuat. Paksa baru kalau sudah terputus > 25 dtk.
-      try{ window.rtdbGoOnline && window.rtdbGoOnline(); }catch(e){}
-      if(_discSince && Date.now() - _discSince > 25000) window.rtdbHardReconnect((reason || '') + ' (terputus >25 dtk)');
-      return;
-    }
-    // SDK mengira tersambung → uji nyata. Hanya dianggap zombie kalau 2x uji beruntun (masing-masing 12 dtk) tidak di-ACK server.
-    const ok = await window.rtdbProbe(12000);
-    if(ok){ _linkFail = 0; return; }
-    if(++_linkFail >= 2){ _linkFail = 0; window.rtdbHardReconnect(reason || 'probe gagal'); }
-    else { _linkChkAt = 0; setTimeout(function(){ ensureLinkAlive(reason); }, 1500); }
+    const ok = await window.rtdbProbe(7000);
+    if(!ok) window.rtdbHardReconnect(reason || 'probe gagal');
   }catch(e){}
 }
 window.ensureLinkAlive = ensureLinkAlive;
@@ -10333,7 +10483,8 @@ function goAddStoreFromMap(){
 }
 
 async function loadMyProfile(_pre){
-  if(!_pre) loadMyProfile._ok = false; // true setelah profil berhasil dibaca (dipakai pemulih otomatis syncHealNow)
+  if(!_pre){ loadMyProfile._ok = false; loadMyProfile._fresh = false; } // _fresh = true hanya setelah data BENAR-BENAR datang dari server (bukan cache)
+  // // true setelah profil berhasil dibaca (dipakai pemulih otomatis syncHealNow)
   // Restore nama dari localStorage dulu sebagai fallback cepat
   try{
     const localName = localStorage.getItem('umkm_display_name');
@@ -10351,9 +10502,15 @@ async function loadMyProfile(_pre){
       loadMyProfile._done = true;
       if(_cached){
         snap = _cached;
-        (window.rtdbGetRetry || window.rtdbGet)(_pRef).then(fresh=>{ try{ window.fbCachePut && window.fbCachePut(_pRef, fresh); }catch(e){} loadMyProfile(fresh); }).catch(()=>{});
+        (window.rtdbGetRetry || window.rtdbGet)(_pRef).then(fresh=>{ try{ window.fbCachePut && window.fbCachePut(_pRef, fresh); }catch(e){} loadMyProfile._fresh = true; loadMyProfile(fresh); }).catch(()=>{
+          // Dulu: gagal diam-diam, padahal profil dari cache sudah menandai _ok=true → tidak ada yang memulihkan. Sekarang dijadwalkan ulang.
+          loadMyProfile._ok = false; loadMyProfile._fresh = false;
+          clearTimeout(loadMyProfile._retryT);
+          loadMyProfile._retryT = setTimeout(() => { try{ loadMyProfile(); }catch(e2){} }, 5000);
+        });
       } else {
         snap = await (window.rtdbGetRetry || window.rtdbGet)(_pRef);
+        loadMyProfile._fresh = true;
         try{ window.fbCachePut && window.fbCachePut(_pRef, snap); }catch(e){}
       }
     }
@@ -11706,9 +11863,7 @@ $('liveModeWatchBtn').addEventListener('click', () => {
     $('sessionListWrap').style.display='none';
     $('viewerScreenWrap').style.display='block';
   } else {
-    renderSessionList();        // langsung gambar dari salinan terakhir (jangan menunggu event Firebase yang mungkin tidak datang lagi)
     startSessionListListener();
-    kickSessionListLoad();
   }
 });
 
@@ -12508,8 +12663,6 @@ function startGlobalLiveWatcher(){
     window.rtdbRef(window.firebaseDb,'liveSessions'),
     (snap) => {
       const val = snap.val() || {};
-      // Isi juga salinan untuk daftar "Tonton Live Orang Lain" → saat tab dibuka, daftar sudah siap (tanpa menunggu listener kedua)
-      try{ _liveListFeed(snap.val(), true); const _vw = document.getElementById('viewerScreenWrap'); if(!_vw || _vw.style.display!=='block') renderSessionList(); }catch(e){}
       const active = Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s.active && s.hostUid!==MY_UID);
       const tab = document.querySelector('.tab[data-panel="live"]');
       if(tab) tab.textContent = active.length ? '\u{1F4FA} LIVE ('+active.length+')' : '\u{1F4FA} LIVE';
@@ -12525,7 +12678,6 @@ function startGlobalLiveWatcher(){
       console.warn('[Live] listener global reset:', err && (err.code||err.message));
       _liveWatchUnsub = null;
       _liveWatchRetry = setTimeout(startGlobalLiveWatcher, 3000);
-      try{ const S=_LLS(); S.socketOk=false; if(!S.loaded){ S.failed=true; renderSessionList(); } kickSessionListLoad(); }catch(e2){}
     }
   );
 }
@@ -12534,27 +12686,13 @@ function startGlobalLiveWatcher(){
 // digambar ulang kapan saja (mis. saat penonton kembali dari layar nonton). Dulu daftar TIDAK digambar ulang
 // ketika penonton sedang di layar nonton, sehingga setelah live selesai kartu siaran yang sudah berakhir
 // tetap nongol di daftar sampai ada perubahan data lain.
-// Status daftar live disimpan di window (bukan `let`) supaya aman dipanggil dari kode mana pun, kapan pun.
-//   loaded   : sudah pernah menerima data (dari WebSocket ATAU dari REST cadangan). Beda dengan "datanya kosong"!
-//   socketOk : WebSocket Firebase sudah pernah mengirim data liveSessions
-function _LLS(){ return window._liveListState || (window._liveListState = { val:null, loaded:false, socketOk:false, failed:false, tries:0, timer:null, poll:null }); }
-function _liveListFeed(val, viaSocket){
-  const S=_LLS(); S.val=val; S.loaded=true; S.failed=false; if(viaSocket) S.socketOk=true;
-}
+let _sessionListVal = null, _sessionFirstData = false;
 function renderSessionList(){
   const list=$('sessionList'); if(!list) return;
-  const S=_LLS();
+  const val=_sessionListVal;
   const emptyHtml='<div class="empty-state">Belum ada yang live sekarang. Coba lagi nanti!</div>';
-  if(!S.loaded){
-    // Dulu: teks "Memuat..." dibiarkan selamanya kalau WebSocket macet/error. Sekarang ada batas waktu & tombol coba lagi.
-    list.innerHTML = S.failed
-      ? '<div class="empty-state">Daftar live belum bisa dimuat (koneksi lambat).<br><button type="button" id="retrySessionListBtn" style="margin-top:10px;padding:8px 16px;border-radius:10px;border:1.5px solid currentColor;background:transparent;color:inherit;font-weight:700;cursor:pointer;">🔄 Coba lagi</button></div>'
-      : '<div class="empty-state">Memuat daftar sesi live...</div>';
-    return;
-  }
-  const val=S.val;
   if(!val){ list.innerHTML=emptyHtml; return; }
-  const active=Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s && s.active && s.hostUid!==MY_UID);
+  const active=Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s.active && s.hostUid!==MY_UID);
   if(active.length===0){ list.innerHTML=emptyHtml; return; }
   list.innerHTML=active.map(s=>{
     const vc=s.viewers?Object.keys(s.viewers).length:0;
@@ -12565,40 +12703,22 @@ function renderSessionList(){
       </div>`;
   }).join('');
 }
-// Cadangan kalau WebSocket tidak mengirim data: ambil lewat HTTPS biasa (REST), tidak bergantung pada socket.
-function kickSessionListLoad(){
-  const S=_LLS();
-  if(S.loaded && S.socketOk) return;
-  clearTimeout(S.timer);
-  S.timer=setTimeout(async ()=>{
-    if(S.socketOk) return;
-    S.tries++;
-    try{
-      const v = await rtdbRestGet('liveSessions');
-      if(!S.socketOk){ _liveListFeed(v, false); renderSessionList(); }
-    }catch(e){ console.warn('[Live] REST daftar sesi gagal:', e && e.message); }
-    if(S.socketOk) return;
-    if(!S.loaded){
-      if(S.tries===2){ try{ _linkChkAt = 0; window.ensureLinkAlive && window.ensureLinkAlive('daftar live macet'); }catch(e){} }
-      if(S.tries>=3){ S.failed=true; renderSessionList(); }
-    }
-    if(S.tries<40) kickSessionListLoad();   // terus mencoba pelan-pelan; WebSocket yang pulih akan mengambil alih sendiri
-  }, S.tries===0 ? 3500 : (S.loaded ? 20000 : 6000));
-}
-document.addEventListener('click', (e)=>{
-  if(e.target && e.target.id==='retrySessionListBtn'){
-    const S=_LLS(); S.failed=false; S.tries=0; renderSessionList();
-    try{ window.rtdbHardReconnect && window.rtdbHardReconnect('coba lagi daftar live'); }catch(err){}
-    sessionListenerBound=false; startSessionListListener(); kickSessionListLoad();
-  }
-});
 function startSessionListListener(){
   if(!window.firebaseReady){ $('sessionList').innerHTML='<div class="empty-state">Fitur tonton live butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
   if(sessionListenerBound) return;
   sessionListenerBound=true;
+  _sessionFirstData = false;
+  clearTimeout(window._sessionWd);
+  window._sessionWd = setTimeout(() => {   // 8 dtk tanpa data → beri tahu + pulihkan koneksi, jangan diam di "Memuat..."
+    if(_sessionFirstData) return;
+    const l=$('sessionList');
+    if(l && /Memuat/.test(l.textContent||'')) l.innerHTML='<div class="empty-state">Koneksi ke server lambat. Mencoba menyambung ulang… <button type="button" onclick="window.selfHealNow&&window.selfHealNow(\'manual-live\')" style="margin-left:6px;padding:4px 10px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer">Coba lagi</button></div>';
+    try{ window.selfHealNow && window.selfHealNow('sesi live tidak memuat'); }catch(e){}
+  }, 8000);
   window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'liveSessions'), (snap) => {
     const val=snap.val();
-    _liveListFeed(val, true);   // selalu simpan data terbaru, juga saat penonton sedang di layar nonton
+    _sessionFirstData = true;
+    _sessionListVal = val;   // selalu simpan data terbaru, juga saat penonton sedang di layar nonton
     // Notifikasi "{nama} sedang live" untuk sesi yang baru aktif (belum pernah dinotif sebelumnya)
     if(val){
       const active=Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s.active && s.hostUid!==MY_UID);
@@ -12616,9 +12736,6 @@ function startSessionListListener(){
   }, (err) => {
     console.warn('[Live] daftar sesi reset:', err && (err.code||err.message));
     sessionListenerBound = false;           // izinkan dipasang ulang
-    const S=_LLS(); S.socketOk=false;
-    if(!S.loaded){ S.failed=true; renderSessionList(); }   // jangan biarkan "Memuat..." selamanya
-    kickSessionListLoad();
     setTimeout(startSessionListListener, 3000);
   });
 }

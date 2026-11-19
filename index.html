@@ -5402,7 +5402,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-11-19.1';
+const APP_BUILD = '2026-11-19.2';
 // ===== TOMBOL REFRESH: bersihkan cache file aplikasi lalu muat ulang versi terbaru =====
 // Login Firebase & data akun TIDAK dihapus (disimpan di IndexedDB), jadi user tetap masuk.
 (function setupRefreshButton(){
@@ -9889,7 +9889,19 @@ document.addEventListener('click', async (e) => {
   }, 1200);
 });
 
-let _presUnsub = null, _presUid = null, _presConnected = false;
+let _presUnsub = null, _presUid = null, _presConnected = false, _healAt = 0;
+function healMyPresence(){
+  // Status online saya bisa hilang/jadi offline sendiri (tab lain ditutup, admin menghapus node, koneksi putus-sambung).
+  // Kalau terdeteksi saat masih terhubung, tulis ulang — tanpa polling, hanya bereaksi saat data presence berubah.
+  try{
+    if(!_presConnected || !MY_UID) return;
+    const me = allPresenceCache && allPresenceCache[MY_UID];
+    if(me && me.online === true) return;
+    if(Date.now() - _healAt < 5000) return;
+    _healAt = Date.now();
+    assertMyPresence();
+  }catch(e){}
+}
 function myPublicIdentity(){
   const em = (typeof currentAuthEmail !== 'undefined' && currentAuthEmail) || '';
   const mp = (typeof myProfile !== 'undefined' && myProfile) || {};
@@ -9942,6 +9954,7 @@ async function pullDirectoryFresh(force){
     try{ pres = await rtdbRestGet('presence'); }
     catch(e){ const ps = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence')); pres = ps && ps.val(); }
     allPresenceCache = pres || {};
+    healMyPresence();
     // Lengkapi nama/email user yang di cache-nya belum punya nama (maks 30 per putaran)
     const ids = new Set([...Object.keys(allUsersCache||{}), ...Object.keys(allPresenceCache)]);
     const now = Date.now();
@@ -10869,7 +10882,7 @@ function startUserDirectoryListeners(){
     }
   };
   _udUnsubUsers = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); }, showDirError('users'));
-  _udUnsubPresence = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); }, showDirError('presence'));
+  _udUnsubPresence = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; healMyPresence(); renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); }, showDirError('presence'));
   // Listen for tier changes on MY account so button updates instantly when admin upgrades
   _udUnsubTier = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/accountTier'), (snap) => {
     const newTier = snap.val();
@@ -11982,8 +11995,13 @@ $('stopLiveBtn').addEventListener('click', async () => {
   if(window.firebaseReady && liveSessionId){
     setStopProgress(78, '☁️ Menghapus data sesi dari server...');
     try{
-      await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId),{active:false});
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId));
+      // Dulu menunggu balasan server tanpa batas waktu → kalau koneksi macet, tombol akhiri live "menggantung" di 78%.
+      // Sekarang kedua perintah langsung diantrikan (urutannya tetap terjaga) dan kita menunggu paling lama 3 detik;
+      // sisanya selesai sendiri di belakang layar, dan onDisconnect tetap jadi pengaman.
+      const _sRef = window.rtdbRef(window.firebaseDb,'liveSessions/'+liveSessionId);
+      const _w1 = window.rtdbUpdate(_sRef,{active:false}).catch(()=>{});
+      const _w2 = window.rtdbRemove(_sRef).catch(()=>{});
+      await Promise.race([Promise.all([_w1,_w2]), new Promise(r=>setTimeout(r,3000))]);
     } catch(e){}
   }
 
@@ -12654,11 +12672,32 @@ if(window.firebaseReady){ startVideoGalleryListener(); } else { document.addEven
 document.addEventListener('click', async (e) => {
   if(e.target.classList.contains('vg-del')){
     if(!confirm('Hapus video ini dari Galeri Video Global? Tindakan ini tidak bisa dibatalkan.')) return;
-    const id=e.target.dataset.id, path=e.target.dataset.path;
+    const btn=e.target, id=btn.dataset.id, path=btn.dataset.path;
+    btn.disabled=true; btn.textContent='⏳ Menghapus...';
     try{
-      await window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveVideos/'+id));
-      if(path){ await window.storageDeleteObject(window.storageRef(window.firebaseStorage,path)).catch(()=>{}); }
-    } catch(err){ alert('Gagal menghapus video: '+err.message); }
+      // 1) Hapus entri galeri (tampilan langsung hilang; tunggu server maksimal 4 detik, sisanya jalan di belakang)
+      const _rm = window.rtdbRemove(window.rtdbRef(window.firebaseDb,'liveVideos/'+id)).catch(()=>{});
+      await Promise.race([_rm, new Promise(r=>setTimeout(r,4000))]);
+      // 2) Hapus FILE video di Cloudinary lewat server (/api/delete-video). Dulu yang dipanggil Firebase Storage —
+      //    padahal videonya ada di Cloudinary, jadi file tidak pernah terhapus dan penyimpanan makin penuh.
+      if(path){
+        (async()=>{
+          try{
+            const tok = await window.fbAuth.currentUser.getIdToken();
+            const ctrl = new AbortController(); const tm = setTimeout(()=>ctrl.abort(), 20000);
+            const r = await fetch('/api/delete-video', { method:'POST', signal:ctrl.signal,
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
+              body: JSON.stringify({ publicId: path }) });
+            clearTimeout(tm);
+            if(!r.ok){ let m=''; try{ m=(await r.json()).error||''; }catch(_){} throw new Error('status '+r.status+(m?' · '+m:'')); }
+            if(typeof showDebugToast==='function') showDebugToast('Video & file di Cloudinary terhapus ✅');
+          }catch(err){
+            console.warn('[Hapus video] file Cloudinary belum terhapus:', err);
+            if(typeof showDebugToast==='function') showDebugToast('Entri galeri terhapus, tapi file di Cloudinary belum ('+(err.message||err)+'). Pasang /api/delete-video atau hapus manual di Media Library.');
+          }
+        })();
+      }
+    } catch(err){ alert('Gagal menghapus video: '+err.message); btn.disabled=false; btn.textContent='🗑️ Hapus Video'; }
   }
 });
 async function applyAutoTranslate(el){

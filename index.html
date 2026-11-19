@@ -5154,6 +5154,7 @@ function initAuthGate(){
     }
     if(user){
       MY_UID = user.uid; // Firebase Auth UID — sama persis di semua device untuk akun yang sama
+      try{ startGlobalLiveWatcher(); }catch(e){}
       currentAuthEmail = user.email || '';
       isAdmin = currentAuthEmail.toLowerCase() === ADMIN_EMAIL;
 
@@ -5385,7 +5386,27 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-10-28.3';
+const APP_BUILD = '2026-11-19.1';
+// Deteksi deploy baru: hanya cek header (ETag/Last-Modified), bukan unduh ulang file. Tanpa reload paksa.
+(function watchDeploy(){
+  let sig = null;
+  async function check(){
+    try{
+      const r = await fetch('/index.html', { method:'HEAD', cache:'no-store' });
+      const now = (r.headers.get('etag')||'') + '|' + (r.headers.get('last-modified')||'');
+      if(now === '|') return;
+      if(sig && sig !== now){
+        console.info('[Deploy] Versi baru tersedia');
+        try{ if(window.rtdbGoOnline) window.rtdbGoOnline(); }catch(e){}
+        try{ startGlobalLiveWatcher(); }catch(e){}
+        if(typeof addNotif === 'function') addNotif('Versi baru aplikasi tersedia. Tutup & buka ulang app untuk memperbarui.', '\u{1F504}');
+      }
+      sig = now;
+    }catch(e){}
+  }
+  setTimeout(check, 5000);
+  setInterval(check, 5*60*1000);
+})();
 (function(){
   const line = document.getElementById('appBuildLine');
   if(line) line.textContent = 'Build ' + APP_BUILD;
@@ -7088,7 +7109,9 @@ function startGalleryListener(){
     renderGalleryFromCache();
   },(err)=>{
     $('galleryLoading').classList.remove('show');
-    $('galleryList').innerHTML='<div class="empty-state">Gagal memuat galeri. Cek konfigurasi Firebase.</div>';
+    $('galleryList').innerHTML='<div class="empty-state">Gagal memuat galeri. Mencoba menyambung ulang...</div>';
+    if(MY_UID) setTimeout(startGalleryListener, 3000);
+    else document.addEventListener('app-account-changed', startGalleryListener, {once:true});
   });
 }
 
@@ -10738,6 +10761,7 @@ if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEv
     if(typeof window.rtdbGoOnline === 'function'){
       try{ window.rtdbGoOnline(); } catch(e){}
     }
+    try{ startGlobalLiveWatcher(); }catch(e){}
 
     // ── LANGKAH 2: Refresh data via get() tanpa tunggu onValue ──
     // get() bypass cache lokal & langsung ke server Firebase,
@@ -12066,6 +12090,37 @@ $('discardVideoBtn').addEventListener('click', () => {
 let sessionListenerBound=false;
 let watchingSessionId=null, viewerPC=null, viewerViewersUnsub=null, viewerCommentsUnsub=null, viewerOfferUnsub=null, viewerActiveUnsub=null;
 
+// ===== LISTENER LIVE GLOBAL (aktif sejak login, tidak perlu buka tab Tonton Live) =====
+let _liveWatchUid = null, _liveWatchUnsub = null, _liveWatchRetry = null;
+function startGlobalLiveWatcher(){
+  if(!window.firebaseReady || !window.firebaseDb || !MY_UID) return;
+  if(_liveWatchUid === MY_UID && _liveWatchUnsub) return;
+  try{ _liveWatchUnsub && _liveWatchUnsub(); }catch(e){}
+  clearTimeout(_liveWatchRetry);
+  _liveWatchUid = MY_UID;
+  _liveWatchUnsub = window.rtdbOnValue(
+    window.rtdbRef(window.firebaseDb,'liveSessions'),
+    (snap) => {
+      const val = snap.val() || {};
+      const active = Object.keys(val).map(id=>({id,...val[id]})).filter(s=>s.active && s.hostUid!==MY_UID);
+      const tab = document.querySelector('.tab[data-panel="live"]');
+      if(tab) tab.textContent = active.length ? '\u{1F4FA} LIVE ('+active.length+')' : '\u{1F4FA} LIVE';
+      window._liveNotifSeen = window._liveNotifSeen || new Set();
+      active.forEach(s=>{
+        if(window._liveNotifSeen.has(s.id)) return;
+        window._liveNotifSeen.add(s.id);
+        if(typeof addNotif === 'function') addNotif('\u{1F534} ' + (s.hostName||'UMKM') + ' sedang live: ' + (s.sessionName||'Live Stream'), '\u{1F534}');
+        document.getElementById('notifDot')?.classList.add('show');
+      });
+    },
+    (err) => { // ditolak / putus → Firebase mematikan listener, jadi pasang ulang
+      console.warn('[Live] listener global reset:', err && (err.code||err.message));
+      _liveWatchUnsub = null;
+      _liveWatchRetry = setTimeout(startGlobalLiveWatcher, 3000);
+    }
+  );
+}
+
 function startSessionListListener(){
   if(!window.firebaseReady){ $('sessionList').innerHTML='<div class="empty-state">Fitur tonton live butuh Firebase aktif (lihat peringatan di atas).</div>'; return; }
   if(sessionListenerBound) return;
@@ -12094,6 +12149,10 @@ function startSessionListListener(){
         <button class="watch-session-btn" data-id="${s.id}">▶️ Tonton</button>
       </div>`;
     }).join('');
+  }, (err) => {
+    console.warn('[Live] daftar sesi reset:', err && (err.code||err.message));
+    sessionListenerBound = false;           // izinkan dipasang ulang
+    setTimeout(startSessionListListener, 3000);
   });
 }
 
@@ -12432,7 +12491,11 @@ function startVideoGalleryListener(){
   window.rtdbOnValue(q,(snap)=>{
     videoGalleryCache=snap.val();
     renderVideoGalleryFromCache();
-  },()=>{ $('videoGalleryList').innerHTML='<div class="empty-state">Gagal memuat galeri video.</div>'; });
+  },()=>{
+    $('videoGalleryList').innerHTML='<div class="empty-state">Gagal memuat galeri video. Mencoba menyambung ulang...</div>';
+    if(MY_UID) setTimeout(startVideoGalleryListener, 3000);
+    else document.addEventListener('app-account-changed', startVideoGalleryListener, {once:true});
+  });
 }
 if(window.firebaseReady){ startVideoGalleryListener(); } else { document.addEventListener('firebase-ready', startVideoGalleryListener); }
 

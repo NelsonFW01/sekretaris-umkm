@@ -3,26 +3,35 @@
 // Menghapus FILE video live di Cloudinary. Ini harus di server karena butuh API Secret
 // (jangan pernah menaruh secret di index.html).
 //
+// PERBAIKAN: package.json memakai "type": "module", jadi file ini harus ESM (import / export default).
+// Versi lama memakai require() + module.exports sehingga langsung error
+// "require is not defined in ES module scope" dan file video tidak pernah terhapus di Cloudinary.
+//
 // Isi Environment Variables di Vercel (Project → Settings → Environment Variables):
 //   CLOUDINARY_API_KEY      = (dari Cloudinary Dashboard → Settings → API Keys)
 //   CLOUDINARY_API_SECRET   = (dari tempat yang sama)
 // Opsional (sudah ada nilai bawaan dari proyekmu):
 //   CLOUDINARY_CLOUD_NAME   = ddqjgwpgl
-//   FIREBASE_API_KEY        = apiKey web Firebase
+//   FIREBASE_PROJECT_ID     = sekretaris-umkm
 //   ADMIN_EMAIL             = nagoyaflora@gmail.com
 //
 // Keamanan: pemanggil harus login Firebase (ID token diverifikasi), hanya boleh menghapus
 // file di folder "liveVideos" miliknya sendiri; admin boleh menghapus milik siapa pun.
 
-const crypto = require('crypto');
+import crypto from 'node:crypto';
+import { createTokenVerifier } from '../lib/firebase-auth.js';
 
 const CLOUD = process.env.CLOUDINARY_CLOUD_NAME || 'ddqjgwpgl';
 const API_KEY = process.env.CLOUDINARY_API_KEY;
 const API_SECRET = process.env.CLOUDINARY_API_SECRET;
-const FB_API_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAGVWXc3W6gkAc4mSxAFqoVI1gcqCNom_g';
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'nagoyaflora@gmail.com').toLowerCase();
+const TIMEOUT_MS = 12000; // jangan biarkan permintaan menggantung sampai fungsi Vercel habis waktu
 
-module.exports = async (req, res) => {
+// Verifikasi ID token Firebase langsung (tanda tangan RS256 + kunci publik Google), tanpa API key
+// dan tanpa memanggil Identity Toolkit — sama seperti yang dipakai api/world-reward.js.
+const verifier = createTokenVerifier();
+
+export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Gunakan POST' });
   if (!API_KEY || !API_SECRET) {
@@ -44,16 +53,13 @@ module.exports = async (req, res) => {
     }
 
     // 1) Verifikasi ID token Firebase
-    const lk = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(FB_API_KEY), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idToken })
-    });
-    if (!lk.ok) return res.status(401).json({ error: 'Token tidak valid' });
-    const user = ((await lk.json()).users || [])[0];
-    if (!user) return res.status(401).json({ error: 'Pengguna tidak ditemukan' });
-    const uid = user.localId;
-    const isAdmin = String(user.email || '').toLowerCase() === ADMIN_EMAIL;
+    let uid, email;
+    try {
+      ({ uid, email } = await verifier.verify(idToken));
+    } catch (e) {
+      return res.status(401).json({ error: (e && e.message) || 'Token tidak valid' });
+    }
+    const isAdmin = String(email || '').toLowerCase() === ADMIN_EMAIL;
 
     // 2) Kepemilikan: nama file dibuat "<uid>_<waktu>" oleh aplikasi
     const fileName = publicId.split('/').pop();
@@ -75,7 +81,8 @@ module.exports = async (req, res) => {
     const r = await fetch('https://api.cloudinary.com/v1_1/' + CLOUD + '/video/destroy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
+      body: form.toString(),
+      signal: AbortSignal.timeout(TIMEOUT_MS)
     });
     const out = await r.json().catch(() => ({}));
     if (!r.ok) return res.status(502).json({ error: (out.error && out.error.message) || 'Cloudinary menolak' });
@@ -85,4 +92,4 @@ module.exports = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ error: String((err && err.message) || err) });
   }
-};
+}

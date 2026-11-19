@@ -121,9 +121,25 @@
     const TTL_MS = 30 * 24 * 3600 * 1000; // cache > 30 hari dibuang
     const DB_NAME = 'umkm_fb_cache', STORE = 'snap';
     const ALLOW = [
-      /^\/users$/, /^\/users\/[^/]+$/, /^\/gallery$/, /^\/liveVideos$/, /^\/pasarKongsi$/,
-      /^\/(stokInventori|pemasok|agentSettings|agentDrafts|agentRuns|invoices)\/[^/]+$/
+      /^\/users$/, /^\/users\/[^/]+$/, /^\/gallery$/, /^\/liveVideos$/, /^\/pasarKongsi$/, /^\/rewards$/,
+      /^\/(stokInventori|pemasok|agentSettings|agentDrafts|agentRuns|invoices)\/[^/]+$/,
+      /^\/chats$/, /^\/chats\/[^/]+\/messages$/, /^\/chats\/[^/]+\/meta\/wallpaper$/
     ];
+    // Node /chats berisi SEMUA percakapan; yang disimpan di perangkat hanya percakapan milik akun ini
+    function shrink(path, v, uid) {
+      if (path === '/chats' && v && typeof v === 'object') {
+        const out = {}; Object.keys(v).forEach(function (k) { if (k.indexOf(uid) !== -1) out[k] = v[k]; });
+        return out;
+      }
+      return v;
+    }
+    // Simpan yang tertunda saat tab ditutup / pindah app, supaya aktivitas terakhir tidak hilang
+    const pending = new Set();
+    function flushAll() { pending.forEach(function (fn) { try { fn(); } catch (e) {} }); }
+    try {
+      window.addEventListener('pagehide', flushAll);
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushAll(); });
+    } catch (e) {}
     const mem = new Map();
     let dbp = null, loadedFor = null, loadP = null, pruned = false;
 
@@ -239,13 +255,13 @@
       const key = keyOf(uid, d);
       let gotReal = false, dead = false, timer = null, last = null;
       const flush = function () {
-        timer = null; if (!last) return;
-        let v; try { v = last.val(); } catch (e) { return; }
+        timer = null; pending.delete(flush); if (!last) return;
+        let v; try { v = shrink(d.path, last.val(), uid); } catch (e) { return; }
         put(key, v);
       };
       args[1] = function (snap) {
         gotReal = true; last = snap;
-        if (!timer) timer = setTimeout(flush, 1500); // tulis cache paling sering tiap 1,5 dtk
+        if (!timer) { timer = setTimeout(flush, 1500); pending.add(flush); } // tulis cache paling sering tiap 1,5 dtk
         return cb(snap);
       };
       if (typeof args[2] === 'function') {            // error (mis. permission_denied) → cache tidak boleh bertahan
@@ -263,6 +279,7 @@
       return function () {
         dead = true;
         if (timer) { clearTimeout(timer); flush(); }
+        pending.delete(flush);
         try { unsub(); } catch (e) {}
       };
     }
@@ -275,14 +292,15 @@
     }
     function putSnap(q, snap) {
       const uid = curUid(), d = uid && describe(q); if (!d || !snap) return;
-      let v; try { v = snap.val(); } catch (e) { return; }
+      let v; try { v = shrink(d.path, snap.val(), uid); } catch (e) { return; }
       put(keyOf(uid, d), v);
     }
     function clear() {
       mem.clear(); loadedFor = null; loadP = null;
       openDb().then(function (db) { if (db) try { db.transaction(STORE, 'readwrite').objectStore(STORE).clear(); } catch (e) {} });
     }
-    return { onValue: onValueCached, peek: peek, putSnap: putSnap, clear: clear, load: load };
+    function stats() { const o = { akun: curUid(), entri: mem.size, kunci: [] }; mem.forEach(function (e, k) { o.kunci.push(k + ' (' + Math.round(JSON.stringify(e.v).length / 1024) + ' KB)'); }); return o; }
+    return { onValue: onValueCached, peek: peek, putSnap: putSnap, clear: clear, load: load, stats: stats };
   })();
 
   const isConfigured = Object.values(firebaseConfig).every(v => typeof v === 'string' && !v.includes('GANTI'));
@@ -316,7 +334,11 @@
       window.rtdbSet = set;
       window.rtdbUpdate = update;
       window.rtdbRemove = remove;
-      window.rtdbGet = get;
+      window.rtdbGet = function (q) {          // hasil get() ikut disimpan ke cache perangkat
+        const p = get.apply(null, arguments);
+        try { p.then(function (snap) { FBC.putSnap(q, snap); }, function () {}); } catch (e) {}
+        return p;
+      };
       window.rtdbQuery = query;
       window.rtdbOrderByChild = orderByChild;
       window.rtdbLimitToLast = limitToLast;
@@ -324,6 +346,7 @@
       window.fbCachePeek = FBC.peek;
       window.fbCachePut = FBC.putSnap;
       window.fbCacheClear = FBC.clear;
+      window.fbCacheStats = FBC.stats; // debug: ketik fbCacheStats() di Console
       // Hangatkan cache secepat sesi login pulih (paralel dengan proses login lainnya)
       try { onAuthStateChanged(auth, function (u) { if (u) FBC.load(u.uid); }); } catch (e) {}
       window.rtdbOnChildAdded = onChildAdded;

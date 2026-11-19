@@ -60,7 +60,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="dicoding:email" content="nagoyaflora@gmail.com">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.sheetjs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://api.groq.com https://app.sandbox.midtrans.com https://app.midtrans.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://res.cloudinary.com https://api.cloudinary.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://api.groq.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.cloudinary.com https://res.cloudinary.com https://*.workers.dev wss://*.workers.dev https://*.livekit.cloud wss://*.livekit.cloud https://api.openrouteservice.org https://graphhopper.com https://routing.openstreetmap.de https://valhalla1.openstreetmap.de https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://app.sandbox.midtrans.com https://app.midtrans.com https://api.sandbox.midtrans.com https://api.midtrans.com; frame-src 'self' https://app.sandbox.midtrans.com https://app.midtrans.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.sheetjs.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://www.gstatic.com https://*.firebasedatabase.app https://*.firebaseio.com https://api.groq.com https://app.sandbox.midtrans.com https://app.midtrans.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://res.cloudinary.com https://api.cloudinary.com; connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com https://api.groq.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.cloudinary.com https://res.cloudinary.com https://*.workers.dev wss://*.workers.dev https://*.livekit.cloud wss://*.livekit.cloud https://api.openrouteservice.org https://graphhopper.com https://routing.openstreetmap.de https://valhalla1.openstreetmap.de https://cdn.jsdelivr.net https://tessdata.projectnaptha.com https://*.basemaps.cartocdn.com https://basemaps.cartocdn.com https://app.sandbox.midtrans.com https://app.midtrans.com https://api.sandbox.midtrans.com https://api.midtrans.com; frame-src 'self' https://*.firebasedatabase.app https://*.firebaseio.com https://app.sandbox.midtrans.com https://app.midtrans.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self';">
 <title>Sekretaris UMKM Indonesia — Asisten AI untuk Usaha Kecil</title>
 <meta name="theme-color" content="#170B20">
 <meta name="description" content="Sekretaris UMKM Indonesia: asisten AI untuk pencatatan keuangan, tagihan, dan stok usaha kecil di seluruh Indonesia.">
@@ -399,7 +399,7 @@
       window.rtdbHardReconnect = function (why) {
         const now = Date.now();
         if (now - _hardRcAt < 15000) return;          // jangan putus-sambung terus-menerus
-        _hardRcAt = now;
+        _hardRcAt = now; window._rtdbLastHardRc = now;
         console.warn('[RTDB] sambung ulang paksa:', why || '');
         try { goOffline(db); } catch (e) {}
         setTimeout(function () { try { goOnline(db); } catch (e) {} }, 400);
@@ -419,7 +419,7 @@
       };
       // ── PEMANTAU KONEKSI & TOKEN (self-heal) ──
       // .info/connected = status socket RTDB yang SEBENARNYA. Dipakai watchdog untuk tahu kapan harus sambung ulang paksa.
-      window._rtdbConnected = false; window._rtdbConnectedAt = 0;
+      window._rtdbConnected = false; window._rtdbConnectedAt = 0; window._rtdbBootAt = Date.now(); window._rtdbLastHardRc = 0;
       try {
         onValue(ref(db, '.info/connected'), function (s) {
           window._rtdbConnected = s.val() === true;
@@ -5349,7 +5349,7 @@ document.addEventListener('rtdb-connection', (ev) => {
 setInterval(() => {
   try{
     if(!MY_UID || document.visibilityState !== 'visible' || !navigator.onLine) return;
-    if(window._rtdbConnected !== true && Date.now() - (window._rtdbConnectedAt || 0) > 12000 && window.rtdbHardReconnect) window.rtdbHardReconnect('socket mati >12 dtk');
+    if(window._rtdbConnected !== true && Date.now() - Math.max(window._rtdbConnectedAt || 0, window._rtdbLastHardRc || 0, window._rtdbBootAt || 0) > 40000 && window.rtdbHardReconnect) window.rtdbHardReconnect('socket mati >40 dtk');
   }catch(e){}
 }, 6000);
 // Diagnosis cepat dari Console: ketik fbHealth()
@@ -5639,7 +5639,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-11-19.6';
+const APP_BUILD = '2026-11-19.7';
 // ===== TOMBOL REFRESH: bersihkan cache file aplikasi lalu muat ulang versi terbaru =====
 // Login Firebase & data akun TIDAK dihapus (disimpan di IndexedDB), jadi user tetap masuk.
 (function setupRefreshButton(){

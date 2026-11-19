@@ -9889,7 +9889,7 @@ document.addEventListener('click', async (e) => {
   }, 1200);
 });
 
-let _presUnsub = null, _presUid = null, _presConnected = false, _healAt = 0;
+let _presUnsub = null, _presUid = null, _presConnected = false, _healAt = 0, _healTimer = null;
 function healMyPresence(){
   // Status online saya bisa hilang/jadi offline sendiri (tab lain ditutup, admin menghapus node, koneksi putus-sambung).
   // Kalau terdeteksi saat masih terhubung, tulis ulang — tanpa polling, hanya bereaksi saat data presence berubah.
@@ -9897,7 +9897,13 @@ function healMyPresence(){
     if(!_presConnected || !MY_UID) return;
     const me = allPresenceCache && allPresenceCache[MY_UID];
     if(me && me.online === true) return;
-    if(Date.now() - _healAt < 5000) return;
+    // Dulu: kalau baru saja dipulihkan (<5 dtk) kejadian ini DIBUANG dan tidak dicoba lagi, sehingga status bisa
+    // tertahan offline. Sekarang dijadwalkan ulang.
+    const wait = 5000 - (Date.now() - _healAt);
+    if(wait > 0){
+      if(!_healTimer){ _healTimer = setTimeout(()=>{ _healTimer = null; healMyPresence(); }, wait + 50); }
+      return;
+    }
     _healAt = Date.now();
     assertMyPresence();
   }catch(e){}
@@ -9916,8 +9922,9 @@ function assertMyPresence(){
     const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
     const idn = myPublicIdentity();
     const off = Object.assign({online:false, lastSeen: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : Date.now()}, idn);
-    window.rtdbOnDisconnect(presenceRef).set(off);
-    window.rtdbSet(presenceRef, Object.assign({online:true, lastSeen:Date.now()}, idn)).catch(()=>{});
+    window.rtdbOnDisconnect(presenceRef).set(off).catch((e)=>{ console.warn('[Presence] gagal mendaftarkan onDisconnect:', e && (e.code||e.message)); });
+    window.rtdbSet(presenceRef, Object.assign({online:true, lastSeen:Date.now()}, idn))
+      .catch((e)=>{ console.warn('[Presence] gagal menulis status online:', e && (e.code||e.message)); });
   }catch(e){}
 }
 function setupPresence(){
@@ -9993,6 +10000,16 @@ window.pullDirectoryFresh = pullDirectoryFresh;
   // Setelah login / ganti akun: tarik daftar segar (tanpa menunggu listener besar selesai)
   document.addEventListener('app-account-changed', (ev)=>{ if(ev && ev.detail && ev.detail.uid){ setTimeout(()=>pullDirectoryFresh(true), 3500); } });
   setInterval(()=>pullDirectoryFresh(false), 45000); // jaring pengaman tiap 45 dtk saat app terlihat
+  // Detak jantung: selama tab ini hidup & terhubung, tegaskan "online" tiap 60 dtk. Ini memulihkan status yang
+  // dijatuhkan ke offline oleh tab/perangkat lain milik akun yang sama (onDisconnect miliknya ikut menjalankan
+  // online:false), dan menjaga "terakhir aktif" tetap segar.
+  setInterval(()=>{
+    try{
+      if(!window.firebaseReady || !MY_UID || !_presConnected) return;
+      window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'presence/'+MY_UID), {online:true, lastSeen:Date.now()})
+        .catch((e)=>{ console.warn('[Presence] detak jantung gagal:', e && (e.code||e.message)); });
+    }catch(e){}
+  }, 60000);
 })();
 // setupPresence() dipanggil dari initAuthGate() setelah user login (butuh MY_UID dari Auth)
 
@@ -18150,7 +18167,6 @@ Contoh: "8|Mengandung tag script dan eval"`;
   });
 })();
 </script>
-<script src="https://replit-cdn.com/replit-pill/replit-pill.global.js" data-repl-id="82deda7f-90d6-4658-81a8-22b4ebc38f4e"></script>
   <nav class="bottom-nav">
     <button class="bn-item active" onclick="document.querySelector('.tab[data-panel=\'finance\']').click(); document.querySelectorAll('.bn-item').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>

@@ -393,6 +393,30 @@
       window.rtdbOnDisconnect = onDisconnect;
       window.rtdbGoOnline = () => goOnline(db);
       window.rtdbGoOffline = () => goOffline(db);
+      // goOnline() saat SDK MENGIRA masih tersambung = tidak berbuat apa-apa, jadi socket "zombie" (setengah putus di jaringan HP)
+      // tidak pernah pulih lewat goOnline() saja. Putus-sambung (goOffline → goOnline) memaksa handshake WebSocket baru.
+      let _hardRcAt = 0;
+      window.rtdbHardReconnect = function (why) {
+        const now = Date.now();
+        if (now - _hardRcAt < 15000) return;          // jangan putus-sambung terus-menerus
+        _hardRcAt = now;
+        console.warn('[RTDB] sambung ulang paksa:', why || '');
+        try { goOffline(db); } catch (e) {}
+        setTimeout(function () { try { goOnline(db); } catch (e) {} }, 400);
+      };
+      // Uji kesehatan socket: tulisan kecil harus di-ACK server. get() TIDAK cocok untuk ini karena bisa dijawab dari cache listener.
+      // Tidak di-ACK dalam `ms` → anggap zombie. Ditolak aturan database (permission_denied) = socket hidup.
+      window.rtdbProbe = function (ms) {
+        return new Promise(function (resolve) {
+          const uid = auth.currentUser && auth.currentUser.uid;
+          if (!uid) return resolve(true);
+          let done = false;
+          const fin = function (v) { if (!done) { done = true; clearTimeout(t); resolve(v); } };
+          const t = setTimeout(function () { fin(false); }, ms || 7000);
+          try { update(ref(db, 'presence/' + uid), { lastSeen: Date.now() }).then(function () { fin(true); }, function () { fin(true); }); }
+          catch (e) { fin(true); }
+        });
+      };
       window.storageRef = storageRef;
       window.storageUploadBytes = uploadBytes;
       window.storageUploadBytesResumable = uploadBytesResumable;
@@ -5236,7 +5260,16 @@ function initAuthGate(){
       if(typeof setupPresence === 'function') setupPresence();
       if(typeof startUserDirectoryListeners === 'function') startUserDirectoryListeners(); // pasang listener komunitas SETELAH login
       if(typeof txPull === 'function') txPull(); // riwayat transaksi mengikuti akun (tarik/gabung dari Firebase)
-      if(typeof loadMyProfile === 'function') await loadMyProfile();
+      if(typeof loadMyProfile === 'function'){
+        // Dulu `await` tanpa batas: kalau socket HP macet, SELURUH init setelah ini (undangan kolaborasi, direktori, galeri) ikut menunggu
+        // puluhan detik. Sekarang maksimal 2,5 dtk; profil tetap lanjut dimuat di belakang & terisi sendiri begitu data masuk.
+        const _profP = loadMyProfile();
+        await Promise.race([_profP, new Promise(r => setTimeout(r, 2500))]);
+        // Watchdog: kalau profil belum terbaca setelah 6 dtk / 15 dtk → uji socket, sambung ulang paksa bila zombie, lalu coba lagi
+        [6000, 15000].forEach(ms => setTimeout(() => {
+          try{ if(MY_UID && loadMyProfile._ok === false){ if(window.ensureLinkAlive){ _linkChkAt = 0; window.ensureLinkAlive('profil belum terbaca'); } loadMyProfile(); } }catch(e){}
+        }, ms));
+      }
       if(typeof setupCollabInviteListener === 'function') setupCollabInviteListener();
       applyNameLockUI();
       if(typeof renderUserDirectory === 'function') renderUserDirectory();
@@ -5444,7 +5477,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-11-19.4';
+const APP_BUILD = '2026-11-19.5';
 // ===== TOMBOL REFRESH: bersihkan cache file aplikasi lalu muat ulang versi terbaru =====
 // Login Firebase & data akun TIDAK dihapus (disimpan di IndexedDB), jadi user tetap masuk.
 (function setupRefreshButton(){
@@ -5471,6 +5504,8 @@ const APP_BUILD = '2026-11-19.4';
       if(window.caches){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); }
     }catch(e){}
     // Muat ulang dengan alamat unik agar browser mengambil index.html terbaru dari server
+    try{ if(window.rtdbGoOffline) window.rtdbGoOffline(); }catch(e){} // putus bersih → onDisconnect koneksi lama jalan sekarang
+    await new Promise(r => setTimeout(r, 500));
     const u = new URL(location.href);
     u.searchParams.set('_r', Date.now());
     location.replace(u.toString());
@@ -5507,9 +5542,15 @@ const APP_BUILD = '2026-11-19.4';
   async function hardReload(){
     try{ if(typeof txFlush === 'function') await txFlush(); }catch(e){}
     await new Promise(r => setTimeout(r, 400));
+    // Jitter 0–8 dtk: semua klien yang terbuka tidak reload & menyambung ulang ke Firebase di detik yang sama
+    await new Promise(r => setTimeout(r, Math.random() * 8000));
     try{ sessionStorage.setItem(GUARD_KEY, String(Date.now())); }catch(e){}
     try{ if('serviceWorker' in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.update().catch(()=>{}))); } }catch(e){}
     try{ if(window.caches){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } }catch(e){}
+    // Tutup koneksi Firebase secara BERSIH sebelum reload → server langsung menjalankan onDisconnect koneksi lama (hapus entri online),
+    // bukan menunggu timeout socket (bisa ~1 menit) yang kemudian menimpa status online halaman baru.
+    try{ if(window.rtdbGoOffline) window.rtdbGoOffline(); }catch(e){}
+    await new Promise(r => setTimeout(r, 600));
     const u = new URL(location.href);
     u.searchParams.set('_r', Date.now());
     location.replace(u.toString());
@@ -10018,13 +10059,52 @@ function myPublicIdentity(){
   const nm = (mp.displayName || mp.storeName || ln || '').trim() || (em.indexOf('@') > 0 ? em.split('@')[0] : '');
   return { name: nm.slice(0,60), store: String(mp.storeName||'').slice(0,60), email: em };
 }
+// ===== PRESENCE PER-KONEKSI (pola resmi Firebase "connections") =====
+// Dulu: satu node presence/<uid> berisi online:true/false. Masalahnya, akun yang sama bisa terbuka di banyak tab/HP/laptop, dan
+// onDisconnect() milik koneksi LAMA (mis. sebelum auto-reload deploy, atau socket zombie yang baru "ketahuan" server 1 menit kemudian)
+// menimpa online:true milik koneksi BARU menjadi false. Sekarang tiap koneksi punya entri sendiri di presence/<uid>/conns/<id>
+// (dihapus oleh onDisconnect miliknya saja); user dianggap Online selama masih ada ≥1 entri. Id BARU dibuat tiap kali koneksi tersambung
+// lagi supaya onDisconnect koneksi lama tidak bisa menghapus entri koneksi yang baru.
+// Fail-soft: kalau aturan database menolak, otomatis kembali ke cara lama (online:true/false).
+let _presCid = null, _presLegacy = false;
+function _newPresCid(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function normPresence(raw){
+  // Seragamkan agar semua kode pembaca tetap cukup memakai p.online
+  const out = {};
+  Object.keys(raw || {}).forEach(uid => {
+    const p = raw[uid];
+    if(p && typeof p === 'object' && p.v === 2){
+      const n = (p.conns && typeof p.conns === 'object') ? Object.keys(p.conns).length : 0;
+      out[uid] = Object.assign({}, p, { online: n > 0 });
+    } else out[uid] = p;
+  });
+  return out;
+}
+window.normPresence = normPresence;
 function assertMyPresence(){
   // Tulis ulang status "online" + identitas publik (nama/toko/email) — dipanggil saat connect, app dibuka lagi, atau online kembali
   if(!window.firebaseReady || !MY_UID || !_presConnected) return;
   try{
-    const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
+    if(!_presCid) _presCid = _newPresCid();
     const idn = myPublicIdentity();
-    const off = Object.assign({online:false, lastSeen: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : Date.now()}, idn);
+    const presenceRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID);
+    const ts = window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : Date.now();
+    if(!_presLegacy){
+      const cid = _presCid;
+      const connRef = window.rtdbRef(window.firebaseDb, 'presence/'+MY_UID+'/conns/'+cid);
+      // urutan penting: daftarkan onDisconnect DULU, baru tandai online
+      window.rtdbOnDisconnect(connRef).remove()
+        .then(() => window.rtdbOnDisconnect(presenceRef).update({ online:false, lastSeen: ts }))
+        .then(() => window.rtdbUpdate(presenceRef, Object.assign({ v:2, online:true, lastSeen:Date.now(), ['conns/'+cid]: true }, idn)))
+        .catch((e) => {
+          const msg = String((e && (e.code||e.message)) || '');
+          console.warn('[Presence] gagal mode per-koneksi:', msg);
+          // hanya kalau ATURAN database menolak → pakai cara lama; gangguan jaringan sementara tidak mengubah mode
+          if(/permission[_ -]?denied/i.test(msg)){ _presLegacy = true; assertMyPresence(); }
+        });
+      return;
+    }
+    const off = Object.assign({online:false, lastSeen: ts}, idn);
     window.rtdbOnDisconnect(presenceRef).set(off).catch((e)=>{ console.warn('[Presence] gagal mendaftarkan onDisconnect:', e && (e.code||e.message)); });
     window.rtdbSet(presenceRef, Object.assign({online:true, lastSeen:Date.now()}, idn))
       .catch((e)=>{ console.warn('[Presence] gagal menulis status online:', e && (e.code||e.message)); });
@@ -10038,7 +10118,7 @@ function setupPresence(){
   const connectedRef = window.rtdbRef(window.firebaseDb, '.info/connected');
   _presUnsub = window.rtdbOnValue(connectedRef, (snap) => {
     _presConnected = (snap.val() === true);
-    if(_presConnected) assertMyPresence();
+    if(_presConnected){ _presCid = _newPresCid(); assertMyPresence(); } // koneksi baru → id baru
   });
 }
 // ===== DIREKTORI ANTI-MACET =====
@@ -10063,7 +10143,7 @@ async function pullDirectoryFresh(force){
     let pres = null;
     try{ pres = await rtdbRestGet('presence'); }
     catch(e){ const ps = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence')); pres = ps && ps.val(); }
-    allPresenceCache = pres || {};
+    allPresenceCache = normPresence(pres || {});
     healMyPresence();
     // Lengkapi nama/email user yang di cache-nya belum punya nama (maks 30 per putaran)
     const ids = new Set([...Object.keys(allUsersCache||{}), ...Object.keys(allPresenceCache)]);
@@ -10095,8 +10175,19 @@ async function pullDirectoryFresh(force){
 window.pullDirectoryFresh = pullDirectoryFresh;
 
 // App dibuka lagi / jaringan kembali → tegaskan online & segarkan daftar online + nama orang lain
+// Pastikan socket benar-benar hidup (bukan zombie). Uji dengan tulisan kecil; kalau tidak di-ACK server → putus-sambung paksa.
+let _linkChkAt = 0;
+async function ensureLinkAlive(reason){
+  try{
+    if(!window.firebaseReady || !MY_UID || !window.rtdbProbe || !navigator.onLine) return;
+    if(Date.now() - _linkChkAt < 8000) return; _linkChkAt = Date.now();
+    const ok = await window.rtdbProbe(7000);
+    if(!ok) window.rtdbHardReconnect(reason || 'probe gagal');
+  }catch(e){}
+}
+window.ensureLinkAlive = ensureLinkAlive;
 (function presenceKeepAlive(){
-  function wake(){ try{ window.rtdbGoOnline && window.rtdbGoOnline(); }catch(e){} assertMyPresence(); pullDirectoryFresh(false); }
+  function wake(){ try{ window.rtdbGoOnline && window.rtdbGoOnline(); }catch(e){} ensureLinkAlive('wake'); assertMyPresence(); pullDirectoryFresh(false); }
   document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') wake(); });
   window.addEventListener('focus', wake);
   window.addEventListener('online', wake);
@@ -10109,7 +10200,9 @@ window.pullDirectoryFresh = pullDirectoryFresh;
   setInterval(()=>{
     try{
       if(!window.firebaseReady || !MY_UID || !_presConnected) return;
-      window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'presence/'+MY_UID), {online:true, lastSeen:Date.now()})
+      const hb = {online:true, lastSeen:Date.now()};
+      if(!_presLegacy && _presCid){ hb.v = 2; hb['conns/'+_presCid] = true; }
+      window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'presence/'+MY_UID), hb)
         .catch((e)=>{ console.warn('[Presence] detak jantung gagal:', e && (e.code||e.message)); });
     }catch(e){}
   }, 60000);
@@ -11011,7 +11104,7 @@ function startUserDirectoryListeners(){
     }
   };
   _udUnsubUsers = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users'), (snap) => { allUsersCache = snap.val()||{}; renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); if(communityMap && !activeRoute && !routePending) renderCommunityMap(); }, showDirError('users'));
-  _udUnsubPresence = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = snap.val()||{}; healMyPresence(); renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); }, showDirError('presence'));
+  _udUnsubPresence = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'presence'), (snap) => { allPresenceCache = normPresence(snap.val()||{}); healMyPresence(); renderUserDirectory(); if(typeof renderAdminUserList==='function') renderAdminUserList(); }, showDirError('presence'));
   // Listen for tier changes on MY account so button updates instantly when admin upgrades
   _udUnsubTier = window.rtdbOnValue(window.rtdbRef(window.firebaseDb,'users/'+MY_UID+'/accountTier'), (snap) => {
     const newTier = snap.val();
@@ -11069,7 +11162,7 @@ if(window.firebaseReady){ startUserDirectoryListeners(); } else { document.addEv
       // 2c. Presence (status online/offline)
       const presSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'presence'));
       if(presSnap && presSnap.val()){
-        allPresenceCache = presSnap.val();
+        allPresenceCache = normPresence(presSnap.val());
         if(typeof renderUserDirectory === 'function') renderUserDirectory();
       }
     } catch(e){
@@ -21936,7 +22029,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
     return Promise.all([
       W.rtdbGet(W.rtdbRef(W.firebaseDb, 'users')).catch(function(){ return null; }),
       W.rtdbGet(W.rtdbRef(W.firebaseDb, 'presence')).catch(function(){ return null; })
-    ]).then(function(r){ if (R) R.fetched = { users:r[0] && r[0].val(), pres:r[1] && r[1].val() }; });
+    ]).then(function(r){ if (R) R.fetched = { users:r[0] && r[0].val(), pres:(r[1] && r[1].val()) ? (W.normPresence ? W.normPresence(r[1].val()) : r[1].val()) : null }; });
   }
   function getData(){ var f = R && R.fetched; return { users:(f && f.users) || g('allUsersCache') || {}, pres:(f && f.pres) || g('allPresenceCache') || {} }; }
   function rebuildAll(){ R.all = Object.keys(R.people).map(function(k){ return R.people[k]; }).concat(R.npcs); }

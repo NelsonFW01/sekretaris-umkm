@@ -2038,6 +2038,13 @@ body.dark-mode .chat-bubble.theirs { background:#383838; color:var(--ink); }
     background: #050b14 !important;
     font-family: 'Plus Jakarta Sans', sans-serif !important;
   }
+  /* ===== PETA 2D KOMUNITAS — tema cerah & hangat (selaras UI krem/emas) =====
+     Aturan gelap di atas tetap berlaku untuk peta lain (detail toko, rute, dll).
+     Khusus #communityMapContainer, filter invert dinetralkan & latar dibuat krem. */
+  #communityMapContainer .leaflet-layer { filter: none !important; }
+  #communityMapContainer .leaflet-container {
+    background: #F3EADB !important;
+  }
   .leaflet-overlay-pane path {
     stroke: var(--teal) !important;
     stroke-width: 5px !important;
@@ -9305,20 +9312,20 @@ function applyMapTimeTheme(){
   let filter, vignette;
   if(hour>=5 && hour<11){
     // Pagi — cerah & hangat
-    filter   = 'brightness(1.1) saturate(1.1) contrast(1.02)';
+    filter   = 'brightness(1.06) saturate(1.1) sepia(0.12)';
     vignette = 'radial-gradient(circle at 50% 42%, rgba(255,238,200,0.16), rgba(255,238,200,0) 62%)';
   } else if(hour>=11 && hour<15){
-    // Siang — normal
-    filter   = 'none';
+    // Siang — cerah, nuansa krem tipis agar selaras dengan UI
+    filter   = 'brightness(1.02) saturate(1.05) sepia(0.14)';
     vignette = 'none';
   } else if(hour>=15 && hour<18){
-    // Sore — mulai redup, hangat
-    filter   = 'brightness(0.9) saturate(1.05) sepia(0.08)';
-    vignette = 'radial-gradient(circle at 50% 55%, rgba(255,150,80,0.08), rgba(34, 14, 44,0.14) 100%)';
+    // Sore — tetap cerah, sedikit lebih hangat
+    filter   = 'brightness(1) saturate(1.1) sepia(0.2)';
+    vignette = 'radial-gradient(circle at 50% 55%, rgba(255,170,90,0.10), rgba(245,184,61,0.06) 100%)';
   } else {
-    // Malam — gelap, kebiruan
-    filter   = 'brightness(0.55) contrast(1.12) saturate(0.75)';
-    vignette = 'radial-gradient(circle at 50% 50%, rgba(10,15,35,0.05), rgba(20, 8, 30,0.38) 100%)';
+    // Malam — tetap terang (tidak gelap/hitam), nuansa krem-emas lembut
+    filter   = 'brightness(0.97) saturate(1.02) sepia(0.18)';
+    vignette = 'radial-gradient(circle at 50% 50%, rgba(255,226,168,0.08), rgba(245,184,61,0.05) 100%)';
   }
 
   const tilePane = wrapper.querySelector('.leaflet-tile-pane');
@@ -23611,11 +23618,23 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
     function save(){ try { W.localStorage.setItem(SKEY, JSON.stringify(ST)); } catch(e){} }
     NX.state = function(){ return ST || load(); };
     NX.save = save;
-    function wal(){ return (ST || load()).w; }
-    function addW(n){ ST.w = Math.max(0, Math.floor(ST.w + n)); save(); refreshWal(); }
+    /* ADMIN (nagoyaflora@gmail.com): koin dunia TAK TERBATAS — saldo selalu penuh, belanja tidak mengurangi saldo,
+       jadi bisa pesan tiket / carter / e-toll ke kota mana pun tanpa batas. Mata uang ini hanya untuk permainan. */
+    var ADMIN_MAIL = 'nagoyaflora@gmail.com', ADMIN_W = 999999999;
+    function isAdm(){
+      try {
+        if (typeof isAdmin !== 'undefined' && isAdmin === true) return true;
+        if (typeof currentAuthEmail !== 'undefined' && String(currentAuthEmail || '').toLowerCase() === ADMIN_MAIL) return true;
+      } catch(e){}
+      return false;
+    }
+    NX.isAdmin = isAdm;
+    function wal(){ var w = (ST || load()).w; return isAdm() ? Math.max(w, ADMIN_W) : w; }
+    function walTxt(){ return isAdm() ? '∞' : nf(wal()); }
+    function addW(n){ if (isAdm()) { refreshWal(); return; } ST.w = Math.max(0, Math.floor(ST.w + n)); save(); refreshWal(); }
     NX.addCoins = addW;
-    function spend(n){ if (ST.w < n) return false; ST.w -= n; save(); refreshWal(); return true; }
-    NX.spend = spend;
+    function spend(n){ if (isAdm()) { refreshWal(); return true; } if (ST.w < n) return false; ST.w -= n; save(); refreshWal(); return true; }
+    NX.spend = spend; NX.wal = wal;
 
     /* ---------- helpers DOM ---------- */
     function sv(tag, attrs, parent){ var e = D.createElementNS(SVGNS, tag); if (attrs) Object.keys(attrs).forEach(function(k){ e.setAttribute(k, attrs[k]); }); if (parent) parent.appendChild(e); return e; }
@@ -23624,7 +23643,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
     function nf(n){ return Number(n).toLocaleString('id-ID'); }
     var U = { ov:null, map:null, side:null, wal:null, tabs:{}, chip:null, walPill:null, btn:null, fly:null };
     var B = { open:false, tab:'plane', dest:null, cls:'eko', slot:0, ctx:'anywhere', iv:0, sel:null };
-    function refreshWal(){ if (U.wal) U.wal.textContent = '🪙 ' + nf(wal()); if (U.walPill) U.walPill.textContent = '💳 ' + nf(wal()); }
+    function refreshWal(){ if (U.wal) U.wal.textContent = '🪙 ' + walTxt(); if (U.walPill) U.walPill.textContent = '💳 ' + walTxt(); }
 
     /* ---------- peta rute (SVG) ---------- */
     function bez(a, b){ // titik kontrol lengkung
@@ -23738,7 +23757,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
       spend(price);
       ST.tk = { id:Math.floor(now / 1000).toString(36) + Math.floor(Math.random() * 1296).toString(36), mode:mode, from:NX.cur, to:dest, cls:cls, price:price, dep:dep, charter:!!charter, at:now };
       save(); paxWatch(ST.tk); chipUpdate(true);
-      sfx('coin'); toast('🎫 Tiket ' + BY[NX.cur].id + ' → ' + BY[dest].id + ' berhasil dipesan (−' + nf(price) + ' 🪙)', 'cp');
+      sfx('coin'); toast('🎫 Tiket ' + BY[NX.cur].id + ' → ' + BY[dest].id + ' berhasil dipesan (' + (isAdm() ? 'Admin: gratis' : '−' + nf(price) + ' 🪙') + ')', 'cp');
       if (charter) setTimeout(function(){ if (R && ST && ST.tk) board(); }, 200);
       return { ok:true };
     }
@@ -23892,7 +23911,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
       var slots = nextSlots(mode, now, 3, 20000), sl = el('div', 'nx-slots'); if (B.slot >= slots.length) B.slot = 0;
       slots.forEach(function(t, i){ var ph2 = phase({ mode:mode, dep:t }, now), b = el('button', 'nx-slot' + (B.slot === i ? ' on' : ''), ''); b.type = 'button'; b.appendChild(el('b', null, clock(t))); b.appendChild(el('span', null, ph2 === 'check' ? 'check-in buka' : 'berangkat ' + fmtT(t - now))); b.onclick = function(){ B.slot = i; render(); }; sl.appendChild(b); }); s.appendChild(sl);
       var price = fare(mode, NX.cur, B.dest, B.cls), cprice = Math.round(price * CHARTER / 5) * 5, res = el('div', 'nx-msg');
-      row(s, 'Saldo', nf(wal()) + ' 🪙'); row(s, 'Harga tiket', nf(price) + ' 🪙', wal() < price ? 'bad' : '');
+      row(s, 'Saldo', walTxt() + ' 🪙'); row(s, 'Harga tiket', (isAdm() ? 'Gratis (Admin) ' : '') + nf(price) + ' 🪙', wal() < price ? 'bad' : '');
       var btns = el('div', 'nx-btns'); var pay = el('button', 'nx-b1', 'Pesan & Bayar ' + nf(price) + ' 🪙'); pay.type = 'button'; pay.disabled = wal() < price;
       pay.onclick = function(){ var r = book(mode, B.dest, B.cls, slots[B.slot], false); if (!r.ok){ res.textContent = r.msg; sfx('ui'); } else { B.dest = null; B.sel = null; render(); } };
       btns.appendChild(pay);
@@ -24682,7 +24701,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: #F5B83D
       if (R.state === 'play' && !R.room && !R.nxLock) NX.near(mp);
       if (EXT.cc){
         var C = EXT.cc, riding = !!(EXT.X().obj), inTol = C.tolRect(mp.x, mp.z);
-        if (inTol && riding){ if (!C.tolOn){ tolT -= dt; if (tolT <= 0){ tolT = 6; if (NX.state().w >= 2){ NX.spend(2); C.tolOn = true; sfx('coin'); toast('💳 E-Toll −2 🪙 · jalan tol bebas hambatan, kecepatan ×1.5', 'cp'); } else toast('💳 Saldo e-toll kurang (butuh 2 🪙) — tidak bisa memakai jalur cepat', 'warn'); } } }
+        if (inTol && riding){ if (!C.tolOn){ tolT -= dt; if (tolT <= 0){ tolT = 6; if (NX.wal() >= 2){ NX.spend(2); C.tolOn = true; sfx('coin'); toast(NX.isAdmin() ? '💳 E-Toll gratis (Admin) · jalan tol bebas hambatan, kecepatan ×1.5' : '💳 E-Toll −2 🪙 · jalan tol bebas hambatan, kecepatan ×1.5', 'cp'); } else toast('💳 Saldo e-toll kurang (butuh 2 🪙) — tidak bisa memakai jalur cepat', 'warn'); } } }
         else { if (C.tolOn && (!inTol || !riding)) C.tolOn = false; tolT = 0; }
         var lv = C.lmVisit, st = NX.state(); if (lv && R.state === 'play'){ var v = st.lmv || (st.lmv = {}); if (!v[C.id] && Math.hypot(mp.x - lv.x, mp.z - lv.z) < lv.r){ v[C.id] = Date.now(); NX.addCoins(10); NX.save(); toast('📸 Kunjungan pertama ke ' + C.c.lmName + ' · +10 🪙', 'cp'); sfx('win'); popup('+10 🪙', mp.x, mp.y + 4.4, mp.z, '#FFE2A8', true); } }
       }
@@ -25313,6 +25332,7 @@ body.bali-bg-on .panel > div[class*="card"]{backdrop-filter:blur(18px) saturate(
 body.bali-bg-on h1,body.bali-bg-on h2{text-shadow:0 2px 14px rgba(7,17,30,.55);}
 
 /* ---- tombol kecil "Dunia" (hanya setelah login) ---- */
+#baliWorldFab{display:none !important;}
 #baliWorldFab{position:fixed;left:12px;bottom:98px;z-index:2900;width:48px;height:48px;border-radius:50%;border:1.5px solid rgba(255,201,138,.75);
   background:linear-gradient(135deg,#FFE2A8,#F5B83D);color:#2A1233;cursor:pointer;display:none;flex-direction:column;align-items:center;justify-content:center;
   box-shadow:0 6px 22px rgba(245,184,61,.55),0 0 0 4px rgba(245,184,61,.16);transition:transform .2s;touch-action:manipulation;padding:0;line-height:1;}
@@ -27571,7 +27591,7 @@ html.bali-lite .nx-pulse,html.bali-lite .nx-dash,html.bali-lite .nx-clouds,html.
   };
   function initFab(){
     var b = document.createElement('button'); b.id = 'baliWorldFab'; b.type = 'button'; b.setAttribute('aria-label', 'Buka Peta Indonesia 3D'); b.title = 'Peta Indonesia 3D (jelajah bersama warga)';
-    b.innerHTML = '<span>🗺️</span><i>Peta</i>'; b.onclick = function(){ W.BaliWorld.open(); }; document.body.appendChild(b);
+    b.innerHTML = '<span>🗺️</span><i>Peta</i>'; b.onclick = function(){ W.BaliWorld.open(); }; /* tombol TIDAK dipasang ke halaman (tidak lagi mengambang & menutupi konten). Peta dibuka lewat kartu "Peta Indonesia 3D", tombol di Peta Komunitas, atau menu samping. */
     function refresh(){
       var logged = !!uid(), auth = document.getElementById('authOverlay');
       var hidden = auth ? (getComputedStyle(auth).display === 'none' || auth.classList.contains('hidden')) : true;

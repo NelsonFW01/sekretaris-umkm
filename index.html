@@ -5402,7 +5402,7 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ============ DIAGNOSA AKUN & SINKRON DATA (⚙️ Setting → Tentang Aplikasi) ============
 // Satu tombol yang menjawab "kenapa data akun ini tidak muncul di browser ini?": akun mana yang login, versi (build) berkas yang
 // terpasang, dan untuk tiap kelompok data di Firebase: ada berapa item / kosong / DITOLAK oleh aturan database.
-const APP_BUILD = '2026-11-19.2';
+const APP_BUILD = '2026-11-19.3';
 // ===== TOMBOL REFRESH: bersihkan cache file aplikasi lalu muat ulang versi terbaru =====
 // Login Firebase & data akun TIDAK dihapus (disimpan di IndexedDB), jadi user tetap masuk.
 (function setupRefreshButton(){
@@ -5435,26 +5435,86 @@ const APP_BUILD = '2026-11-19.2';
   });
   window.markUpdateAvailable = function(){ btn.classList.add('has-update'); btn.title = 'Versi baru tersedia — ketuk untuk memperbarui'; };
 })();
-// Deteksi deploy baru: hanya cek header (ETag/Last-Modified), bukan unduh ulang file. Tanpa reload paksa.
+// ===== AUTO-UPDATE APLIKASI (laptop & HP) =====
+// Mengecek apakah ada deploy baru: saat app dibuka lagi / kembali ke foreground / online lagi (bukan hanya timer, karena
+// timer dibekukan browser HP), plus tiap 2 menit saat terlihat. Kalau ada versi baru dan user TIDAK sedang live / nonton /
+// mengetik / aktif memakai app, halaman dimuat ulang otomatis (login & data akun aman: tersimpan di IndexedDB + cache Firebase).
+// Kalau sedang sibuk, update ditunda dan tombol refresh diberi penanda; dimuat otomatis begitu user diam atau pindah app.
 (function watchDeploy(){
-  let sig = null;
-  async function check(){
+  let sig = null, checking = false, lastCheck = 0, lastTouch = Date.now(), updateReady = false;
+  const GUARD_KEY = '_umkm_autoreload_ts';
+  ['pointerdown','keydown','touchstart','wheel'].forEach(ev => window.addEventListener(ev, () => { lastTouch = Date.now(); }, { passive:true, capture:true }));
+  function busyLive(){
+    try{ return !!((typeof liveSessionId !== 'undefined' && liveSessionId) || (typeof watchingSessionId !== 'undefined' && watchingSessionId)); }catch(e){ return false; }
+  }
+  function typingNow(){
+    const a = document.activeElement;
+    return !!(a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable));
+  }
+  async function headSig(){
+    const r = await fetch('/index.html', { method:'HEAD', cache:'no-store' });
+    return (r.headers.get('etag')||'') + '|' + (r.headers.get('last-modified')||'') + '|' + (r.headers.get('content-length')||'');
+  }
+  // Cadangan kalau server tidak mengirim ETag/Last-Modified: bandingkan nomor build di berkas terbaru dengan yang sedang berjalan
+  async function buildOnServer(){
+    const r = await fetch('/index.html?_v=' + Date.now(), { cache:'no-store' });
+    const t = await r.text();
+    const m = t.match(/const APP_BUILD\s*=\s*'([^']+)'/);
+    return m ? m[1] : null;
+  }
+  async function hardReload(){
+    try{ if(typeof txFlush === 'function') await txFlush(); }catch(e){}
+    await new Promise(r => setTimeout(r, 400));
+    try{ sessionStorage.setItem(GUARD_KEY, String(Date.now())); }catch(e){}
+    try{ if('serviceWorker' in navigator){ const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(r => r.update().catch(()=>{}))); } }catch(e){}
+    try{ if(window.caches){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } }catch(e){}
+    const u = new URL(location.href);
+    u.searchParams.set('_r', Date.now());
+    location.replace(u.toString());
+  }
+  function maybeAutoReload(reason){
+    if(!updateReady) return;
+    try{ const g = +sessionStorage.getItem(GUARD_KEY) || 0; if(Date.now() - g < 120000) return; }catch(e){} // cegah reload berulang
+    if(busyLive()) return;
+    const hidden = document.visibilityState === 'hidden';
+    const idle = Date.now() - lastTouch > 45000 && !typingNow();
+    if((reason === 'resume' && !typingNow()) || hidden || idle){ console.info('[Deploy] memuat versi baru (' + reason + ')'); hardReload(); }
+  }
+  async function check(reason){
+    if(checking || !navigator.onLine) return;
+    if(Date.now() - lastCheck < 10000 && reason !== 'timer') return;
+    checking = true; lastCheck = Date.now();
     try{
-      const r = await fetch('/index.html', { method:'HEAD', cache:'no-store' });
-      const now = (r.headers.get('etag')||'') + '|' + (r.headers.get('last-modified')||'');
-      if(now === '|') return;
-      if(sig && sig !== now){
+      let changed = false;
+      const now = await headSig();
+      if(now.replace(/\|/g,'') !== ''){
+        if(sig && sig !== now) changed = true;
+        sig = now;
+      }else{
+        const b = await buildOnServer();
+        if(b && b !== APP_BUILD) changed = true;
+      }
+      if(changed && !updateReady){
+        updateReady = true;
         console.info('[Deploy] Versi baru tersedia');
         try{ window.markUpdateAvailable && window.markUpdateAvailable(); }catch(e){}
         try{ if(window.rtdbGoOnline) window.rtdbGoOnline(); }catch(e){}
-        try{ startGlobalLiveWatcher(); }catch(e){}
-        if(typeof addNotif === 'function') addNotif('Versi baru aplikasi tersedia. Tutup & buka ulang app untuk memperbarui.', '\u{1F504}');
       }
-      sig = now;
+      maybeAutoReload(reason);
     }catch(e){}
+    finally{ checking = false; }
   }
-  setTimeout(check, 5000);
-  setInterval(check, 5*60*1000);
+  // Pertama kali: simpan tanda tangan versi yang sedang berjalan
+  setTimeout(() => check('init'), 3000);
+  setInterval(() => { if(document.visibilityState === 'visible') check('timer'); else maybeAutoReload('timer'); }, 2*60*1000);
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') check('resume'); });
+  window.addEventListener('pageshow', () => check('resume'));
+  window.addEventListener('online', () => check('resume'));
+  window.addEventListener('focus', () => check('resume'));
+  // Setelah live selesai / user diam, update yang tertunda dimuat
+  setInterval(() => maybeAutoReload('idle'), 15000);
+  // Minta browser agar IndexedDB (cache data Firebase & login) tidak mudah dibuang, terutama di HP
+  try{ if(navigator.storage && navigator.storage.persist){ navigator.storage.persisted().then(ok => { if(!ok) navigator.storage.persist().catch(()=>{}); }).catch(()=>{}); } }catch(e){}
 })();
 (function(){
   const line = document.getElementById('appBuildLine');

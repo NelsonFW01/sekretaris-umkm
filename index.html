@@ -67,6 +67,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cinzel:wght@600;700;800&display=swap" rel="stylesheet">
+<!-- Unduh SDK Firebase lebih awal & paralel (tidak menunggu parsing halaman) -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -113,35 +119,24 @@
   //  listener ke IndexedDB (tidak ikut terhapus saat kamu deploy kode baru), lalu:
   //    1) saat listener dipasang → data cache langsung ditampilkan (hitungan milidetik)
   //    2) data asli dari server menyusul & menimpa seperti biasa (tampilan ter-update sendiri)
-  //  Cache dipisah per akun (uid), dibuang saat logout, dan hanya untuk path "tampilan" di ALLOW.
-  //  Path real-time sensitif (presence, chat, panggilan, live, typing) SENGAJA tidak di-cache.
+  //  • Data PUBLIK komunitas (galeri, video, pasar, rewards) memakai namespace bersama '*' sehingga
+  //    langsung tampil bahkan sebelum login selesai dipulihkan.
+  //  • Data PRIBADI (profil, chat, tagihan, stok, ...) dipisah per akun (uid) dan baru dipakai setelah login.
+  //  • Semua cache dibuang saat logout. Path real-time sensitif (presence, panggilan, live, typing,
+  //    posisi kurir) SENGAJA tidak di-cache. Cek isinya: ketik fbCacheStats() di Console.
   // ==========================================================================================
   const FBC = (function () {
-    const VERSION = 'v1';                 // naikkan kalau struktur data berubah → cache lama otomatis tidak dipakai
+    const VERSION = 'v2';                 // naikkan kalau struktur data berubah → cache lama otomatis tidak dipakai
     const TTL_MS = 30 * 24 * 3600 * 1000; // cache > 30 hari dibuang
     const DB_NAME = 'umkm_fb_cache', STORE = 'snap';
-    const ALLOW = [
-      /^\/users$/, /^\/users\/[^/]+$/, /^\/gallery$/, /^\/liveVideos$/, /^\/pasarKongsi$/, /^\/rewards$/,
+    const PUBLIC = /^\/(gallery|liveVideos|pasarKongsi|rewards)$/;
+    const PRIVATE = [
+      /^\/users$/, /^\/users\/[^/]+$/,
       /^\/(stokInventori|pemasok|agentSettings|agentDrafts|agentRuns|invoices)\/[^/]+$/,
       /^\/chats$/, /^\/chats\/[^/]+\/messages$/, /^\/chats\/[^/]+\/meta\/wallpaper$/
     ];
-    // Node /chats berisi SEMUA percakapan; yang disimpan di perangkat hanya percakapan milik akun ini
-    function shrink(path, v, uid) {
-      if (path === '/chats' && v && typeof v === 'object') {
-        const out = {}; Object.keys(v).forEach(function (k) { if (k.indexOf(uid) !== -1) out[k] = v[k]; });
-        return out;
-      }
-      return v;
-    }
-    // Simpan yang tertunda saat tab ditutup / pindah app, supaya aktivitas terakhir tidak hilang
-    const pending = new Set();
-    function flushAll() { pending.forEach(function (fn) { try { fn(); } catch (e) {} }); }
-    try {
-      window.addEventListener('pagehide', flushAll);
-      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushAll(); });
-    } catch (e) {}
-    const mem = new Map();
-    let dbp = null, loadedFor = null, loadP = null, pruned = false;
+    const mem = new Map(), loaded = {};
+    let dbp = null, pruned = false;
 
     function openDb() {
       if (dbp) return dbp;
@@ -158,22 +153,23 @@
     function curUid() { try { return (window.fbAuth && window.fbAuth.currentUser && window.fbAuth.currentUser.uid) || null; } catch (e) { return null; } }
     function describe(q) {
       try {
-        const path = q._path.toString();
-        if (!ALLOW.some(function (r) { return r.test(path); })) return null;
-        return { path: path, id: q._queryIdentifier || 'default' };
+        const path = q._path.toString(), pub = PUBLIC.test(path);
+        if (!pub && !PRIVATE.some(function (r) { return r.test(path); })) return null;
+        return { path: path, id: q._queryIdentifier || 'default', pub: pub };
       } catch (e) { return null; }
     }
-    const keyOf = function (uid, d) { return VERSION + '|' + uid + '|' + d.path + '|' + d.id; };
+    // namespace: '*' untuk data publik, uid untuk data pribadi (null = belum login → tidak di-cache)
+    const nsOf = function (d) { return d.pub ? '*' : curUid(); };
+    const keyOf = function (ns, d) { return VERSION + '|' + ns + '|' + d.path + '|' + d.id; };
     const lastSeg = function (p) { const a = p.split('/').filter(Boolean); return a.length ? a[a.length - 1] : null; };
 
-    function load(uid) {
-      if (loadedFor === uid && loadP) return loadP;
-      loadedFor = uid; mem.clear();
-      loadP = openDb().then(function (db) {
+    function loadNs(ns) {
+      if (loaded[ns]) return loaded[ns];
+      loaded[ns] = openDb().then(function (db) {
         return new Promise(function (res) {
           if (!db) return res();
           try {
-            const prefix = VERSION + '|' + uid + '|';
+            const prefix = VERSION + '|' + ns + '|';
             const req = db.transaction(STORE, 'readonly').objectStore(STORE)
               .openCursor(IDBKeyRange.bound(prefix, prefix + '\uffff'));
             req.onsuccess = function () {
@@ -186,7 +182,11 @@
         });
       });
       if (!pruned) { pruned = true; setTimeout(prune, 8000); }
-      return loadP;
+      return loaded[ns];
+    }
+    function load(uid) {
+      uid = uid || curUid();
+      return Promise.all([loadNs('*'), uid ? loadNs(uid) : null]);
     }
     // buang entri versi lama / kedaluwarsa (milik akun mana pun)
     function prune() {
@@ -219,6 +219,23 @@
     function clone(x) {
       try { return structuredClone(x); } catch (e) { try { return JSON.parse(JSON.stringify(x)); } catch (e2) { return x; } }
     }
+    // Node /chats berisi SEMUA percakapan; yang disimpan di perangkat hanya percakapan milik akun ini
+    function shrink(path, v) {
+      if (path === '/chats' && v && typeof v === 'object') {
+        const uid = curUid(), out = {};
+        Object.keys(v).forEach(function (k) { if (uid && k.indexOf(uid) !== -1) out[k] = v[k]; });
+        return out;
+      }
+      return v;
+    }
+    // Simpan yang tertunda saat tab ditutup / pindah app, supaya aktivitas terakhir tidak hilang
+    const pending = new Set();
+    function flushAll() { pending.forEach(function (fn) { try { fn(); } catch (e) {} }); }
+    try {
+      window.addEventListener('pagehide', flushAll);
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushAll(); });
+    } catch (e) {}
+
     // Snapshot tiruan dari cache — mendukung API DataSnapshot yang dipakai app (val, exists, forEach, child, ...)
     function mkSnap(key, val) {
       const snap = {
@@ -250,13 +267,13 @@
     // Pengganti onValue: kirim cache dulu (kalau ada), lalu data asli dari server
     function onValueCached(q, cb) {
       const args = Array.prototype.slice.call(arguments);
-      const uid = curUid(), d = uid && describe(q);
-      if (!d) return onValue.apply(null, args);
-      const key = keyOf(uid, d);
+      const d = describe(q), ns = d && nsOf(d);
+      if (!d || !ns) return onValue.apply(null, args);
+      const key = keyOf(ns, d);
       let gotReal = false, dead = false, timer = null, last = null;
       const flush = function () {
         timer = null; pending.delete(flush); if (!last) return;
-        let v; try { v = shrink(d.path, last.val(), uid); } catch (e) { return; }
+        let v; try { v = shrink(d.path, last.val()); } catch (e) { return; }
         put(key, v);
       };
       args[1] = function (snap) {
@@ -269,11 +286,12 @@
         args[2] = function (err) { mem.delete(key); idbWrite(key, undefined); return origErr(err); };
       }
       const unsub = onValue.apply(null, args);
-      load(uid).then(function () {
+      load().then(function () {
         if (dead || gotReal) return;                  // server sudah lebih dulu → cache tidak perlu
         const e = mem.get(key);
         if (e && e.v !== null && e.v !== undefined) {
-          try { cb(mkSnap(lastSeg(d.path), e.v)); } catch (err) { console.warn('[cache] callback error:', err); }
+          try { console.info('[cache] tampil dari perangkat:', d.path); cb(mkSnap(lastSeg(d.path), e.v)); }
+          catch (err) { console.warn('[cache] callback error:', err); }
         }
       });
       return function () {
@@ -285,21 +303,26 @@
     }
     // Untuk pola get(): ambil dari cache dulu / simpan hasil server
     async function peek(q) {
-      const uid = curUid(), d = uid && describe(q); if (!d) return null;
-      await load(uid);
-      const e = mem.get(keyOf(uid, d));
+      const d = describe(q), ns = d && nsOf(d); if (!d || !ns) return null;
+      await load();
+      const e = mem.get(keyOf(ns, d));
       return (e && e.v !== null && e.v !== undefined) ? mkSnap(lastSeg(d.path), e.v) : null;
     }
     function putSnap(q, snap) {
-      const uid = curUid(), d = uid && describe(q); if (!d || !snap) return;
-      let v; try { v = shrink(d.path, snap.val(), uid); } catch (e) { return; }
-      put(keyOf(uid, d), v);
+      const d = describe(q), ns = d && nsOf(d); if (!d || !ns || !snap) return;
+      let v; try { v = shrink(d.path, snap.val()); } catch (e) { return; }
+      put(keyOf(ns, d), v);
     }
     function clear() {
-      mem.clear(); loadedFor = null; loadP = null;
+      mem.clear(); Object.keys(loaded).forEach(function (k) { delete loaded[k]; });
       openDb().then(function (db) { if (db) try { db.transaction(STORE, 'readwrite').objectStore(STORE).clear(); } catch (e) {} });
     }
-    function stats() { const o = { akun: curUid(), entri: mem.size, kunci: [] }; mem.forEach(function (e, k) { o.kunci.push(k + ' (' + Math.round(JSON.stringify(e.v).length / 1024) + ' KB)'); }); return o; }
+    function stats() {
+      const o = { akun: curUid(), entri: mem.size, kunci: [] };
+      mem.forEach(function (e, k) { o.kunci.push(k + ' (' + Math.round(JSON.stringify(e.v).length / 1024) + ' KB)'); });
+      return o;
+    }
+    load(); // mulai baca cache publik dari perangkat sekarang juga, paralel dengan unduhan SDK Firebase
     return { onValue: onValueCached, peek: peek, putSnap: putSnap, clear: clear, load: load, stats: stats };
   })();
 
@@ -359,54 +382,63 @@
       window.storageGetDownloadURL = getDownloadURL;
       window.storageDeleteObject = deleteObject;
       window.firebaseServerTimestamp = serverTimestamp;
-      // Firebase Cloud Messaging (FCM) untuk push notifikasi
-      try {
-        const { getMessaging, getToken, onMessage } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
-        const messaging = getMessaging(app);
-        const FCM_VAPID_KEY = 'BBDMNnnH5LaEH32OvUrIf5_nfMrAJUxLrfWtA4qCF_RTesDqhahqFCDlLw7yYE6lZsRENYYJQ_Qa6Oxwz2DRDq8';
+      // Firebase Cloud Messaging (FCM) untuk push notifikasi — dimuat di BELAKANG layar.
+      // Dulu `await import(messaging)` + `await serviceWorker.register(...)` dijalankan SEBELUM event 'firebase-ready',
+      // sehingga seluruh aplikasi (login, semua listener data) ikut menunggu unduhan modul push & pendaftaran
+      // service worker — terutama terasa lambat tepat setelah deploy. Sekarang app jalan duluan.
+      const fcmInit = (async () => {
+        try {
+          const { getMessaging, getToken, onMessage } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js");
+          const messaging = getMessaging(app);
+          const FCM_VAPID_KEY = 'BBDMNnnH5LaEH32OvUrIf5_nfMrAJUxLrfWtA4qCF_RTesDqhahqFCDlLw7yYE6lZsRENYYJQ_Qa6Oxwz2DRDq8';
 
-        // Daftarkan firebase-messaging-sw.js untuk background push
-        let swReg = null;
-        if ('serviceWorker' in navigator) {
-          try {
-            swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          } catch(swErr) {
-            console.warn('[FCM] SW register gagal:', swErr.message);
+          // Daftarkan firebase-messaging-sw.js untuk background push
+          let swReg = null;
+          if ('serviceWorker' in navigator) {
+            try {
+              swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            } catch(swErr) {
+              console.warn('[FCM] SW register gagal:', swErr.message);
+            }
           }
+
+          // Terima notifikasi saat app di foreground
+          onMessage(messaging, (payload) => {
+            const n = payload.notification || {};
+            const d = payload.data || {};
+            const title = n.title || d.title || 'Sekretaris UMKM';
+            const body = n.body || d.body || 'Ada notifikasi baru';
+            if (Notification.permission === 'granted') {
+              new Notification(title, { body, icon: '/icon-192.png', tag: d.tag || 'umkm' });
+            }
+          });
+
+          window.firebaseMessaging = messaging;
+          return { messaging, getToken, swReg, FCM_VAPID_KEY };
+        } catch(msgErr) {
+          console.warn('[FCM] Messaging init gagal:', msgErr.message);
+          return null;
         }
+      })();
 
-        // Ambil FCM token (minta permission notifikasi)
-        window.getFcmToken = async function() {
-          try {
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') return null;
-            const token = await getMessaging && getToken(messaging, {
-              vapidKey: FCM_VAPID_KEY,
-              serviceWorkerRegistration: swReg
-            });
-            window._fcmToken = token;
-            return token;
-          } catch(e) {
-            console.warn('[FCM] getToken gagal:', e.message);
-            return null;
-          }
-        };
-
-        // Terima notifikasi saat app di foreground
-        onMessage(messaging, (payload) => {
-          const n = payload.notification || {};
-          const d = payload.data || {};
-          const title = n.title || d.title || 'Sekretaris UMKM';
-          const body = n.body || d.body || 'Ada notifikasi baru';
-          if (Notification.permission === 'granted') {
-            new Notification(title, { body, icon: '/icon-192.png', tag: d.tag || 'umkm' });
-          }
-        });
-
-        window.firebaseMessaging = messaging;
-      } catch(msgErr) {
-        console.warn('[FCM] Messaging init gagal:', msgErr.message);
-      }
+      // Ambil FCM token (minta permission notifikasi) — menunggu inisialisasi FCM di belakang layar
+      window.getFcmToken = async function() {
+        try {
+          const ctx = await fcmInit;
+          if (!ctx) return null;
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return null;
+          const token = await ctx.getToken(ctx.messaging, {
+            vapidKey: ctx.FCM_VAPID_KEY,
+            serviceWorkerRegistration: ctx.swReg
+          });
+          window._fcmToken = token;
+          return token;
+        } catch(e) {
+          console.warn('[FCM] getToken gagal:', e.message);
+          return null;
+        }
+      };
 
       window.firebaseReady = true;
       document.dispatchEvent(new Event('firebase-ready'));

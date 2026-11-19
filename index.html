@@ -105,6 +105,186 @@
     appId: "1:885552629940:web:c29ac342006b6ea099efe1"
   };
 
+
+  // ==========================================================================================
+  //  CACHE DATA FIREBASE (stale-while-revalidate)
+  //  Realtime Database versi web TIDAK punya cache bawaan, jadi tiap buka/deploy ulang data
+  //  ditarik dari nol lewat jaringan (lambat). Lapisan ini menyimpan salinan terakhir tiap
+  //  listener ke IndexedDB (tidak ikut terhapus saat kamu deploy kode baru), lalu:
+  //    1) saat listener dipasang → data cache langsung ditampilkan (hitungan milidetik)
+  //    2) data asli dari server menyusul & menimpa seperti biasa (tampilan ter-update sendiri)
+  //  Cache dipisah per akun (uid), dibuang saat logout, dan hanya untuk path "tampilan" di ALLOW.
+  //  Path real-time sensitif (presence, chat, panggilan, live, typing) SENGAJA tidak di-cache.
+  // ==========================================================================================
+  const FBC = (function () {
+    const VERSION = 'v1';                 // naikkan kalau struktur data berubah → cache lama otomatis tidak dipakai
+    const TTL_MS = 30 * 24 * 3600 * 1000; // cache > 30 hari dibuang
+    const DB_NAME = 'umkm_fb_cache', STORE = 'snap';
+    const ALLOW = [
+      /^\/users$/, /^\/users\/[^/]+$/, /^\/gallery$/, /^\/liveVideos$/, /^\/pasarKongsi$/,
+      /^\/(stokInventori|pemasok|agentSettings|agentDrafts|agentRuns|invoices)\/[^/]+$/
+    ];
+    const mem = new Map();
+    let dbp = null, loadedFor = null, loadP = null, pruned = false;
+
+    function openDb() {
+      if (dbp) return dbp;
+      dbp = new Promise(function (res) {
+        try {
+          const r = indexedDB.open(DB_NAME, 1);
+          r.onupgradeneeded = function () { r.result.createObjectStore(STORE); };
+          r.onsuccess = function () { res(r.result); };
+          r.onerror = r.onblocked = function () { res(null); };
+        } catch (e) { res(null); }
+      });
+      return dbp;
+    }
+    function curUid() { try { return (window.fbAuth && window.fbAuth.currentUser && window.fbAuth.currentUser.uid) || null; } catch (e) { return null; } }
+    function describe(q) {
+      try {
+        const path = q._path.toString();
+        if (!ALLOW.some(function (r) { return r.test(path); })) return null;
+        return { path: path, id: q._queryIdentifier || 'default' };
+      } catch (e) { return null; }
+    }
+    const keyOf = function (uid, d) { return VERSION + '|' + uid + '|' + d.path + '|' + d.id; };
+    const lastSeg = function (p) { const a = p.split('/').filter(Boolean); return a.length ? a[a.length - 1] : null; };
+
+    function load(uid) {
+      if (loadedFor === uid && loadP) return loadP;
+      loadedFor = uid; mem.clear();
+      loadP = openDb().then(function (db) {
+        return new Promise(function (res) {
+          if (!db) return res();
+          try {
+            const prefix = VERSION + '|' + uid + '|';
+            const req = db.transaction(STORE, 'readonly').objectStore(STORE)
+              .openCursor(IDBKeyRange.bound(prefix, prefix + '\uffff'));
+            req.onsuccess = function () {
+              const c = req.result; if (!c) return res();
+              const v = c.value; if (v && Date.now() - v.t < TTL_MS) mem.set(c.key, v);
+              c.continue();
+            };
+            req.onerror = function () { res(); };
+          } catch (e) { res(); }
+        });
+      });
+      if (!pruned) { pruned = true; setTimeout(prune, 8000); }
+      return loadP;
+    }
+    // buang entri versi lama / kedaluwarsa (milik akun mana pun)
+    function prune() {
+      openDb().then(function (db) {
+        if (!db) return;
+        try {
+          const st = db.transaction(STORE, 'readwrite').objectStore(STORE), req = st.openCursor();
+          req.onsuccess = function () {
+            const c = req.result; if (!c) return;
+            if (String(c.key).indexOf(VERSION + '|') !== 0 || !c.value || Date.now() - c.value.t >= TTL_MS) c.delete();
+            c.continue();
+          };
+        } catch (e) {}
+      });
+    }
+    function idbWrite(key, val) {
+      openDb().then(function (db) {
+        if (!db) return;
+        try {
+          const st = db.transaction(STORE, 'readwrite').objectStore(STORE);
+          if (val === undefined) st.delete(key); else st.put(val, key);
+        } catch (e) { /* kuota penuh / data tak bisa diklon → abaikan, cache hanya optimasi */ }
+      });
+    }
+    function put(key, v) {
+      if (v === null || v === undefined) { mem.delete(key); idbWrite(key, undefined); return; }
+      const rec = { t: Date.now(), v: v };
+      mem.set(key, rec); idbWrite(key, rec);
+    }
+    function clone(x) {
+      try { return structuredClone(x); } catch (e) { try { return JSON.parse(JSON.stringify(x)); } catch (e2) { return x; } }
+    }
+    // Snapshot tiruan dari cache — mendukung API DataSnapshot yang dipakai app (val, exists, forEach, child, ...)
+    function mkSnap(key, val) {
+      const snap = {
+        key: key, ref: null, _fromCache: true,
+        exists: function () { return val !== null && val !== undefined; },
+        val: function () { return clone(val); },
+        toJSON: function () { return clone(val); },
+        exportVal: function () { return clone(val); },
+        hasChildren: function () { return !!val && typeof val === 'object' && Object.keys(val).length > 0; },
+        numChildren: function () { return (val && typeof val === 'object') ? Object.keys(val).length : 0; },
+        hasChild: function (p) { return snap.child(p).exists(); },
+        child: function (p) {
+          let cur = val, k = key;
+          String(p).split('/').filter(Boolean).forEach(function (seg) {
+            cur = (cur && typeof cur === 'object') ? cur[seg] : null; k = seg; if (cur === undefined) cur = null;
+          });
+          return mkSnap(k, cur);
+        },
+        forEach: function (cb) {
+          if (!val || typeof val !== 'object') return false;
+          const ks = Object.keys(val);
+          for (let i = 0; i < ks.length; i++) { if (cb(mkSnap(ks[i], val[ks[i]])) === true) return true; }
+          return false;
+        }
+      };
+      return snap;
+    }
+
+    // Pengganti onValue: kirim cache dulu (kalau ada), lalu data asli dari server
+    function onValueCached(q, cb) {
+      const args = Array.prototype.slice.call(arguments);
+      const uid = curUid(), d = uid && describe(q);
+      if (!d) return onValue.apply(null, args);
+      const key = keyOf(uid, d);
+      let gotReal = false, dead = false, timer = null, last = null;
+      const flush = function () {
+        timer = null; if (!last) return;
+        let v; try { v = last.val(); } catch (e) { return; }
+        put(key, v);
+      };
+      args[1] = function (snap) {
+        gotReal = true; last = snap;
+        if (!timer) timer = setTimeout(flush, 1500); // tulis cache paling sering tiap 1,5 dtk
+        return cb(snap);
+      };
+      if (typeof args[2] === 'function') {            // error (mis. permission_denied) → cache tidak boleh bertahan
+        const origErr = args[2];
+        args[2] = function (err) { mem.delete(key); idbWrite(key, undefined); return origErr(err); };
+      }
+      const unsub = onValue.apply(null, args);
+      load(uid).then(function () {
+        if (dead || gotReal) return;                  // server sudah lebih dulu → cache tidak perlu
+        const e = mem.get(key);
+        if (e && e.v !== null && e.v !== undefined) {
+          try { cb(mkSnap(lastSeg(d.path), e.v)); } catch (err) { console.warn('[cache] callback error:', err); }
+        }
+      });
+      return function () {
+        dead = true;
+        if (timer) { clearTimeout(timer); flush(); }
+        try { unsub(); } catch (e) {}
+      };
+    }
+    // Untuk pola get(): ambil dari cache dulu / simpan hasil server
+    async function peek(q) {
+      const uid = curUid(), d = uid && describe(q); if (!d) return null;
+      await load(uid);
+      const e = mem.get(keyOf(uid, d));
+      return (e && e.v !== null && e.v !== undefined) ? mkSnap(lastSeg(d.path), e.v) : null;
+    }
+    function putSnap(q, snap) {
+      const uid = curUid(), d = uid && describe(q); if (!d || !snap) return;
+      let v; try { v = snap.val(); } catch (e) { return; }
+      put(keyOf(uid, d), v);
+    }
+    function clear() {
+      mem.clear(); loadedFor = null; loadP = null;
+      openDb().then(function (db) { if (db) try { db.transaction(STORE, 'readwrite').objectStore(STORE).clear(); } catch (e) {} });
+    }
+    return { onValue: onValueCached, peek: peek, putSnap: putSnap, clear: clear, load: load };
+  })();
+
   const isConfigured = Object.values(firebaseConfig).every(v => typeof v === 'string' && !v.includes('GANTI'));
 
   if (!isConfigured) {
@@ -124,7 +304,7 @@
       window.fbCreateUser = createUserWithEmailAndPassword;
       window.fbSignIn = signInWithEmailAndPassword;
       window.fbOnAuthStateChanged = onAuthStateChanged;
-      window.fbSignOut = signOut;
+      window.fbSignOut = function (a) { try { FBC.clear(); } catch (e) {} return signOut(a); }; // logout → cache ikut dibersihkan
       window.fbSendPasswordReset = sendPasswordResetEmail;
       window.fbSendEmailVerification = sendEmailVerification;
       window.fbDeleteUser = deleteUser;
@@ -140,7 +320,12 @@
       window.rtdbQuery = query;
       window.rtdbOrderByChild = orderByChild;
       window.rtdbLimitToLast = limitToLast;
-      window.rtdbOnValue = onValue;
+      window.rtdbOnValue = FBC.onValue; // dibungkus cache (lihat FBC di atas)
+      window.fbCachePeek = FBC.peek;
+      window.fbCachePut = FBC.putSnap;
+      window.fbCacheClear = FBC.clear;
+      // Hangatkan cache secepat sesi login pulih (paralel dengan proses login lainnya)
+      try { onAuthStateChanged(auth, function (u) { if (u) FBC.load(u.uid); }); } catch (e) {}
       window.rtdbOnChildAdded = onChildAdded;
       window.rtdbOnDisconnect = onDisconnect;
       window.rtdbGoOnline = () => goOnline(db);
@@ -4939,24 +5124,25 @@ function initAuthGate(){
 
       // Email sudah diverifikasi via OTP saat daftar, langsung lanjut
 
-      // Cek apakah user di-ban oleh admin
+      // Cek apakah user di-ban oleh admin — dijalankan di BACKGROUND.
+      // Dulu di-await, jadi setiap buka app (termasuk setelah deploy) layar menunggu 1 round-trip ke server
+      // sebelum data apa pun tampil. Sekarang UI langsung jalan; kalau ternyata di-ban, user langsung di-logout.
       if(!isAdmin){
-        try{
-          const banSnap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+user.uid+'/banned'));
-          if(banSnap.val() === true){
+        window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+user.uid+'/banned')).then(async (banSnap)=>{
+          if(banSnap.val() === true && MY_UID === user.uid){
             await window.fbSignOut(window.fbAuth);
             $a('authError').style.color = 'var(--bad)';
             $a('authError').textContent = '🚫 Akun kamu telah dinonaktifkan oleh admin. Hubungi admin untuk informasi lebih lanjut.';
-            return;
           }
-        } catch(e){}
+        }).catch(()=>{});
       }
 
       $a('authOverlay').classList.add('hidden');
       if(typeof speakWelcomeGreeting === 'function') speakWelcomeGreeting();
       $a('authUserEmail').textContent = currentAuthEmail + (isAdmin ? ' · 👑 Admin' : '');
       try{
-        await window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {email: currentAuthEmail, uid: MY_UID});
+        // tidak di-await: tulisan ini tidak perlu ditunggu untuk menampilkan UI
+        window.rtdbUpdate(window.rtdbRef(window.firebaseDb,'users/'+MY_UID), {email: currentAuthEmail, uid: MY_UID}).catch(()=>{});
       } catch(e){}
       if(typeof applyTierUI === 'function') applyTierUI(); // Apply tier immediately after isAdmin is set
       if(typeof setupPresence === 'function') setupPresence();
@@ -9687,7 +9873,7 @@ function goAddStoreFromMap(){
   }, 300);
 }
 
-async function loadMyProfile(){
+async function loadMyProfile(_pre){
   // Restore nama dari localStorage dulu sebagai fallback cepat
   try{
     const localName = localStorage.getItem('umkm_display_name');
@@ -9696,7 +9882,21 @@ async function loadMyProfile(){
 
   if(!window.firebaseReady) return;
   try{
-    const snap = await window.rtdbGet(window.rtdbRef(window.firebaseDb,'users/'+MY_UID));
+    const _pRef = window.rtdbRef(window.firebaseDb,'users/'+MY_UID);
+    let snap = _pre || null;
+    if(!snap){
+      // Pemuatan PERTAMA setelah buka app: tampilkan profil dari cache lokal dulu (instan), lalu segarkan dari server.
+      // Pemanggilan berikutnya (mis. setelah simpan profil) tetap langsung ke server seperti semula.
+      const _cached = (!loadMyProfile._done && window.fbCachePeek) ? await window.fbCachePeek(_pRef).catch(()=>null) : null;
+      loadMyProfile._done = true;
+      if(_cached){
+        snap = _cached;
+        window.rtdbGet(_pRef).then(fresh=>{ try{ window.fbCachePut && window.fbCachePut(_pRef, fresh); }catch(e){} loadMyProfile(fresh); }).catch(()=>{});
+      } else {
+        snap = await window.rtdbGet(_pRef);
+        try{ window.fbCachePut && window.fbCachePut(_pRef, snap); }catch(e){}
+      }
+    }
     const d = snap.val();
     if(d){
       myProfile = {displayName:d.displayName||'', storeName:d.storeName||'', address:d.address||'', store2Name:d.store2Name||'', store2Address:d.store2Address||'', extraStores:Array.isArray(d.extraStores)?d.extraStores:[], accountTier:d.accountTier||(d.isPremium?'premium':'free'), paymentId:d.paymentId||'', paymentLink:d.paymentLink||'', email:d.email||'', profilePhotoUrl:d.profilePhotoUrl||'', storeLogoUrl:d.storeLogoUrl||'', holoColor:d.holoColor||'245,184,61', recapWa:d.recapWa||'', recapHour:(d.recapHour!==undefined&&d.recapHour!==null)?d.recapHour:21};
@@ -12360,6 +12560,7 @@ document.getElementById('clearDataBtn').addEventListener('click', () => {
   if(!confirm('Hapus SEMUA data lokal? Ini akan menghapus transaksi, API key, dan preferensi. Data di Firebase tetap aman.')) return;
   try{
     localStorage.clear();
+    try{ window.fbCacheClear && window.fbCacheClear(); }catch(e){}
     alert('Data lokal berhasil dihapus. Halaman akan di-refresh.');
     location.reload();
   } catch(e){ alert('Gagal menghapus: '+e.message); }
@@ -27131,6 +27332,14 @@ html.bali-gate #dockPane{display:none !important;}
 #authPasswordConfirmWrap,#authPasswordInput{margin-top:0;}
 #togglePasswordBtn,#togglePasswordConfirmBtn{top:0 !important;bottom:0 !important;height:100% !important;padding:0 !important;line-height:1 !important;margin:0 !important;background:none !important;box-shadow:none !important;}
 #authOverlay .welcome-box #forgotPasswordBtn{width:auto !important;background:none !important;border:0 !important;box-shadow:none !important;color:#FFD36B !important;font-size:13.5px !important;font-weight:700 !important;text-decoration:underline;text-underline-offset:3px;padding:8px 12px !important;margin-top:8px !important;opacity:1 !important;}
+/* Kotak reset password: tombol rapi di dalam kotak, "Batal" terbaca */
+#authOverlay .welcome-box #resetBox{box-sizing:border-box;max-width:100%;overflow:hidden;}
+#authOverlay .welcome-box #resetBox input{margin:0 !important;width:100% !important;box-sizing:border-box;}
+#authOverlay .welcome-box #resetBox button{width:auto !important;box-sizing:border-box;padding:12px 14px !important;font-size:13.5px !important;border-radius:11px;min-width:0;white-space:nowrap;}
+#authOverlay .welcome-box #resetBox #resetSendBtn{flex:1 1 0 !important;}
+#authOverlay .welcome-box #resetBox #resetCancelBtn{flex:0 0 auto !important;background:rgba(255,255,255,.06) !important;border:1px solid rgba(255,226,168,.45) !important;color:#FFE2A8 !important;}
+#authOverlay .welcome-box #resetBox #resetCancelBtn:hover{background:rgba(255,226,168,.14) !important;}
+#authOverlay .welcome-box #resetBox #resetSendBtn:disabled{opacity:.6;cursor:not-allowed;}
 .splash-overlay > svg.splash-scene,#authOverlay > svg.splash-scene{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(1800px,max(100vw,820px));height:auto;z-index:0;pointer-events:none;}
 </style>
 </body>

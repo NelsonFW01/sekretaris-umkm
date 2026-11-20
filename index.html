@@ -28474,7 +28474,7 @@ html.bali-gate #dockPane{display:none !important;}
   function stamp(c){ loadSt(); stamps[c] = (stamps[c] || 0) + 1; try { localStorage.setItem(sk(), JSON.stringify(stamps)); } catch(e){} }
   function listen(){
     if (un.length || !db()) return;
-    un.push(W.rtdbOnValue(W.rtdbQuery(W.rtdbRef(W.firebaseDb,'shopPosts'), W.rtdbOrderByChild('at'), W.rtdbLimitToLast(60)), function(s){ var v = s.val() || {}; P = Object.keys(v).map(function(k){ v[k].id = k; return v[k]; }).sort(function(a,b){ return b.at - a.at; }); draw(); try { W.BaliPasar._cb && W.BaliPasar._cb(); } catch(e){} }));
+    un.push(W.rtdbOnValue(W.rtdbQuery(W.rtdbRef(W.firebaseDb,'shopPosts'), W.rtdbOrderByChild('at'), W.rtdbLimitToLast(60)), function(s){ var v = s.val() || {}; P = Object.keys(v).map(function(k){ v[k].id = k; return v[k]; }).filter(function(x){ return !x.hidden; }).sort(function(a,b){ return b.at - a.at; }); draw(); try { W.BaliPasar._cb && W.BaliPasar._cb(); } catch(e){} }));
     un.push(W.rtdbOnValue(W.rtdbRef(W.firebaseDb,'shopReviews'), function(s){ RV = s.val() || {}; draw(); }));
     un.push(W.rtdbOnValue(W.rtdbQuery(W.rtdbRef(W.firebaseDb,'shopOrders'), W.rtdbOrderByChild('at'), W.rtdbLimitToLast(120)), function(s){ var v = s.val() || {}; O = Object.keys(v).map(function(k){ v[k].id = k; return v[k]; }).sort(function(a,b){ return b.at - a.at; }); settle(); draw(); }));
   }
@@ -28496,12 +28496,12 @@ html.bali-gate #dockPane{display:none !important;}
   function postCard(d){
     var c = el('div', 'psr-card'); c.appendChild(img(d));
     var b = el('div', 'psr-b'); b.appendChild(el('b', null, d.title)); b.appendChild(el('div', 'psr-s', KINDS[d.kind] + ' · 📍 ' + d.city));
-    var st = el('a', 'psr-st', '🏪 ' + d.store); st.href = '#'; st.onclick = function(e){ e.preventDefault(); flt = d.uid; tab = 'feed'; draw(); }; b.appendChild(st);
+    var st = el('a', 'psr-st', '🏪 ' + d.store + (W.BaliPay && W.BaliPay.badge(d.uid) ? ' ✅' : '')); st.href = '#'; st.onclick = function(e){ e.preventDefault(); flt = d.uid; tab = 'feed'; draw(); }; b.appendChild(st);
     var rv = avg(d.id); b.appendChild(el('div', 'psr-s', rv ? '⭐ ' + rv.a.toFixed(1) + ' (' + rv.n + ' ulasan)' : 'Belum ada ulasan')); if (rv && rv.last) b.appendChild(el('div', 'psr-rv', '“' + String(rv.last.text).slice(0, 80) + '” — ' + String(rv.last.name || 'Pembeli').slice(0, 20)));
     b.appendChild(el('div', 'psr-p', rp(d.price) + ' · ' + coin(d.price) + ' 🪙 · stok ' + d.stock));
     var r = el('div', 'psr-r'), buy = el('button', 'psr-go', 'Beli'); buy.disabled = d.stock < 1 || d.uid === me(); buy.onclick = function(){ buyIt(d); };
     var sh = el('button', null, '🔗 Bagikan'); sh.onclick = function(){ var l = location.origin + location.pathname + '?pasar=' + d.id + '&ref=' + (me() || ''); (navigator.clipboard ? navigator.clipboard.writeText(l) : Promise.reject()).then(function(){ say('Tautan afiliasi tersalin — komisi 5% bila ada yang beli 🎉'); }, function(){ prompt('Salin tautan:', l); }); };
-    r.appendChild(buy); r.appendChild(sh); b.appendChild(r); c.appendChild(b); return c;
+    var bp = el('button', 'psr-go', '💳 Beli Rp'); bp.disabled = d.stock < 1 || d.uid === me(); bp.onclick = function(){ if (W.BaliPay) BaliPay.buy(d); }; var fl = el('button', null, '🚩'); fl.title = 'Laporkan'; fl.onclick = function(){ if (W.BaliPay) BaliPay.report('post', d.id, d.title); }; r.appendChild(buy); r.appendChild(bp); r.appendChild(sh); r.appendChild(fl); b.appendChild(r); c.appendChild(b); return c;
   }
   function buyIt(d){
     var C = NX(); if (!me() || !C){ say('Masuk dan buka Dunia 3D dulu'); return; }
@@ -28565,8 +28565,8 @@ html.bali-gate #dockPane{display:none !important;}
   function open(o){
     o = o || {}; flt = o.seller || null; tab = 'feed'; listen(); loadSt();
     if (!box){ box = el('div', 'psr'); var hd = el('div', 'psr-h'); hd.appendChild(el('b', null, '🛍️ Pasar Dunia')); var x = el('button', null, '✕'); x.onclick = close; hd.appendChild(x); box.appendChild(hd);
-      var tb = el('div', 'psr-tabs'); [['feed','🏠 Feed'],['sell','➕ Jual'],['orders','📦 Pesanan'],['pass','🛂 Paspor']].forEach(function(a){ var b = el('button', null, a[1]); b.dataset.t = a[0]; b.onclick = function(){ tab = a[0]; draw(); }; tb.appendChild(b); }); box.appendChild(tb); box.appendChild(el('div', 'psr-body'));
-      box.appendChild(el('div', 'psr-note', 'Koin = mata uang game. Escrow & komisi masih berjalan di perangkat; belum untuk uang nyata.')); }
+      var tb = el('div', 'psr-tabs'); [['feed','🏠 Feed'],['sell','➕ Jual'],['orders','📦 Koin'],['pay','💳 Rupiah'],['pass','🛂 Paspor']].forEach(function(a){ var b = el('button', null, a[1]); b.dataset.t = a[0]; b.onclick = function(){ if (a[0] === 'pay'){ if (W.BaliPay) BaliPay.open('buy'); return; } tab = a[0]; draw(); }; tb.appendChild(b); }); box.appendChild(tb); box.appendChild(el('div', 'psr-body'));
+      box.appendChild(el('div', 'psr-note', 'Tab 🛒 Koin = mata uang game (di perangkat). Uang nyata: pakai 💳 Rupiah — dana ditahan REKBER admin.')); }
     D.body.appendChild(box); draw();
   }
   function close(){ if (box) box.remove(); }
@@ -28668,5 +28668,230 @@ html.bali-gate #dockPane{display:none !important;}
   if (D.readyState === 'loading') D.addEventListener('DOMContentLoaded', init); else init();
 })(window);
 </script>
+<script id="pasar-pay">
+/* ===== PASAR PAY — pembayaran Rupiah dengan REKBER (rekening bersama) tanpa payment gateway =====
+   Alur: pembeli transfer (harga + kode unik) ke rekening REKBER admin → unggah bukti → admin cek & tahan dana →
+   penjual kirim barang (resi) → pembeli konfirmasi terima → admin cairkan ke rekening penjual.
+   Sengketa: dana tetap ditahan sampai admin memutuskan (cairkan / refund). Lokasi pengguna TIDAK dibagikan ke siapa pun.
+   Keamanan sebenarnya ada di Firebase Rules → lihat file database.rules.json (WAJIB dipasang). */
+(function(W){
+  var D = document, FEE = .03, RATE = 100, DCAP = 10000, DPCT = .1, LIM0 = 200000, LIM1 = 5000000, EXP = 24*3600e3, AUTO = 7*24*3600e3;
+  var BANKS = { BCA:['#0060AF','BCA'], BRI:['#00529C','BRI'], BNI:['#F15A23','BNI'], MANDIRI:['#003D79','Mandiri'], DANA:['#118EEA','DANA'], GOPAY:['#00AA13','GoPay'], OVO:['#4C3494','OVO'], SHOPEEPAY:['#EE4D2D','ShopeePay'], QRIS:['#E31E25','QRIS'] };
+  var ST = { pending:'⏳ Menunggu pembayaran', proof:'🔎 Bukti dicek admin', paid:'💰 Dana ditahan rekber — penjual kirim barang', shipped:'🚚 Dikirim', received:'✅ Diterima — admin mencairkan', released:'🎉 Selesai (dana cair)', disputed:'⚠️ Sengketa — diproses admin', refunded:'↩️ Dana dikembalikan', cancelled:'✖️ Dibatalkan', expired:'⌛ Kedaluwarsa' };
+  var box = null, tab = 'buy', cfg = { accounts:[] }, badges = {}, mine = {}, orders = {}, myAcc = [], myVer = null, notifs = [], adm = { orders:{}, ver:{}, rep:{} }, un = [], open_ = null, chatUn = null, t0 = Date.now(), started = false, seenKey = '';
+  function db(){ return W.firebaseReady && W.firebaseDb && W.rtdbRef; }
+  function me(){ return (typeof MY_UID !== 'undefined' && MY_UID) || null; }
+  function isAdm(){ try { return (typeof isAdmin !== 'undefined' && isAdmin === true); } catch(e){ return false; } }
+  function R(p){ return W.rtdbRef(W.firebaseDb, p); }
+  function el(t, c, x){ var e = D.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function rp(n){ return 'Rp ' + Math.round(n).toLocaleString('id-ID'); }
+  function say(m){ try { var t = el('div', 'psr-toast', m); D.body.appendChild(t); setTimeout(function(){ t.remove(); }, 3000); } catch(e){} }
+  function ago(t){ var s = (Date.now() - t) / 1000; return s < 60 ? 'baru saja' : s < 3600 ? Math.floor(s/60) + ' mnt lalu' : s < 86400 ? Math.floor(s/3600) + ' jam lalu' : Math.floor(s/86400) + ' hr lalu'; }
+  function nm(){ try { return (myProfile.storeName || myProfile.displayName || 'Pengguna').slice(0,40); } catch(e){ return 'Pengguna'; } }
+  /* logo bank/e-wallet otomatis dari pilihan jenis */
+  function logo(type){ var b = BANKS[String(type).toUpperCase()] || ['#555', type]; var s = el('span', 'pp-logo', b[1]); s.style.background = b[0]; return s; }
+  function maskNo(n){ n = String(n); return n.length <= 4 ? n : '••••' + n.slice(-4); }
+  function accRow(a, full){ var r = el('div', 'pp-acc'); r.appendChild(logo(a.type)); var t = el('div', 'pp-acct'); t.appendChild(el('b', null, full ? a.no : maskNo(a.no))); t.appendChild(el('small', null, 'a.n. ' + a.name)); r.appendChild(t);
+    if (full){ var c = el('button', null, 'Salin'); c.onclick = function(){ try { navigator.clipboard.writeText(a.no); say('Nomor tersalin'); } catch(e){ prompt('Salin:', a.no); } }; r.appendChild(c); } return r; }
+  function img64(file, max, q, cb){ var im = new Image(); im.onload = function(){ var c = D.createElement('canvas'), s = Math.min(1, max / Math.max(im.width, im.height)); c.width = im.width * s; c.height = im.height * s; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); cb(c.toDataURL('image/jpeg', q).split(',')[1]); }; im.src = URL.createObjectURL(file); }
+  function pickImg(label, max, q, cb){ var w = el('label', 'pp-file', '📷 ' + label), i = el('input'); i.type = 'file'; i.accept = 'image/*'; i.hidden = true; i.onchange = function(){ if (i.files[0]) img64(i.files[0], max, q, function(d){ w.textContent = '✅ ' + label + ' siap'; cb(d); }); }; w.appendChild(i); return w; }
+
+  /* ---------- notifikasi ---------- */
+  function notify(uid, text, oid){ if (!db() || !uid) return; W.rtdbPush(R('payNotif/' + uid), { t:text, o:oid || '', at:Date.now() }).catch(function(){}); }
+  function notifyAdmin(text, oid){ notify('_admin', text, oid); }
+  function onNotif(list){
+    var fresh = list.filter(function(n){ return n.at > t0 && !n._shown; });
+    fresh.forEach(function(n){ n._shown = 1; say('🔔 ' + n.t); try { if (W.Notification && Notification.permission === 'granted') new Notification('Pasar Dunia', { body:n.t }); } catch(e){} });
+    t0 = Math.max(t0, Date.now() - 1);
+    var seen = +(localStorage.getItem(seenKey) || 0), u = list.filter(function(n){ return n.at > seen; }).length;
+    D.querySelectorAll('.pp-badge').forEach(function(b){ b.textContent = u ? ' (' + u + ')' : ''; });
+  }
+  function seenAll(){ try { localStorage.setItem(seenKey, String(Date.now())); } catch(e){} D.querySelectorAll('.pp-badge').forEach(function(b){ b.textContent = ''; }); }
+
+  /* ---------- data ---------- */
+  function start(){
+    if (started || !db() || !me()) return; started = true; seenKey = 'pp_seen_' + me(); var u = me();
+    un.push(W.rtdbOnValue(R('payConfig'), function(s){ cfg = s.val() || { accounts:[] }; if (!Array.isArray(cfg.accounts)) cfg.accounts = Object.values(cfg.accounts || {}); redraw(); }));
+    un.push(W.rtdbOnValue(R('sellerBadge'), function(s){ badges = s.val() || {}; redraw(); }));
+    un.push(W.rtdbOnValue(R('sellerPay/' + u), function(s){ var v = s.val(); myAcc = v && v.accounts ? Object.values(v.accounts) : []; redraw(); }));
+    un.push(W.rtdbOnValue(R('sellerVerify/' + u), function(s){ myVer = s.val(); redraw(); }));
+    var sub = {};
+    un.push(W.rtdbOnValue(R('payIdx/' + u), function(s){ var ids = Object.keys(s.val() || {}); ids.forEach(function(id){ if (sub[id]) return; sub[id] = 1; un.push(W.rtdbOnValue(R('payOrders/' + id), function(o){ var v = o.val(); if (v){ v.id = id; orders[id] = v; sweep(v); } redraw(); })); }); }));
+    un.push(W.rtdbOnValue(R('payNotif/' + u), function(s){ var v = s.val() || {}; notifs = Object.keys(v).map(function(k){ v[k].k = k; return v[k]; }).sort(function(a, b){ return b.at - a.at; }); onNotif(notifs); redraw(); }));
+    if (isAdm()){
+      un.push(W.rtdbOnValue(R('payOrders'), function(s){ var v = s.val() || {}; adm.orders = v; Object.keys(v).forEach(function(k){ v[k].id = k; sweep(v[k]); }); redraw(); }));
+      un.push(W.rtdbOnValue(R('sellerVerify'), function(s){ adm.ver = s.val() || {}; redraw(); }));
+      un.push(W.rtdbOnValue(R('reports'), function(s){ adm.rep = s.val() || {}; redraw(); }));
+      un.push(W.rtdbOnValue(R('payNotif/_admin'), function(s){ var v = s.val() || {}; var l = Object.keys(v).map(function(k){ v[k].k = k; return v[k]; }); onNotif(notifs.concat(l)); }));
+    }
+  }
+  /* kedaluwarsa otomatis: belum bayar > 24 jam → batal, stok dikembalikan */
+  function sweep(o){ if (o.buyer === me() && o.coins > 0 && !o.coinBack && ['cancelled', 'expired', 'refunded'].indexOf(o.status) >= 0 && W.BaliNusa){ W.BaliNusa.addCoins(o.coins); o.coinBack = true; W.rtdbUpdate(R('payOrders/' + o.id), { coinBack:true }); say('🪙 ' + o.coins + ' koin dikembalikan'); } if (o.status === 'pending' && Date.now() - o.at > EXP && (o.buyer === me() || isAdm())){ upd(o, 'expired', {}); restock(o); } }
+  function restock(o){ if (o.pid) W.rtdbGet(R('shopPosts/' + o.pid + '/stock')).then(function(s){ if (s.exists()) W.rtdbSet(R('shopPosts/' + o.pid + '/stock'), (+s.val() || 0) + 1); }).catch(function(){}); }
+  function upd(o, status, extra){ var p = { status:status, upAt:Date.now() }; for (var k in extra) p[k] = extra[k]; return W.rtdbUpdate(R('payOrders/' + o.id), p); }
+  function lim(uid){ return badges[uid] && badges[uid].v ? LIM1 : LIM0; }
+
+  /* ---------- beli (dipanggil dari kartu produk) ---------- */
+  function buy(d){
+    if (!db() || !me()){ say('Masuk dulu untuk membeli'); return; }
+    if (d.uid === me()){ say('Ini produkmu sendiri'); return; }
+    if (!cfg.accounts.length){ say('Rekening rekber belum diatur admin'); return; }
+    if (d.stock < 1){ say('Stok habis'); return; }
+    if (d.price > lim(d.uid)){ say('Penjual belum terverifikasi: batas transaksi ' + rp(LIM0) + '. Hubungi penjual agar verifikasi dulu.'); return; }
+    var C = W.BaliNusa, cap = Math.min(DCAP, Math.floor(d.price * DPCT)), maxC = C ? Math.min(Math.floor(cap / RATE), Math.floor(C.wal ? C.wal() : 0)) : 0;
+    var m = el('div', 'pp-modal'), card = el('div', 'pp-mc'), n = el('input'), info = el('div', 'pp-kv'), go = el('button', 'psr-go', 'Lanjut bayar'), no = el('button', null, 'Batal'), use = 0;
+    card.appendChild(el('b', null, 'Beli "' + d.title + '"')); card.appendChild(el('div', 'psr-s', 'Dana ditahan REKBER sampai barang kamu terima.'));
+    var tg = el('label', 'pp-tg'), ck = el('input'); ck.type = 'checkbox'; tg.appendChild(ck); tg.appendChild(el('span', null, ' 🪙 Pakai koin game untuk diskon (1 koin = ' + rp(RATE) + ', maks ' + rp(Math.floor(cap / RATE) * RATE) + ')')); if (maxC > 0) card.appendChild(tg); else card.appendChild(el('div', 'psr-s', '🪙 Kumpulkan koin dari misi & jelajah Dunia 3D untuk diskon (maks 10% harga, Rp10.000).'));
+    n.type = 'number'; n.min = 0; n.max = maxC; n.value = maxC; n.hidden = true; card.appendChild(n); card.appendChild(info);
+    function calc(){ use = ck.checked ? Math.max(0, Math.min(maxC, Math.floor(+n.value || 0))) : 0; n.hidden = !ck.checked; info.textContent = ''; [['Harga', rp(d.price)], ['Diskon koin (' + use + ')', '−' + rp(use * RATE)], ['Total transfer', rp(d.price - use * RATE) + ' + kode unik']].forEach(function(a){ info.appendChild(el('span', null, a[0])); info.appendChild(el('b', null, a[1])); }); }
+    ck.onchange = n.oninput = calc; calc(); card.appendChild(go); card.appendChild(no); m.appendChild(card); D.body.appendChild(m); no.onclick = function(){ m.remove(); };
+    go.onclick = function(){ calc(); m.remove(); place(d, use); };
+  }
+  function place(d, use){
+    var C = W.BaliNusa, disc = use * RATE;
+    if (use > 0 && !(C && C.spend(use))){ say('Koin tidak cukup'); return; }
+    var code = 100 + Math.floor(Math.random() * 900), o = { pid:d.id, title:String(d.title).slice(0,60), price:Math.round(d.price), code:code, disc:disc, coins:use, total:Math.round(d.price) + code - disc, seller:d.uid, store:d.store, buyer:me(), bName:nm(), status:'pending', at:Date.now() };
+    W.rtdbPush(R('payOrders'), o).then(function(r){ var id = r.key; var a = {}; a['payIdx/' + me() + '/' + id] = true; a['payIdx/' + d.uid + '/' + id] = true; return W.rtdbUpdate(R(''), a).then(function(){ return W.rtdbUpdate(R('shopPosts/' + d.id), { stock:Math.max(0, d.stock - 1) }); }).then(function(){ notify(d.uid, nm() + ' memesan "' + o.title + '"', id); notifyAdmin('Pesanan baru ' + rp(o.total) + (disc ? ' (diskon koin ' + rp(disc) + ' — ditanggung platform)' : ''), id); say('Pesanan dibuat — transfer & unggah bukti'); openBox('buy', id); }); }).catch(function(){ if (use && C) C.addCoins(use); say('Gagal membuat pesanan' + (use ? ', koin dikembalikan' : '')); });
+  }
+  function report(kind, id, label){ var why = prompt('Laporkan ' + label + ' — alasan (spam / penipuan / konten terlarang / lainnya):'); if (!why || !db() || !me()) return; W.rtdbPush(R('reports'), { kind:kind, id:id, label:String(label).slice(0,60), by:me(), why:why.slice(0,300), at:Date.now() }).then(function(){ notifyAdmin('Laporan baru: ' + label); say('Laporan terkirim ke admin 🙏'); }).catch(function(){ say('Gagal melapor'); }); }
+
+  /* ---------- tampilan pesanan ---------- */
+  function ordCard(o, role){
+    var c = el('div', 'psr-ord'); c.appendChild(el('b', null, o.title)); c.appendChild(el('div', 'psr-s', (role === 'seller' ? 'Pembeli: ' + (o.bName || '-') : 'Toko: ' + o.store) + ' · ' + rp(o.total) + ' · ' + ago(o.at)));
+    c.appendChild(el('div', 'pp-st pp-' + o.status, ST[o.status] || o.status));
+    var det = el('button', 'psr-go', 'Buka detail'); det.onclick = function(){ open_ = o.id; draw(); }; c.appendChild(det); return c;
+  }
+  function detail(o, body){
+    var role = o.buyer === me() ? 'buyer' : o.seller === me() ? 'seller' : 'admin', back = el('button', 'pp-back', '← Kembali'); back.onclick = function(){ open_ = null; if (chatUn){ chatUn(); chatUn = null; } draw(); }; body.appendChild(back);
+    body.appendChild(el('h4', null, o.title)); body.appendChild(el('div', 'pp-st pp-' + o.status, ST[o.status] || o.status));
+    var k = el('div', 'pp-kv'); [['Harga', rp(o.price)], ['Kode unik', '+' + o.code]].concat(o.disc ? [['🪙 Diskon koin (' + o.coins + ' koin)', '−' + rp(o.disc)]] : []).concat([['Total transfer', rp(o.total)], ['Biaya layanan', rp(Math.round(o.price * FEE))], ['Diterima penjual', rp(o.price + o.code - Math.round(o.price * FEE))]]).forEach(function(a){ k.appendChild(el('span', null, a[0])); k.appendChild(el('b', null, a[1])); }); body.appendChild(k);
+    var act = el('div', 'pp-act');
+    if (role === 'buyer' && o.status === 'pending'){
+      body.appendChild(el('h4', null, '1. Transfer EXACT ' + rp(o.total))); body.appendChild(el('div', 'psr-s', 'Kode unik +' + o.code + ' dipakai admin untuk mencocokkan pembayaranmu. Transfer ke SALAH SATU rekening rekber:'));
+      cfg.accounts.forEach(function(a){ body.appendChild(accRow(a, true)); });
+      body.appendChild(el('div', 'psr-s', 'Batas bayar: ' + new Date(o.at + EXP).toLocaleString('id-ID')));
+      var pf = null; act.appendChild(pickImg('Foto bukti transfer', 900, .7, function(d){ pf = d; }));
+      var sb = el('button', 'psr-go', '2. Kirim bukti'); sb.onclick = function(){ if (!pf){ say('Pilih foto bukti dulu'); return; } W.rtdbSet(R('payProofs/' + o.id), { img:pf, at:Date.now(), by:me() }).then(function(){ return upd(o, 'proof', {}); }).then(function(){ notifyAdmin('Bukti transfer masuk ' + rp(o.total), o.id); say('Bukti terkirim, tunggu admin'); }).catch(function(){ say('Gagal mengirim bukti'); }); }; act.appendChild(sb);
+      var cb = el('button', null, 'Batalkan pesanan'); cb.onclick = function(){ if (confirm('Batalkan?')){ upd(o, 'cancelled', {}); restock(o); } }; act.appendChild(cb);
+    }
+    if (role === 'buyer' && o.status === 'proof') body.appendChild(el('div', 'psr-s', 'Admin sedang mencocokkan bukti dengan mutasi rekening rekber.'));
+    if (o.rejectNote && role === 'buyer' && (o.status === 'pending')) body.appendChild(el('div', 'pp-warn', 'Ditolak admin: ' + o.rejectNote));
+    if (role === 'seller' && o.status === 'paid'){
+      var rs = el('input'); rs.placeholder = 'Kurir & nomor resi (mis. JNE 1234567890)'; var sh = el('button', 'psr-go', '🚚 Tandai dikirim'); sh.onclick = function(){ if (rs.value.trim().length < 3){ say('Isi kurir/resi'); return; } upd(o, 'shipped', { resi:rs.value.trim().slice(0,80), shipAt:Date.now() }).then(function(){ notify(o.buyer, 'Pesanan "' + o.title + '" dikirim: ' + rs.value.trim(), o.id); }); }; act.appendChild(rs); act.appendChild(sh);
+      body.appendChild(el('div', 'pp-ok', '✅ Dana sudah aman di rekber. Silakan kirim barang.'));
+    }
+    if (o.resi) body.appendChild(el('div', 'psr-s', '📦 Resi: ' + o.resi));
+    if (role === 'buyer' && o.status === 'shipped'){ var rc = el('button', 'psr-go', '✅ Barang sudah saya terima'); rc.onclick = function(){ if (confirm('Konfirmasi? Dana akan dicairkan ke penjual.')) upd(o, 'received', { recAt:Date.now() }).then(function(){ notifyAdmin('Pesanan diterima, cairkan ' + rp(o.price + o.code - Math.round(o.price * FEE)), o.id); notify(o.seller, 'Pembeli menerima "' + o.title + '". Dana segera dicairkan.', o.id); }); }; act.appendChild(rc); }
+    if (role === 'buyer' && (o.status === 'paid' || o.status === 'shipped')){ var ds = el('button', null, '⚠️ Ajukan sengketa'); ds.onclick = function(){ var why = prompt('Jelaskan masalahnya (barang tidak sampai / tidak sesuai / dll):'); if (!why) return; if (!myAcc.length){ say('Isi dulu rekening di tab 🏦 Rekening untuk refund'); return; } upd(o, 'disputed', { why:why.slice(0,300), by:'buyer' }).then(function(){ notifyAdmin('SENGKETA: ' + o.title, o.id); notify(o.seller, 'Pembeli mengajukan sengketa "' + o.title + '"', o.id); }); }; act.appendChild(ds); }
+    if (role === 'seller' && (o.status === 'paid' || o.status === 'shipped')){ var ds2 = el('button', null, '⚠️ Laporkan masalah'); ds2.onclick = function(){ var why = prompt('Jelaskan masalahnya:'); if (why) upd(o, 'disputed', { why:why.slice(0,300), by:'seller' }).then(function(){ notifyAdmin('SENGKETA (penjual): ' + o.title, o.id); }); }; act.appendChild(ds2); }
+    if (o.status === 'disputed') body.appendChild(el('div', 'pp-warn', 'Sengketa: ' + (o.why || '') + ' — dana ditahan sampai admin memutuskan.'));
+    if (role === 'admin') adminOrderActs(o, body, act);
+    body.appendChild(act);
+    var rp2 = el('button', 'pp-link', '🚩 Laporkan pesanan ini'); rp2.onclick = function(){ report('order', o.id, o.title); }; body.appendChild(rp2);
+    chatBox(o, body);
+  }
+  function chatBox(o, body){
+    var w = el('div', 'pp-chat'); w.appendChild(el('h4', null, '💬 Chat pesanan')); var lst = el('div', 'pp-msgs'), row = el('div', 'pp-send'), ti = el('input'), tb = el('button', 'psr-go', 'Kirim'); ti.placeholder = 'Tulis pesan…'; ti.maxLength = 500; row.appendChild(ti); row.appendChild(tb); w.appendChild(lst); w.appendChild(row); body.appendChild(w);
+    if (chatUn){ chatUn(); chatUn = null; }
+    chatUn = W.rtdbOnValue(R('payChat/' + o.id), function(s){ var v = s.val() || {}; lst.textContent = ''; Object.keys(v).map(function(k){ return v[k]; }).sort(function(a, b){ return a.at - b.at; }).forEach(function(m){ var b = el('div', 'pp-m' + (m.u === me() ? ' me' : ''), ''); b.appendChild(el('small', null, (m.n || '') + ' · ' + ago(m.at))); b.appendChild(el('div', null, m.t)); lst.appendChild(b); }); lst.scrollTop = lst.scrollHeight; });
+    tb.onclick = function(){ var t = ti.value.trim(); if (!t) return; ti.value = ''; W.rtdbPush(R('payChat/' + o.id), { u:me(), n:nm(), t:t.slice(0,500), at:Date.now() }).then(function(){ var to = o.buyer === me() ? o.seller : o.buyer; notify(to, nm() + ': ' + t.slice(0, 40), o.id); }).catch(function(){ say('Gagal kirim'); }); };
+  }
+  /* ---------- admin ---------- */
+  function adminOrderActs(o, body, act){
+    if (o.status === 'proof'){ W.rtdbGet(R('payProofs/' + o.id)).then(function(s){ var p = s.val(); if (p){ var i = new Image(); i.className = 'pp-proof'; i.src = 'data:image/jpeg;base64,' + p.img; if (act.parentNode === body) body.insertBefore(i, act); } }); body.appendChild(el('div', 'psr-s', 'Cocokkan nominal ' + rp(o.total) + ' dengan mutasi rekening rekber.'));
+      var ok = el('button', 'psr-go', '✔ Dana masuk — tahan di rekber'); ok.onclick = function(){ upd(o, 'paid', { paidAt:Date.now() }).then(function(){ notify(o.seller, 'Dana pesanan "' + o.title + '" sudah di rekber — kirim barangnya!', o.id); notify(o.buyer, 'Pembayaran dikonfirmasi admin', o.id); }); }; var no = el('button', null, '✖ Tolak bukti'); no.onclick = function(){ var n = prompt('Alasan penolakan:'); if (n) upd(o, 'pending', { rejectNote:n.slice(0,120) }).then(function(){ notify(o.buyer, 'Bukti ditolak: ' + n, o.id); }); }; act.appendChild(ok); act.appendChild(no); }
+    if (o.status === 'received' || o.status === 'disputed' || (o.status === 'shipped' && Date.now() - (o.shipAt || o.at) > AUTO)){
+      if (o.status === 'shipped') body.appendChild(el('div', 'pp-warn', 'Lewat 7 hari tanpa konfirmasi pembeli — boleh dicairkan.'));
+      var pay = o.price + o.code - Math.round(o.price * FEE); body.appendChild(el('h4', null, 'Rekening penjual (untuk pencairan ' + rp(pay) + ')'));
+      var slot1 = el('div'); body.appendChild(slot1); W.rtdbGet(R('sellerPay/' + o.seller)).then(function(s){ var v = s.val(); var a = v && v.accounts ? Object.values(v.accounts) : []; if (!a.length) slot1.appendChild(el('div', 'pp-warn', 'Penjual belum mengisi rekening.')); a.forEach(function(x){ slot1.appendChild(accRow(x, true)); }); });
+      var rl = el('button', 'psr-go', '💸 Sudah ditransfer ke penjual'); rl.onclick = function(){ if (!confirm('Tandai sudah dicairkan?')) return; upd(o, 'released', { relAt:Date.now(), payout:pay }).then(function(){ W.rtdbGet(R('sellerBadge/' + o.seller)).then(function(s){ var b = s.val() || {}; W.rtdbUpdate(R('sellerBadge/' + o.seller), { done:(b.done || 0) + 1, v:!!b.v }); }); notify(o.seller, 'Dana ' + rp(pay) + ' sudah dicairkan 🎉', o.id); }); }; act.appendChild(rl);
+      if (o.status === 'disputed'){ body.appendChild(el('h4', null, 'Rekening pembeli (refund ' + rp(o.total) + ')')); var slot2 = el('div'); body.appendChild(slot2); W.rtdbGet(R('sellerPay/' + o.buyer)).then(function(s){ var v = s.val(); (v && v.accounts ? Object.values(v.accounts) : []).forEach(function(x){ slot2.appendChild(accRow(x, true)); }); });
+        var rf = el('button', null, '↩ Refund ke pembeli'); rf.onclick = function(){ if (confirm('Tandai sudah direfund?')) upd(o, 'refunded', { relAt:Date.now() }).then(function(){ restock(o); notify(o.buyer, 'Dana dikembalikan ke rekeningmu', o.id); notify(o.seller, 'Sengketa diputuskan: refund pembeli', o.id); }); }; act.appendChild(rf); }
+    }
+  }
+  function adminTab(body){
+    if (!isAdm()){ body.appendChild(el('div', 'psr-s', 'Khusus admin.')); return; }
+    body.appendChild(el('h4', null, '🏦 Rekening rekber (tujuan transfer pembeli)')); (cfg.accounts || []).forEach(function(a, i){ var r = accRow(a, true), x = el('button', null, '✕'); x.onclick = function(){ var l = cfg.accounts.slice(); l.splice(i, 1); W.rtdbSet(R('payConfig'), { accounts:l }); }; r.appendChild(x); body.appendChild(r); });
+    body.appendChild(accForm(function(a){ var l = (cfg.accounts || []).concat([a]); W.rtdbSet(R('payConfig'), { accounts:l }).then(function(){ say('Rekening rekber disimpan'); }); }, 'Tambah rekening rekber'));
+    var pend = Object.keys(adm.ver).filter(function(k){ return adm.ver[k].status === 'pending'; }); body.appendChild(el('h4', null, '🪪 Verifikasi penjual (' + pend.length + ')'));
+    pend.forEach(function(k){ var v = adm.ver[k], c = el('div', 'psr-ord'); c.appendChild(el('b', null, v.name + ' · WA ' + v.wa)); [v.ktp, v.selfie].forEach(function(d){ if (d){ var i = new Image(); i.className = 'pp-proof'; i.src = 'data:image/jpeg;base64,' + d; c.appendChild(i); } });
+      var ok = el('button', 'psr-go', '✔ Setujui'); ok.onclick = function(){ var b = adm.ver[k]; W.rtdbUpdate(R('sellerVerify/' + k), { status:'approved' }); W.rtdbGet(R('sellerBadge/' + k)).then(function(s){ var o = s.val() || {}; W.rtdbSet(R('sellerBadge/' + k), { v:true, done:o.done || 0, name:b.name }); }); notify(k, 'Verifikasi penjual disetujui ✅', ''); }; var no = el('button', null, '✖ Tolak'); no.onclick = function(){ W.rtdbUpdate(R('sellerVerify/' + k), { status:'rejected' }); notify(k, 'Verifikasi ditolak, ajukan ulang dengan foto jelas', ''); }; c.appendChild(ok); c.appendChild(no); body.appendChild(c); });
+    var rep = Object.keys(adm.rep).filter(function(k){ return !adm.rep[k].done; }); body.appendChild(el('h4', null, '🚩 Laporan (' + rep.length + ')'));
+    rep.forEach(function(k){ var r = adm.rep[k], c = el('div', 'psr-ord'); c.appendChild(el('b', null, r.label + ' · ' + r.kind)); c.appendChild(el('div', 'psr-s', r.why));
+      if (r.kind === 'post'){ var h = el('button', 'psr-go', '🙈 Sembunyikan postingan'); h.onclick = function(){ W.rtdbUpdate(R('shopPosts/' + r.id), { hidden:true }); W.rtdbUpdate(R('reports/' + k), { done:true }); }; c.appendChild(h); }
+      var d = el('button', null, 'Tutup laporan'); d.onclick = function(){ W.rtdbUpdate(R('reports/' + k), { done:true }); }; c.appendChild(d); body.appendChild(c); });
+    var al = Object.keys(adm.orders).map(function(k){ var v = adm.orders[k]; v.id = k; return v; }).filter(function(o){ return ['proof', 'received', 'disputed'].indexOf(o.status) >= 0 || (o.status === 'shipped' && Date.now() - (o.shipAt || o.at) > AUTO); }).sort(function(a, b){ return b.at - a.at; });
+    body.appendChild(el('h4', null, '📋 Perlu tindakan (' + al.length + ')')); al.forEach(function(o){ body.appendChild(ordCard(o, 'admin')); });
+  }
+  /* ---------- rekening & verifikasi ---------- */
+  function accForm(cb, label){
+    var f = el('div', 'pp-form'), tp = el('select'), no = el('input'), an = el('input'), go = el('button', 'psr-go', label || 'Simpan rekening'), pv = el('div', 'pp-prev');
+    Object.keys(BANKS).forEach(function(k){ var o = el('option', null, BANKS[k][1]); o.value = k; tp.appendChild(o); }); no.placeholder = 'Nomor rekening / HP e-wallet'; no.inputMode = 'numeric'; an.placeholder = 'Atas nama';
+    function pr(){ pv.textContent = ''; pv.appendChild(logo(tp.value)); pv.appendChild(el('b', null, ' ' + (no.value || '…'))); } tp.onchange = no.oninput = pr; pr();
+    go.onclick = function(){ var n = no.value.replace(/\D/g, ''); if (n.length < 5 || !an.value.trim()){ say('Isi nomor & nama dengan benar'); return; } cb({ type:tp.value, no:n, name:an.value.trim().slice(0, 40) }); no.value = an.value = ''; pr(); };
+    [tp, no, an, pv, go].forEach(function(x){ f.appendChild(x); }); return f;
+  }
+  function accTab(body){
+    body.appendChild(el('h4', null, '🏦 Rekening / e-wallet saya')); body.appendChild(el('div', 'psr-s', 'Dipakai untuk pencairan hasil jualan & refund. Hanya kamu dan admin yang bisa melihat nomor ini — tidak tampil ke pengguna lain.'));
+    myAcc.forEach(function(a, i){ var r = accRow(a, false), x = el('button', null, '✕'); x.onclick = function(){ var l = myAcc.slice(); l.splice(i, 1); W.rtdbSet(R('sellerPay/' + me()), { accounts:l }); }; r.appendChild(x); body.appendChild(r); });
+    body.appendChild(accForm(function(a){ if (myAcc.length >= 4){ say('Maksimal 4 rekening'); return; } W.rtdbSet(R('sellerPay/' + me()), { accounts:myAcc.concat([a]) }).then(function(){ say('Tersimpan'); }); }));
+    body.appendChild(el('h4', null, '🪪 Verifikasi penjual')); var b = badges[me()];
+    if (b && b.v){ body.appendChild(el('div', 'pp-ok', '✅ Terverifikasi · batas transaksi ' + rp(LIM1) + ' · ' + (b.done || 0) + ' penjualan sukses')); return; }
+    body.appendChild(el('div', 'psr-s', 'Belum terverifikasi: batas transaksi ' + rp(LIM0) + ' per pesanan. Verifikasi untuk naik ke ' + rp(LIM1) + ' + lencana ✅.'));
+    if (myVer && myVer.status === 'pending'){ body.appendChild(el('div', 'pp-ok', '⏳ Pengajuan sedang diperiksa admin.')); return; }
+    if (myVer && myVer.status === 'rejected') body.appendChild(el('div', 'pp-warn', 'Pengajuan ditolak — ajukan ulang dengan foto yang jelas.'));
+    var nm_ = el('input'), wa = el('input'), k = null, s = null; nm_.placeholder = 'Nama sesuai KTP'; wa.placeholder = 'No. WhatsApp aktif'; wa.inputMode = 'tel'; var go = el('button', 'psr-go', 'Ajukan verifikasi');
+    body.appendChild(nm_); body.appendChild(wa); body.appendChild(pickImg('Foto KTP', 800, .6, function(d){ k = d; })); body.appendChild(pickImg('Selfie memegang KTP', 800, .6, function(d){ s = d; })); body.appendChild(go);
+    go.onclick = function(){ if (!nm_.value.trim() || wa.value.replace(/\D/g, '').length < 9 || !k || !s){ say('Lengkapi nama, WA, foto KTP & selfie'); return; } W.rtdbSet(R('sellerVerify/' + me()), { name:nm_.value.trim().slice(0, 50), wa:wa.value.trim().slice(0, 20), ktp:k, selfie:s, status:'pending', at:Date.now() }).then(function(){ notifyAdmin('Pengajuan verifikasi: ' + nm_.value.trim()); say('Terkirim, tunggu admin'); }).catch(function(){ say('Gagal mengirim'); }); };
+  }
+  function notifTab(body){ body.appendChild(el('h4', null, '🔔 Notifikasi')); if (W.Notification && Notification.permission === 'default'){ var p = el('button', 'psr-go', 'Aktifkan notifikasi browser'); p.onclick = function(){ Notification.requestPermission().then(draw); }; body.appendChild(p); }
+    if (!notifs.length) body.appendChild(el('div', 'psr-s', 'Belum ada notifikasi.')); notifs.slice(0, 40).forEach(function(n){ var r = el('div', 'psr-ord', ''); r.appendChild(el('div', null, n.t)); r.appendChild(el('small', null, ago(n.at))); if (n.o && (orders[n.o] || adm.orders[n.o])){ r.onclick = function(){ if (!orders[n.o]) orders[n.o] = adm.orders[n.o]; tab = isAdm() && !orders[n.o].buyer ? 'adm' : (orders[n.o].buyer === me() ? 'buy' : 'sell'); open_ = n.o; draw(); }; } body.appendChild(r); }); seenAll(); }
+  /* ---------- kerangka ---------- */
+  function redraw(){ if (box && box.isConnected) draw(); }
+  function draw(){
+    if (!box || !box.isConnected) return; var body = box.querySelector('.psr-body'), top = body.scrollTop; body.textContent = '';
+    box.querySelectorAll('.psr-tabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.t === tab); });
+    if (open_){ var o = orders[open_] || adm.orders[open_]; if (o){ o.id = open_; detail(o, body); body.scrollTop = top; return; } open_ = null; }
+    var u = me(), list = function(arr, role, empty){ if (!arr.length) body.appendChild(el('div', 'psr-s', empty)); arr.forEach(function(o){ body.appendChild(ordCard(o, role)); }); },
+      all = Object.keys(orders).map(function(k){ return orders[k]; }).sort(function(a, b){ return b.at - a.at; });
+    if (tab === 'buy') list(all.filter(function(o){ return o.buyer === u; }), 'buyer', 'Belum ada pembelian. Tekan "💳 Beli Rp" di kartu produk.');
+    else if (tab === 'sell') list(all.filter(function(o){ return o.seller === u; }), 'seller', 'Belum ada pesanan masuk.');
+    else if (tab === 'acc') accTab(body); else if (tab === 'ntf') notifTab(body); else if (tab === 'adm') adminTab(body);
+    body.scrollTop = top;
+  }
+  function openBox(t, oid){
+    if (!me()){ say('Masuk dulu'); return; } start(); tab = t || 'buy'; open_ = oid || null;
+    if (!box){ box = el('div', 'psr pp'); var hd = el('div', 'psr-h'); hd.appendChild(el('b', null, '💳 Pesanan Rupiah · Rekber')); var x = el('button', null, '✕'); x.onclick = function(){ if (chatUn){ chatUn(); chatUn = null; } box.remove(); }; hd.appendChild(x); box.appendChild(hd);
+      var tb = el('div', 'psr-tabs'); [['buy', '🛒 Beli'], ['sell', '🏪 Jualan'], ['acc', '🏦 Rekening'], ['ntf', '🔔<i class="pp-badge"></i>']].concat(isAdm() ? [['adm', '👑 Admin']] : []).forEach(function(a){ var b = el('button'); b.innerHTML = a[1]; b.dataset.t = a[0]; b.onclick = function(){ tab = a[0]; open_ = null; draw(); }; tb.appendChild(b); }); box.appendChild(tb); box.appendChild(el('div', 'psr-body'));
+      box.appendChild(el('div', 'psr-note', 'Uang pembeli ditahan rekber sampai barang diterima. Lokasi & data pribadimu tidak dibagikan ke pengguna lain.')); }
+    D.body.appendChild(box); draw();
+  }
+  var s = D.createElement('style'); s.textContent = '.pp{z-index:100001}.pp-logo{display:inline-block;min-width:54px;text-align:center;padding:5px 8px;border-radius:8px;color:#fff;font:800 12px system-ui;letter-spacing:.3px}.pp-acc{display:flex;align-items:center;gap:10px;background:#272018;border-radius:12px;padding:10px;margin:6px 0}.pp-acct{flex:1;display:flex;flex-direction:column}.pp-acct small{opacity:.7}.pp-acc button,.pp-chat button,.pp-act button,.pp-form button,.pp-link{border:0;border-radius:10px;padding:8px 10px;background:#3a2f22;color:#fff}.pp-form{display:flex;flex-direction:column;gap:8px;margin:10px 0}.pp-form input,.pp-form select,.pp-act input,.pp-send input,.pp input{padding:10px;border-radius:10px;border:1px solid #5a4a38;background:#272018;color:#fff;width:100%;box-sizing:border-box;margin:4px 0}.pp-prev{display:flex;align-items:center;gap:6px}.pp-st{display:inline-block;margin:4px 0;padding:4px 9px;border-radius:12px;background:#3a2f22;font-size:12px}.pp-paid,.pp-released,.pp-received{background:#1f5c36}.pp-disputed,.pp-expired,.pp-cancelled{background:#6b2a22}.pp-kv{display:grid;grid-template-columns:1fr auto;gap:4px 10px;background:#272018;border-radius:12px;padding:10px;margin:8px 0}.pp-act{display:flex;flex-direction:column;gap:8px;margin:10px 0}.pp-file{display:block;background:#3a2f22;padding:12px;border-radius:10px;text-align:center;margin:6px 0}.pp-ok{background:#1f5c36;border-radius:10px;padding:10px;margin:8px 0}.pp-warn{background:#6b2a22;border-radius:10px;padding:10px;margin:8px 0}.pp-proof{width:100%;max-height:340px;object-fit:contain;border-radius:10px;margin:8px 0;background:#000}.pp-msgs{max-height:220px;overflow:auto;background:#272018;border-radius:12px;padding:8px;margin:6px 0}.pp-m{max-width:80%;background:#3a2f22;border-radius:10px;padding:6px 9px;margin:4px 0}.pp-m.me{margin-left:auto;background:#7a3a24}.pp-m small{opacity:.6;font-size:10px}.pp-send{display:flex;gap:6px}.pp-link{background:none;opacity:.7;font-size:12px;margin-top:8px}.pp-badge{font-style:normal;color:#F5B83D}.pp-modal{position:fixed;inset:0;z-index:100010;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px}.pp-mc{background:#1b1712;color:#fff;border-radius:16px;padding:16px;width:100%;max-width:400px;display:flex;flex-direction:column;gap:8px;font:14px system-ui}.pp-mc button{border:0;border-radius:10px;padding:10px;background:#3a2f22;color:#fff}.pp-tg{display:flex;gap:6px;align-items:flex-start;background:#272018;border-radius:10px;padding:10px}.pp-back{border:0;border-radius:10px;padding:8px 12px;background:#3a2f22;color:#fff;margin-bottom:6px}.pp-ver{color:#5ee08a;font-size:11px;margin-left:4px}';
+  D.head.appendChild(s);
+  W.BaliPay = { open:openBox, buy:buy, report:report, badge:function(uid){ return !!(badges[uid] && badges[uid].v); }, listen:start };
+  /* mulai mendengar badge penjual & notifikasi begitu login (agar lencana tampil di feed) */
+  var iv = setInterval(function(){ if (me() && db()){ start(); clearInterval(iv); } }, 1500);
+})(window);
+</script>
+<style id="aiOrbFix">
+/* FIX: orb AI tengah — bulat sempurna & simetris di semua HP */
+.bottom-nav .bn-ai,#mNav .bn-ai{
+  box-sizing:border-box!important;width:64px!important;height:64px!important;min-width:64px!important;max-width:64px!important;
+  flex:0 0 64px!important;aspect-ratio:1/1;padding:0!important;margin:0 6px!important;border-radius:50%!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  align-self:center;position:relative;overflow:visible;-webkit-tap-highlight-color:transparent;
+}
+.bottom-nav .bn-ai{top:-15px!important;transform:none}
+#mNav .bn-ai{top:0!important;transform:translateY(-14px)!important}
+.bn-ai .bn-ai-face-inner{box-sizing:border-box!important;position:absolute!important;inset:0!important;width:auto!important;height:auto!important;border-radius:50%!important;margin:0!important}
+.bn-ai .bn-ai-ring-outer{box-sizing:border-box;border-radius:50%!important;left:auto!important;top:auto!important;margin:0!important;aspect-ratio:1/1}
+.bn-ai .bn-ai-ring-outer.r1{inset:-6px!important;width:auto!important;height:auto!important}
+.bn-ai .bn-ai-ring-outer.r2{inset:-12px!important;width:auto!important;height:auto!important}
+/* wajah: mata kiri-kanan sejajar & sama jarak, mulut tepat di tengah */
+.bn-ai .bn-ai-eye{width:7px!important;height:7px!important;top:42%!important;margin-top:-5px;transform-origin:center}
+.bn-ai .bn-ai-eye.l{left:calc(50% - 15px)!important;right:auto!important}
+.bn-ai .bn-ai-eye.r{left:calc(50% + 8px)!important;right:auto!important}
+.bn-ai .bn-ai-mouth{left:50%!important;margin-left:-8px;transform:none!important;bottom:30%!important;width:16px!important;height:7px!important;box-sizing:border-box}
+</style>
 </body>
 </html>

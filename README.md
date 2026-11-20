@@ -7,7 +7,7 @@ Produk ini didaftarkan ke **BUDAYA GO! 2026** (Kementerian Kebudayaan RI)
 
 | | |
 |---|---|
-| **Versi** | 2.1 (menambah Pasar Dunia dan menu bawah untuk HP) |
+| **Versi** | 2.3 (Pembayaran Rupiah dengan Rekber, verifikasi penjual, chat pesanan, diskon dari koin game, dan perbaikan tombol AI) |
 | **Bentuk** | Aplikasi web satu berkas (`index.html`), responsif untuk HP dan laptop |
 | **Bahasa antarmuka** | Indonesia (dengan terjemahan otomatis ID ↔ EN) |
 | **Tim** | Nelson Ferdinand Wangsaputra (ketua), Mario Cahyana, Reynard Adrian Tjakrasendjaja |
@@ -20,6 +20,7 @@ Produk ini didaftarkan ke **BUDAYA GO! 2026** (Kementerian Kebudayaan RI)
 2. [Akar budaya](#akar-budaya)
 3. [Fitur](#fitur)
 4. [Pasar Dunia](#pasar-dunia-social-commerce)
+   - [Pembayaran Rupiah dengan Rekber](#pembayaran-rupiah-dengan-rekber)
 5. [Teknologi](#teknologi)
 6. [Arsitektur singkat](#arsitektur-singkat)
 7. [Cara menjalankan](#cara-menjalankan)
@@ -55,7 +56,7 @@ Unsur budaya dalam produk ini bukan hiasan. Ia menentukan cara kerja fitur dan j
 
 ## Fitur
 
-**Navigasi.** Di HP (layar sampai 700 px) menu ada di bilah bawah: *Catat*, *Dashboard*, *Asisten AI* (tombol tengah), *Pasar*, dan *Lainnya*. Tombol *Lainnya* membuka panel "Semua Menu" yang dikelompokkan (Keuangan, Jualan & Konten, Komunitas & Dunia, AI & Akun). Mengetuk menu yang sedang aktif menyembunyikan panel agar latar 3D dan nama kiosnya terlihat penuh; ketuk lagi untuk kembali. Di laptop dan tablet menu berupa rel ikon di sisi kiri. Pilihan tampilan HP dapat diubah di **Pengaturan → Menu samping**.
+**Navigasi.** Di HP (layar sampai 700 px) menu ada di bilah bawah: *Catat*, *Dashboard*, *Asisten AI* (tombol tengah, bulat simetris), *Pasar*, dan *Lainnya*. Tombol *Lainnya* membuka panel "Semua Menu" yang dikelompokkan (Keuangan, Jualan & Konten, Komunitas & Dunia, AI & Akun). Mengetuk menu yang sedang aktif menyembunyikan panel agar latar 3D dan nama kiosnya terlihat penuh; ketuk lagi untuk kembali. Di laptop dan tablet menu berupa rel ikon di sisi kiri. Pilihan tampilan HP dapat diubah di **Pengaturan → Menu samping**.
 
 | Modul | Fungsi |
 |---|---|
@@ -64,7 +65,7 @@ Unsur budaya dalam produk ini bukan hiasan. Ia menentukan cara kerja fitur dan j
 | 📊 **Dashboard** | Grafik pemasukan vs pengeluaran per kategori dan tren transaksi. |
 | 📸 **Bikin Konten** | Unggah foto produk, AI membuat *caption* siap posting. Tersedia tampilan *exploded view* 3D. |
 | 🌍 **Galeri** | Etalase publik karya UMKM se-Indonesia, dengan fitur *boost* agar produk tampil di posisi atas. |
-| 🛍️ **Pasar Dunia** | Toko online sosial: feed produk, beli dengan koin game, kurir kota, paspor belanja, afiliasi, dan ulasan. Lihat [bagian khusus](#pasar-dunia-social-commerce). |
+| 🛍️ **Pasar Dunia** | Toko online sosial: feed produk, beli dengan koin game atau Rupiah lewat Rekber, kurir kota, paspor belanja, afiliasi, dan ulasan. Lihat [bagian khusus](#pasar-dunia-social-commerce). |
 | 📺 **LIVE** | Siaran langsung (WebRTC lewat LiveKit) dengan **AI Order Taker** yang mencatat pesanan dari komentar penonton. Ekspor pesanan masuk. |
 | 🎥 **Video** | Galeri rekaman sesi live. |
 | 👥 **Komunitas** | Profil pengguna, status online, peta lokasi UMKM, dan peta jelajah Dunia 3D. |
@@ -72,7 +73,7 @@ Unsur budaya dalam produk ini bukan hiasan. Ia menentukan cara kerja fitur dan j
 | 🧠 **Otak AI** | Jaringan saraf mini yang dilatih **di browser pengguna** dari riwayat transaksinya, untuk memprediksi laba harian, mengenali hari terkuat, dan mendeteksi anomali. Minimal 5 hari berbeda dengan transaksi. |
 | 🚚 **Agen Rantai Pasok** | Agen AI berbasis *tool-calling* yang membaca stok dan pemasok, mencari kecocokan di Pasar Kongsi, lalu menyiapkan **draf tindakan**. Pemilik usaha yang memutuskan (*human-in-the-loop*). Dapat mengirim rekomendasi pembelian ke SAP (mode simulasi tersedia). |
 | 🤖 **Nego Harga AI** | Penjual mengaktifkan asisten AI untuk menawar dengan pembeli; pembayaran lewat Midtrans milik penjual sendiri. |
-| 🪙 **Dompet Poin** | Misi harian (misalnya mencatat transaksi) yang memberi poin, plus Dunia 3D dan mini-game opsional. |
+| 🪙 **Dompet Poin** | Misi harian (misalnya mencatat transaksi) yang memberi poin, plus Dunia 3D dan mini-game opsional. Koin Dunia 3D dapat ditukar menjadi diskon belanja Rupiah. |
 | 🗺️ **Peta RI / Dunia 3D** | Jelajah dunia 3D, naik pesawat atau kapal antar-14 kota, pilih kursi dan ngobrol dengan teman sebelah, mode pilot/nahkoda, cutscene disambut tari dan musik daerah, Papan Kerja (antar paket UMKM antar-kota), dan Paspor Nusantara. Masuk ke Ruang Usaha mitra untuk melihat ringkasan kinerja (bila pemilik mengizinkan) dan rak produk Pasar Dunia mereka. |
 | ⚙️ **Pengaturan** | Mode tampilan Bali (Otomatis/Hemat/Penuh), menu samping, terjemahan ID ↔ EN, notifikasi, kunci API AI, integrasi SAP, dan ringkasan harian lewat WhatsApp. |
 
@@ -91,8 +92,50 @@ Pasar Dunia mempertemukan UMKM dengan pembeli akhir di dalam dunia bersama, buka
 | **Afiliasi** | Tombol Bagikan membuat tautan `?pasar=…&ref=…`; pembeli yang datang lewat tautan itu memberi komisi 5% kepada pembagi. |
 | **Ulasan** | Setelah pesanan selesai, pembeli memberi bintang 1–5 dan ulasan singkat; rata-rata tampil di kartu produk. |
 | **Tiket dan oleh-oleh** | Kategori Oleh-oleh dan Paket wisata, dengan tautan ke Peta RI untuk memesan tiket di game. |
+| **Beli dengan Rupiah (Rekber)** | Tombol **💳 Beli Rp** di kartu produk memulai pesanan uang nyata dengan rekening bersama. Lihat bagian di bawah. |
+| **Laporkan konten** | Tombol 🚩 di produk dan pesanan; admin dapat menyembunyikan postingan. |
 
-> **Penting:** semua transaksi Pasar Dunia memakai **koin game**, bukan uang nyata. Escrow, pencairan, dan komisi saat ini berjalan di sisi klien (lihat [Status dan batasan](#status-dan-batasan)). Pembayaran uang nyata lewat payment gateway belum terhubung ke Pasar Dunia.
+> **Penting:** tab **📦 Koin** memakai **koin game**, bukan uang nyata; escrow koin berjalan di sisi klien dan tidak boleh ditukar ke uang. Koin hanya boleh dipakai sebagai **diskon terbatas** (lihat [Koin game jadi diskon](#koin-game-jadi-diskon)). Uang nyata hanya lewat tab **💳 Rupiah** (Rekber, di bawah). Payment gateway otomatis belum terhubung ke Pasar Dunia.
+
+### Pembayaran Rupiah dengan Rekber
+
+Tanpa payment gateway: pembeli mentransfer ke **rekening bersama (rekber) milik admin**, bukan ke penjual. Dana ditahan sampai barang diterima, sehingga penjual tidak bisa membawa uang kabur dan pembeli tidak bisa mengklaim tanpa bukti.
+
+| Langkah | Pelaku | Status |
+|---|---|---|
+| 1. Menekan **Beli Rp**; aplikasi membuat total = harga + kode unik 3 digit (mis. Rp50.992) | Pembeli | Menunggu pembayaran |
+| 2. Transfer sesuai nominal ke rekening rekber, unggah foto bukti | Pembeli | Bukti dicek admin |
+| 3. Mencocokkan bukti dengan mutasi rekening; menahan dana atau menolak dengan alasan | Admin | Dana ditahan rekber |
+| 4. Mengirim barang dan mengisi kurir/resi | Penjual | Dikirim |
+| 5. Menekan **Sudah saya terima** | Pembeli | Diterima |
+| 6. Mentransfer ke rekening penjual (dipotong biaya layanan 3%) dan menandai sudah cair | Admin | Selesai |
+
+Fitur pendukung:
+
+- **Rekening dan e-wallet:** BCA, BRI, BNI, Mandiri, DANA, GoPay, OVO, ShopeePay, QRIS. Logo (chip warna merek) tampil otomatis sesuai pilihan. Nomor hanya terlihat oleh pemilik dan admin; di layar ditampilkan tersamar (`••••7890`).
+- **Verifikasi penjual:** nama sesuai KTP, nomor WA, foto KTP, dan selfie, disetujui admin. Penjual terverifikasi mendapat lencana ✅ dan batas Rp5.000.000 per pesanan; yang belum terverifikasi dibatasi Rp200.000.
+- **Chat per pesanan** antara pembeli dan penjual, dan **notifikasi** di aplikasi (dengan notifikasi browser bila diizinkan).
+- **Sengketa dan refund:** pembeli atau penjual dapat mengajukan; dana tetap ditahan sampai admin memutuskan (cairkan ke penjual atau refund ke rekening pembeli).
+- **Kedaluwarsa otomatis:** pesanan yang belum dibayar 24 jam dibatalkan dan stoknya dikembalikan. Pesanan dikirim yang tidak dikonfirmasi 7 hari dapat dicairkan admin.
+- **Tab 👑 Admin** (khusus akun admin): atur rekening rekber, setujui verifikasi, cek bukti transfer, cairkan dana, tangani sengketa dan laporan.
+- **Koin game jadi diskon:** lihat bagian di bawah.
+- **Privasi:** lokasi pengguna tidak dibagikan ke pengguna lain. Rasa aman dibangun dari rekber, verifikasi, rating, dan batas transaksi, bukan dari pelacakan posisi.
+
+#### Koin game jadi diskon
+
+Koin hasil misi dan jelajah Dunia 3D punya kegunaan nyata: ditukar menjadi **diskon pada pembelian Rupiah**, sehingga bermain memberi manfaat bagi pembeli tanpa uang pernah berpindah ke dalam game.
+
+| Aturan | Nilai |
+|---|---|
+| Nilai tukar | 1 koin = Rp100 |
+| Batas diskon per pesanan | Terkecil dari **10% harga** dan **Rp10.000** (maks. 100 koin) |
+| Penanggung biaya | **Platform**, bukan penjual: penjual tetap menerima harga + kode unik − biaya layanan 3% |
+| Koin tidak cukup / pesanan batal / kedaluwarsa / refund sengketa | Koin otomatis dikembalikan |
+| Tampilan | Saat menekan **Beli Rp** muncul pilihan "Pakai koin"; pembeli memilih jumlah dan melihat total transfer |
+
+Alasan batasnya: saldo koin tersimpan di perangkat pemain sehingga bisa dipalsukan. Dengan batas 10%/Rp10.000 dan biaya ditanggung platform, kerugian terburuk per pesanan terbatas dan dapat dipantau admin (setiap notifikasi pesanan mencantumkan diskon koin). Rules Firebase juga menolak diskon di atas batas itu dan menolak `total` yang tidak sama dengan `harga + kode − diskon`. Bila pesanan Rupiah sudah banyak, pindahkan saldo koin ke server sebelum nilai tukarnya dinaikkan.
+
+Catatan operasional: pencocokan mutasi dan pencairan **dilakukan manual oleh admin**, sehingga cocok untuk volume kecil sampai menengah. Bila pesanan sudah banyak, pindah ke payment gateway (Midtrans/Xendit) dengan webhook di server.
 
 ## Teknologi
 
@@ -119,7 +162,9 @@ Font: Plus Jakarta Sans, Inter, JetBrains Mono, Cinzel.
  Browser (index.html)
    │
    ├── Firebase Auth / Realtime DB ── akun, profil, komunitas, Pasar Kongsi, poin,
-   │                                   Pasar Dunia (shopPosts, shopOrders, shopReviews)
+   │                                   Pasar Dunia (shopPosts, shopOrders, shopReviews),
+   │                                   Rekber (payConfig, payOrders, payIdx, payProofs, payChat,
+   │                                   payNotif, sellerPay, sellerVerify, sellerBadge, reports)
    ├── Groq → Gemini → OpenRouter ──── AI (kunci pengguna, atau lewat /api/ai-proxy)
    ├── LiveKit (+ Cloudflare Worker) ─ siaran langsung
    ├── Cloudinary ──────────────────── rekaman video
@@ -158,7 +203,9 @@ Di awal `index.html` terdapat objek `firebaseConfig`. Ganti dengan proyek Fireba
 1. Buat proyek di [console.firebase.google.com](https://console.firebase.google.com).
 2. Aktifkan **Authentication** (email/password), **Realtime Database**, dan **Storage**.
 3. Salin konfigurasi web ke `firebaseConfig`, pastikan `databaseURL` terisi.
-4. **Pasang Rules database** (jangan tinggalkan *test mode*): buka Realtime Database → tab **Rules**, tempel isi `firebase-rules-LENGKAP.json`, uji di **Rules Playground**, lalu **Publish**. Tanpa blok `shopPosts`, `shopOrders`, dan `shopReviews`, Pasar Dunia tidak dapat menyimpan data.
+4. **Pasang Rules database** (jangan tinggalkan *test mode*): buka Realtime Database → tab **Rules**, tempel isi `database.rules.merged.json` (rules lama + blok Rekber), uji di **Rules Playground**, lalu **Publish**. Tanpa blok `shopPosts`, `shopOrders`, dan `shopReviews`, Pasar Dunia tidak dapat menyimpan data; tanpa blok `pay*`, `seller*`, dan `reports`, fitur Rekber ditolak Firebase.
+5. **Jadikan diri sebagai admin:** di tab **Data**, buat `admins` → `<UID akun admin>` → `true` (UID ada di Authentication → Users). Tanpa ini tab 👑 Admin tidak bisa menulis konfigurasi atau memproses pesanan.
+6. **Atur rekening rekber:** login sebagai admin, buka *Pasar → 💳 Rupiah → 👑 Admin*, tambahkan rekening tujuan transfer. Sebelum itu tombol **Beli Rp** menolak dengan pesan "Rekening rekber belum diatur".
 
 ### 2. Kunci AI
 
@@ -200,7 +247,8 @@ Tanpa endpoint ini, fitur terkait tidak berjalan, tetapi fitur lain tetap bisa d
 4. **Bikin konten** dari foto produk, lalu tampilkan di **Galeri**.
 5. **Jual di Pasar Dunia:** buka *Pasar → ➕ Jual*, isi nama, harga, stok, kategori, dan foto. Produk muncul di feed dan di rak Ruang Usaha 3D-mu.
 6. **Jualan live**, pesanan masuk tercatat otomatis.
-7. **Belanja dan antar:** pembeli memesan dengan koin; pemain lain bisa mengambil antaran sebagai kurir; pembeli menekan "Terima" lalu memberi ulasan.
+7. **Belanja dan antar:** pembeli memesan dengan koin (game) atau **Beli Rp** (uang nyata lewat Rekber); pemain lain bisa mengambil antaran koin sebagai kurir; pembeli menekan "Terima" lalu memberi ulasan koin.
+   - Penjual yang ingin menerima uang nyata: isi rekening di *💳 Rupiah → 🏦 Rekening* dan ajukan verifikasi.
 8. **Kongsi**: tawarkan stok lebih atau ikut patungan belanja di Pasar Kongsi.
 9. Setelah data cukup, **latih Otak AI** untuk prediksi dan deteksi anomali.
 10. Jelajahi **Dunia 3D** untuk mengumpulkan poin, mengunjungi Ruang Usaha mitra, dan bepergian antar-kota.
@@ -215,9 +263,11 @@ Bagian ini sengaja ditulis apa adanya.
 - Pembayaran Midtrans memakai kunci milik penjual; pengujian sandbox tidak sama dengan transaksi riil.
 - **Pasar Dunia memakai koin game, bukan uang nyata.** Saldo koin tersimpan di perangkat pemain, dan escrow, pencairan, serta komisi dijalankan di sisi klien, sehingga dapat dimanipulasi. Jangan dipakai untuk uang nyata sebelum dipindah ke server dan payment gateway.
 - Kurir kota di Pasar Dunia masih **simulasi** (waktu tunggu tetap 45 detik, tanpa lokasi nyata). Upah kurir dicetak sistem, bukan diambil dari pembeli.
+- Saldo koin untuk diskon tersimpan di perangkat dan dapat dipalsukan; kerugian dibatasi lewat batas diskon dan Rules, bukan dicegah. Alur koin dipotong dan dikembalikan saat batal sudah diuji, tetapi pengembalian untuk sengketa belum dijalankan.
+- Rekber Rupiah berjalan **tanpa server**: pencocokan mutasi dan pencairan manual oleh admin, keamanan status pesanan bergantung penuh pada Firebase Rules. Foto KTP/selfie/bukti transfer disimpan sebagai gambar terkompresi di Realtime Database (belum terenkripsi khusus). Pesanan Rupiah belum bisa diulas (ulasan masih hanya untuk pesanan koin).
 - Live shopping baru berupa tombol menuju toko penyiar; belum ada beli satu ketuk di dalam video. Posting produk baru berupa foto; video belum didukung.
 - Paket wisata dan oleh-oleh belum terhubung dengan mitra atau UMKM nyata.
-- Sudah diuji di Chromium tanpa tampilan (headless) dengan Firebase tiruan: alur beli, antar, terima, pencairan koin, pencarian, dan ulasan. **Belum diuji:** dua pemain nyata dalam satu alur, rak produk 3D di WebGL, tampilan di HP sungguhan, suara cutscene di HP, dan aturan Firebase di simulator.
+- Sudah diuji di Chromium tanpa tampilan (headless) dengan Firebase tiruan: alur beli, antar, terima, pencairan koin, pencarian, dan ulasan. Alur Rekber (pesan, bukti, tahan dana, kirim, terima, cairkan, chat, notifikasi) diuji dengan tiga akun tiruan dan database tiruan di Chromium; **sengketa, refund, dan verifikasi penjual belum dijalankan dalam tes**. **Belum diuji:** Rekber di Firebase asli beserta Rules-nya, dua pemain nyata dalam satu alur, rak produk 3D di WebGL, tampilan di HP sungguhan, suara cutscene di HP, dan aturan Firebase di simulator.
 - Cakupan budaya saat ini berpusat pada Bali dan komoditas 14 kota; belum ada modul bahasa daerah atau arsip pengetahuan budaya.
 - Belum ada data pengguna aktif atau omzet yang terdokumentasi; angka semacam itu tidak boleh dicantumkan sebelum bisa diverifikasi.
 - Latar 3D berat di HP lama; gunakan **Mode hemat** di Pengaturan. Pada mode hemat atau tanpa 3D, fitur "ketuk menu aktif untuk melihat latar" tidak berfungsi.
@@ -225,8 +275,8 @@ Bagian ini sengaja ditulis apa adanya.
 ## Keamanan dan privasi
 
 - Konfigurasi web Firebase memang tampil di sisi klien, tetapi keamanannya bergantung pada **Firebase Security Rules**. Pastikan aturan membatasi data pribadi (profil, transaksi, chat, tagihan) hanya untuk pemiliknya.
-- Rules Pasar Dunia membatasi: postingan hanya dapat dibuat atas uid pemiliknya (harga minimal Rp1.000, stok 0–999, ukuran foto dibatasi); pesanan hanya dapat berpindah status berurutan (dibayar → diambil kurir → diantar → selesai) dan harganya tidak dapat diubah; ulasan hanya oleh pembeli pesanan yang sudah selesai, satu kali per pesanan.
-- **Risiko yang diketahui pada Rules saat ini:** `gameData/$uid/poin`, `rewards`, `redemptions`, `topupRequests`, `pointTransfers`, `gallery`, `liveSessions`, dan `pasarKongsi` dapat ditulis oleh pengguna login mana pun, dan `users` (termasuk email) dapat dibaca semua pengguna login. Perketat sebelum poin atau koin bernilai nyata.
+- Rules Rekber: diskon koin dibatasi 10% harga atau Rp10.000 dan total harus sama dengan harga + kode − diskon; nomor rekening, data verifikasi, dan bukti transfer hanya dapat dibaca pemilik dan admin; pesanan hanya dapat dibaca pembeli, penjual, dan admin; harga, total, pembeli, dan penjual tidak dapat diubah setelah dibuat; perpindahan status dibatasi per peran (pembeli: bukti, batal, terima, sengketa; penjual: kirim, sengketa; admin: tahan dana, cairkan, refund); chat hanya untuk pihak terkait. Rules Pasar Dunia membatasi: postingan hanya dapat dibuat atas uid pemiliknya (harga minimal Rp1.000, stok 0–999, ukuran foto dibatasi); pesanan hanya dapat berpindah status berurutan (dibayar → diambil kurir → diantar → selesai) dan harganya tidak dapat diubah; ulasan hanya oleh pembeli pesanan yang sudah selesai, satu kali per pesanan.
+- **Risiko yang diketahui pada Rules saat ini:** `gameData/$uid/poin`, `rewards`, `redemptions`, `topupRequests`, `pointTransfers`, `gallery`, `liveSessions`, dan `pasarKongsi` dapat ditulis oleh pengguna login mana pun, dan `users` (termasuk email) dapat dibaca semua pengguna login. Perketat sebelum poin atau koin bernilai nyata. Rekber Rupiah tidak bergantung pada poin atau koin tersebut.
 - Kunci AI yang diisi pengguna tersimpan di `localStorage` browser masing-masing. Jangan memakai kunci berbayar di perangkat bersama.
 - Server Key Midtrans tidak boleh berada di kode klien; simpan di sisi server.
 - Preset unggah Cloudinary yang bersifat *unsigned* sebaiknya dibatasi (jenis berkas, ukuran, folder).
@@ -237,8 +287,8 @@ Bagian ini sengaja ditulis apa adanya.
 
 | Jangka | Target |
 |---|---|
-| **Berikutnya** | Chat pembeli–penjual dari kartu produk; notifikasi pesanan; video produk pendek; perketat Rules poin dan koin; ujicoba dua pemain nyata dan di HP sungguhan; prototipe AR "lihat produk di ruanganmu". |
-| **6–12 bulan** | Payment gateway dengan escrow di server dan kurir sungguhan (misalnya lewat agregator ongkir); verifikasi penjual, moderasi konten, dan alur refund; uji lapangan dengan sejumlah UMKM budaya Bali (kain endek, ukiran, kuliner); dokumentasikan data penggunaan; pindahkan backend ke layanan terkelola; konsultasi budaya dengan komunitas perajin. |
+| **Berikutnya** | Ulasan untuk pesanan Rupiah; uji sengketa dan refund; Cloud Function untuk validasi status dan pencairan otomatis; video produk pendek; perketat Rules poin dan koin; ujicoba dua pemain nyata dan di HP sungguhan; prototipe AR "lihat produk di ruanganmu". |
+| **6–12 bulan** | Payment gateway dengan escrow di server dan kurir sungguhan (misalnya lewat agregator ongkir); verifikasi OTP nomor penjual, moderasi konten otomatis; uji lapangan dengan sejumlah UMKM budaya Bali (kain endek, ukiran, kuliner); dokumentasikan data penggunaan; pindahkan backend ke layanan terkelola; konsultasi budaya dengan komunitas perajin. |
 | **1–2 tahun** | Perluas ke daerah lain dengan kurator budaya lokal; modul atribusi dan asal-usul produk budaya; kemitraan nyata untuk paket wisata dan oleh-oleh; kerja sama dengan pasar seni, koperasi, dan jasa kurir. |
 | **3–5 tahun** | Jaringan Pasar Kongsi lintas provinsi; kemitraan promosi budaya ke pasar luar negeri berbasis bukti; eksplorasi VR untuk Dunia 3D. |
 
